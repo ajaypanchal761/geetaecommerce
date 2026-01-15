@@ -91,15 +91,15 @@ export default function DeliveryLogin() {
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden">
         {/* Header Section */}
         <div className="px-6 py-4 text-center border-b border-green-700" style={{ backgroundColor: 'rgb(21 178 74 / var(--tw-bg-opacity, 1))' }}>
-          <div className="mb-0 -mt-4">
+          <div className="mb-2">
             <img
               src="/assets/geetastoreslogo.png"
               alt="Geeta Stores"
-              className="h-44 w-full max-w-xs mx-auto object-fill object-bottom"
+              className="h-24 w-auto mx-auto object-contain"
             />
           </div>
-          <h1 className="text-2xl font-bold text-white mb-1 -mt-12">Delivery Login</h1>
-          <p className="text-green-50 text-sm -mt-2">Access your delivery dashboard</p>
+          <h1 className="text-2xl font-bold text-white mb-1">Delivery Login</h1>
+          <p className="text-green-50 text-sm">Access your delivery dashboard</p>
         </div>
 
         {/* Login Form */}

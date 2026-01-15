@@ -3,6 +3,7 @@ import {
   useContext,
   useState,
   ReactNode,
+  useEffect,
 } from "react";
 import {
   setAuthToken,
@@ -11,6 +12,8 @@ import {
   detectModuleFromPath,
   setModuleUserData,
   removeModuleAuthToken,
+  getModuleAuthToken,
+  getModuleUserData,
 } from "../utils/moduleAuth";
 
 interface User {
@@ -31,18 +34,40 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  // Simple initialization - route guards handle actual auth checks
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  // Initialize state from local storage to persist session across refreshes
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    const module = detectModuleFromPath();
+    const token = getModuleAuthToken(module);
+    const user = getModuleUserData(module);
+    return !!(token && user);
+  });
+
+  const [user, setUser] = useState<User | null>(() => {
+    const module = detectModuleFromPath();
+    return getModuleUserData(module);
+  });
+
+  const [token, setToken] = useState<string | null>(() => {
+    const module = detectModuleFromPath();
+    return getModuleAuthToken(module);
+  });
+
+  // Sync axios token header whenever token changes
+  useEffect(() => {
+    if (token) {
+      setAuthToken(token);
+    } else {
+      setAuthToken(null);
+    }
+  }, [token]);
 
   const login = (newToken: string, userData: User) => {
     const module = detectModuleFromPath();
     setToken(newToken);
     setUser(userData);
     setIsAuthenticated(true);
-    setAuthToken(newToken);
     setModuleUserData(userData, module);
+    // setAuthToken handled by effect
   };
 
   const logout = () => {
@@ -51,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setIsAuthenticated(false);
     removeModuleAuthToken(module);
+    // setAuthToken handled by effect
   };
 
   const updateUser = (userData: User) => {

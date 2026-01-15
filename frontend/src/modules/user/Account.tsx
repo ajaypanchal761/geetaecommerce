@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { getProfile, CustomerProfile } from '../../services/api/customerService';
@@ -87,20 +87,20 @@ export default function Account() {
           </div>
         </div>
 
-        <div className="px-4 md:px-6 lg:px-8 mt-6">
+        <div className="px-4 md:px-6 lg:px-8 mt-6 relative z-10">
           <div className="max-w-md mx-auto space-y-3">
-            <button
-              onClick={() => navigate('/login')}
-              className="w-full py-3.5 rounded-lg font-semibold text-base bg-teal-600 text-white hover:bg-teal-700 transition-colors shadow-lg shadow-teal-500/20"
+            <Link
+              to="/login"
+              className="block w-full text-center py-3.5 rounded-lg font-semibold text-base bg-teal-600 text-white hover:bg-teal-700 transition-colors shadow-lg shadow-teal-500/20"
             >
               Login
-            </button>
-            <button
-              onClick={() => navigate('/signup')}
-              className="w-full py-3.5 rounded-lg font-semibold text-base bg-white text-teal-600 border-2 border-teal-600 hover:bg-teal-50 transition-colors"
+            </Link>
+            <Link
+              to="/signup"
+              className="block w-full text-center py-3.5 rounded-lg font-semibold text-base bg-white text-teal-600 border-2 border-teal-600 hover:bg-teal-50 transition-colors"
             >
               Sign Up
-            </button>
+            </Link>
           </div>
         </div>
       </div>

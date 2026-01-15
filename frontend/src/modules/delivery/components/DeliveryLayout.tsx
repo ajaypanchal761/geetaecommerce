@@ -38,7 +38,7 @@ function DeliveryLayoutContent({ children }: DeliveryLayoutContentProps) {
   }, [setUserName]);
 
   return (
-    <div className={`flex flex-col min-h-screen bg-neutral-100 transition-all duration-300 ${!isOnline ? 'grayscale' : ''}`}>
+    <div className={`flex flex-col h-screen overflow-hidden bg-neutral-100 transition-all duration-300 ${!isOnline ? 'grayscale' : ''}`}>
       <main className="flex-1 overflow-y-auto scrollbar-hide pb-20">
         {children}
       </main>

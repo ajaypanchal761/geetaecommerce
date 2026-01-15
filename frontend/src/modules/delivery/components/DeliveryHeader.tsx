@@ -11,14 +11,14 @@ export default function DeliveryHeader({ userName }: DeliveryHeaderProps) {
   const displayName = userName || contextUserName;
 
   return (
-    <div className="bg-white shadow-sm">
+    <div className="bg-white shadow-sm sticky top-0 z-[40]">
       {/* Offline Banner */}
       {!isOnline && (
         <div className="px-4 py-2 bg-neutral-500 text-white text-xs font-medium text-center">
           Offline
         </div>
       )}
-      
+
       {/* Header Content */}
       <div className="px-4 py-3">
         {/* App Title */}
@@ -27,7 +27,7 @@ export default function DeliveryHeader({ userName }: DeliveryHeaderProps) {
         }`}>
           Delivery App
         </h1>
-        
+
         {/* User Info Bar */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -45,7 +45,7 @@ export default function DeliveryHeader({ userName }: DeliveryHeaderProps) {
               <span className="text-neutral-900 text-xs font-medium">{displayName}</span>
             </div>
           </div>
-          
+
           {/* Toggle Switch */}
           <button
             onClick={() => setIsOnline(!isOnline)}

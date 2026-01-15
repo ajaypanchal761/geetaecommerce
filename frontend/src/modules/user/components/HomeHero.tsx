@@ -1,10 +1,10 @@
 import { useNavigate } from 'react-router-dom';
 import { useLayoutEffect, useRef, useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { getTheme } from '../../../utils/themes';
 import { useLocation } from '../../../hooks/useLocation';
-import { appConfig } from '../../../services/configService';
 import { getCategories } from '../../../services/api/customerProductService';
 import { Category } from '../../../types/domain';
 import { getHeaderCategoriesPublic } from '../../../services/api/headerCategoryService';
@@ -55,6 +55,7 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
     };
     fetchHeaderCategories();
   }, []);
+
   const navigate = useNavigate();
   const { location: userLocation } = useLocation();
   const heroRef = useRef<HTMLDivElement>(null);
@@ -63,25 +64,15 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   const [currentSearchIndex, setCurrentSearchIndex] = useState(0);
-  const [, setIsSticky] = useState(false);
+  const [isSticky, setIsSticky] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 });
 
-  // Format location display text - only show if user has provided location
+  // Format location display text
   const locationDisplayText = useMemo(() => {
-    if (userLocation?.address) {
-      // Use the full address if available
-      return userLocation.address;
-    }
-    // Fallback to city, state format if available
-    if (userLocation?.city && userLocation?.state) {
-      return `${userLocation.city}, ${userLocation.state}`;
-    }
-    // Fallback to city only
-    if (userLocation?.city) {
-      return userLocation.city;
-    }
-    // No default - return empty string if no location provided
+    if (userLocation?.address) return userLocation.address;
+    if (userLocation?.city && userLocation?.state) return `${userLocation.city}, ${userLocation.state}`;
+    if (userLocation?.city) return userLocation.city;
     return '';
   }, [userLocation]);
 
@@ -105,50 +96,29 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
     fetchCategories();
   }, []);
 
-  // Search suggestions based on active tab or fetched categories
+  // Search suggestions
   const searchSuggestions = useMemo(() => {
     if (activeTab === 'all' && categories.length > 0) {
-      // Use real category names for 'all' tab suggestions
       return categories.slice(0, 8).map(c => c.name.toLowerCase());
     }
-
     switch (activeTab) {
-      case 'wedding':
-        return ['gift packs', 'dry fruits', 'sweets', 'decorative items', 'wedding cards', 'return gifts'];
-      case 'winter':
-        return ['woolen clothes', 'caps', 'gloves', 'blankets', 'heater', 'winter wear'];
-      case 'electronics':
-        return ['chargers', 'cables', 'power banks', 'earphones', 'phone cases', 'screen guards'];
-      case 'beauty':
-        return ['lipstick', 'makeup', 'skincare', 'kajal', 'face wash', 'moisturizer'];
-      case 'grocery':
-        return ['atta', 'milk', 'dal', 'rice', 'oil', 'vegetables'];
-      case 'fashion':
-        return ['clothing', 'shoes', 'accessories', 'watches', 'bags', 'jewelry'];
-      case 'sports':
-        return ['cricket bat', 'football', 'badminton', 'fitness equipment', 'sports shoes', 'gym wear'];
-      default: // 'all'
-        return ['atta', 'milk', 'dal', 'coke', 'bread', 'eggs', 'rice', 'oil'];
+      case 'wedding': return ['gift packs', 'dry fruits', 'sweets', 'decorative items', 'wedding cards', 'return gifts'];
+      case 'winter': return ['woolen clothes', 'caps', 'gloves', 'blankets', 'heater', 'winter wear'];
+      case 'electronics': return ['chargers', 'cables', 'power banks', 'earphones', 'phone cases', 'screen guards'];
+      case 'beauty': return ['lipstick', 'makeup', 'skincare', 'kajal', 'face wash', 'moisturizer'];
+      case 'grocery': return ['atta', 'milk', 'dal', 'rice', 'oil', 'vegetables'];
+      case 'fashion': return ['clothing', 'shoes', 'accessories', 'watches', 'bags', 'jewelry'];
+      case 'sports': return ['cricket bat', 'football', 'badminton', 'fitness equipment', 'sports shoes', 'gym wear'];
+      default: return ['atta', 'milk', 'dal', 'coke', 'bread', 'eggs', 'rice', 'oil'];
     }
-  }, [activeTab]);
+  }, [activeTab, categories]);
 
   useLayoutEffect(() => {
     const hero = heroRef.current;
     if (!hero) return;
-
     const ctx = gsap.context(() => {
-      gsap.fromTo(
-        hero,
-        { opacity: 0, y: 20 },
-        {
-          opacity: 1,
-          y: 0,
-          duration: 0.6,
-          ease: 'power2.out',
-        }
-      );
+      gsap.fromTo(hero, { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.6, ease: 'power2.out' });
     }, hero);
-
     return () => ctx.revert();
   }, []);
 
@@ -158,144 +128,190 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
     const interval = setInterval(() => {
       setCurrentSearchIndex((prev) => (prev + 1) % searchSuggestions.length);
     }, 2000);
-
     return () => clearInterval(interval);
   }, [searchSuggestions.length, activeTab]);
 
-  // Handle scroll to detect when "LOWEST PRICES EVER" section is out of view
+  // Handle scroll for sticky behavior using Intersection detection via BoundingRect
   useEffect(() => {
     const handleScroll = () => {
-      if (topSectionRef.current && stickyRef.current) {
-        // Find the "LOWEST PRICES EVER" section
-        const lowestPricesSection = document.querySelector('[data-section="lowest-prices"]');
+      if (topSectionRef.current) {
+        // We check the bottom position of the top section (Logo).
+        // When it moves out of view (becomes <= 0 or small offset), we stick the header.
+        const topSectionBottom = topSectionRef.current.getBoundingClientRect().bottom;
+        // e.g. if section height is ~60px, transition as it scrolls
+        const threshold = 10; // slightly before full exit
 
-        if (lowestPricesSection) {
-          const sectionBottom = lowestPricesSection.getBoundingClientRect().bottom;
-          // When the section has scrolled up past the viewport, transition to white
-          const progress = Math.min(Math.max(1 - (sectionBottom / 200), 0), 1);
-          setScrollProgress(progress);
-          setIsSticky(sectionBottom <= 100);
-        } else {
-          // Fallback to original logic if section not found
-          const topSectionBottom = topSectionRef.current.getBoundingClientRect().bottom;
-          const topSectionHeight = topSectionRef.current.offsetHeight;
-          const progress = Math.min(Math.max(1 - (topSectionBottom / topSectionHeight), 0), 1);
-          setScrollProgress(progress);
-          setIsSticky(topSectionBottom <= 0);
-        }
+        setIsSticky(topSectionBottom <= threshold);
+
+        // Optional: Progress logic if you want gradient transition
+        const topSectionHeight = topSectionRef.current.offsetHeight || 60;
+        const p = Math.min(Math.max(1 - (topSectionBottom / topSectionHeight), 0), 1);
+        setScrollProgress(p);
       }
     };
 
+    // Attach to MAIN container because that is what scrolls
+    const main = document.querySelector('main');
+    if (main) {
+      main.addEventListener('scroll', handleScroll, { passive: true });
+    }
+    // Also attach to window just in case usage changes
     window.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll(); // Check initial state
 
-    return () => window.removeEventListener('scroll', handleScroll);
+    handleScroll(); // Initial check
+
+    return () => {
+      if (main) main.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('scroll', handleScroll);
+    };
   }, []);
 
-  // Update sliding indicator position when activeTab changes and scroll to active tab
+  // Update sliding indicator
   useEffect(() => {
     const updateIndicator = (shouldScroll = true) => {
       const activeTabButton = tabRefs.current.get(activeTab);
       const container = tabsContainerRef.current;
-
       if (activeTabButton && container) {
         try {
-          // Use offsetLeft for position relative to container (not affected by scroll)
-          // This ensures the indicator stays aligned even when container scrolls
           const left = activeTabButton.offsetLeft;
           const width = activeTabButton.offsetWidth;
+          if (width > 0) setIndicatorStyle({ left, width });
 
-          // Ensure valid values
-          if (width > 0) {
-            setIndicatorStyle({ left, width });
-          }
-
-          // Scroll the container to bring the active tab into view (only when tab changes)
           if (shouldScroll) {
             const containerScrollLeft = container.scrollLeft;
             const containerWidth = container.offsetWidth;
-            const buttonLeft = left;
-            const buttonWidth = width;
-            const buttonRight = buttonLeft + buttonWidth;
-
-            // Calculate scroll position to center the button or keep it visible
-            const scrollPadding = 20; // Padding from edges
+            const buttonRight = left + width;
+            const scrollPadding = 20;
             let targetScrollLeft = containerScrollLeft;
 
-            // If button is on the left side and partially or fully hidden
-            if (buttonLeft < containerScrollLeft + scrollPadding) {
-              targetScrollLeft = buttonLeft - scrollPadding;
-            }
-            // If button is on the right side and partially or fully hidden
-            else if (buttonRight > containerScrollLeft + containerWidth - scrollPadding) {
+            if (left < containerScrollLeft + scrollPadding) {
+              targetScrollLeft = left - scrollPadding;
+            } else if (buttonRight > containerScrollLeft + containerWidth - scrollPadding) {
               targetScrollLeft = buttonRight - containerWidth + scrollPadding;
             }
 
-            // Smooth scroll to the target position
             if (targetScrollLeft !== containerScrollLeft) {
-              container.scrollTo({
-                left: Math.max(0, targetScrollLeft),
-                behavior: 'smooth'
-              });
+              container.scrollTo({ left: Math.max(0, targetScrollLeft), behavior: 'smooth' });
             }
           }
-        } catch (error) {
-          console.warn('Error updating indicator:', error);
-        }
+        } catch (error) { console.warn(error); }
       }
     };
-
-    // Update immediately with scroll
     updateIndicator(true);
-
-    // Also update after delays to handle any layout shifts and ensure smooth animation
-    const timeout1 = setTimeout(() => updateIndicator(true), 50);
-    const timeout2 = setTimeout(() => updateIndicator(true), 150);
-    const timeout3 = setTimeout(() => updateIndicator(false), 300); // Last update without scroll to avoid conflicts
-
-    return () => {
-      clearTimeout(timeout1);
-      clearTimeout(timeout2);
-      clearTimeout(timeout3);
-    };
+    const t1 = setTimeout(() => updateIndicator(true), 50);
+    const t2 = setTimeout(() => updateIndicator(true), 150);
+    const t3 = setTimeout(() => updateIndicator(false), 300);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [activeTab]);
 
-  const handleTabClick = (tabId: string) => {
-    onTabChange?.(tabId);
-    // Don't scroll - keep page at current position
-  };
+  const handleTabClick = (tabId: string) => { onTabChange?.(tabId); };
 
   const theme = getTheme(activeTab || 'all');
   const heroGradient = `linear-gradient(to bottom right, ${theme.primary[0]}, ${theme.primary[1]}, ${theme.primary[2]})`;
 
-  // Helper to convert RGB to RGBA
-  const rgbToRgba = (rgb: string, alpha: number) => {
-    return rgb.replace('rgb', 'rgba').replace(')', `, ${alpha})`);
-  };
+  // Render the sticky content (Search + Tabs)
+  const renderStickyContent = () => (
+    <div
+      ref={stickyRef}
+      className={isSticky ? 'fixed top-0 left-0 right-0 z-[9999] bg-[#fff7ed] shadow-md animate-fade-in' : 'relative z-10 bg-transparent'}
+      style={{
+        transition: 'background-color 0.3s ease',
+      }}
+    >
+      <div className="px-4 md:px-6 lg:px-8 pt-2 md:pt-2 pb-2 md:pb-2">
+        {/* Search Bar */}
+        <div
+          onClick={() => navigate('/search')}
+          className={`w-full md:w-auto md:max-w-xl md:mx-auto rounded-xl shadow-lg px-3 ${isSticky ? 'py-3 md:py-2.5' : 'py-2 md:py-1.5'} flex items-center gap-2 cursor-pointer hover:shadow-xl transition-all duration-300 mb-2 md:mb-1.5 bg-white`}
+          style={{
+            backgroundColor: isSticky ? `rgba(249, 250, 251, 1)` : 'white',
+            border: isSticky ? `1px solid rgba(229, 231, 235, 1)` : 'none',
+          }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 md:w-4 md:h-4">
+            <circle cx="11" cy="11" r="8" stroke={isSticky ? "#9ca3af" : "#6b7280"} strokeWidth="2" />
+            <path d="m21 21-4.35-4.35" stroke={isSticky ? "#9ca3af" : "#6b7280"} strokeWidth="2" strokeLinecap="round" />
+          </svg>
+          <div className="flex-1 relative h-4 md:h-4 overflow-hidden">
+            {searchSuggestions.map((suggestion, index) => {
+              const isActive = index === currentSearchIndex;
+              const prevIndex = (currentSearchIndex - 1 + searchSuggestions.length) % searchSuggestions.length;
+              const isPrev = index === prevIndex;
+              return (
+                <div
+                  key={suggestion}
+                  className={`absolute inset-0 flex items-center transition-all duration-500 ${isActive ? 'translate-y-0 opacity-100' : isPrev ? '-translate-y-full opacity-0' : 'translate-y-full opacity-0'}`}
+                >
+                  <span className={`text-xs md:text-xs`} style={{ color: isSticky ? '#9ca3af' : '#6b7280' }}>
+                    Search &apos;{suggestion}&apos;
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 md:w-4 md:h-4">
+            <path d="M12 1C13.1 1 14 1.9 14 3C14 4.1 13.1 5 12 5C10.9 5 10 4.1 10 3C10 1.9 10.9 1 12 1Z" fill={isSticky ? "#9ca3af" : "#6b7280"} />
+            <path d="M19 10V17C19 18.1 18.1 19 17 19H7C5.9 19 5 18.1 5 17V10" stroke={isSticky ? "#9ca3af" : "#6b7280"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M12 11V17" stroke={isSticky ? "#9ca3af" : "#6b7280"} strokeWidth="2" strokeLinecap="round" />
+            <path d="M8 11V17" stroke={isSticky ? "#9ca3af" : "#6b7280"} strokeWidth="2" strokeLinecap="round" />
+            <path d="M16 11V17" stroke={isSticky ? "#9ca3af" : "#6b7280"} strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </div>
+      </div>
+
+      {/* Category Tabs */}
+      <div className="border-b border-neutral-400/40 w-full" style={{ paddingBottom: 0 }}>
+        <div
+          ref={tabsContainerRef}
+          className="relative grid grid-cols-[repeat(auto-fit,minmax(60px,1fr))] md:flex gap-2 md:gap-3 overflow-x-auto scrollbar-hide -mx-4 md:mx-0 px-4 md:px-6 lg:px-8 md:justify-center scroll-smooth"
+          style={{ paddingBottom: '12px' }}
+          data-padding-bottom="md:8px"
+        >
+          {indicatorStyle.width > 0 && (
+            <div
+              className="absolute bottom-0 h-1 bg-neutral-900 rounded-t-md transition-all duration-300 ease-out pointer-events-none"
+              style={{ left: `${indicatorStyle.left}px`, width: `${indicatorStyle.width}px`, transition: 'left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1)', zIndex: 0 }}
+            />
+          )}
+
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            const tabColor = isActive ? 'text-neutral-900' : isSticky ? 'text-neutral-600' : 'text-neutral-800';
+            return (
+              <button
+                key={tab.id}
+                ref={(el) => { if (el) tabRefs.current.set(tab.id, el); else tabRefs.current.delete(tab.id); }}
+                onClick={() => handleTabClick(tab.id)}
+                className={`flex-shrink-0 flex flex-col md:flex-row items-center justify-center w-full md:w-auto md:min-w-fit md:px-3 py-1 md:py-1.5 relative ${tabColor} z-10`}
+                style={{ transition: 'color 0.3s ease-out' }}
+                type="button"
+              >
+                <div className={`mb-0.5 md:hidden w-5 h-5 flex items-center justify-center ${tabColor}`} style={{ transition: 'color 0.3s ease-out, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)', transform: isActive ? 'scale(1.1)' : 'scale(1)' }}>
+                  {tab.icon}
+                </div>
+                <span className={`text-[10px] md:text-xs md:whitespace-nowrap ${isActive ? 'font-semibold' : 'font-medium'}`} style={{ transition: 'font-weight 0.3s ease-out' }}>
+                  {tab.label}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div
       ref={heroRef}
-      style={{
-        background: heroGradient,
-        paddingBottom: 0,
-        marginBottom: 0,
-      }}
+      style={{ background: heroGradient, paddingBottom: 0, marginBottom: 0 }}
     >
       {/* Top section with logo - NOT sticky */}
       <div>
         <div ref={topSectionRef} className="px-4 md:px-6 lg:px-8 pt-3 md:pt-4 pb-2">
           <div className="flex items-center justify-between gap-3">
-            {/* Left: Geeta Stores Logo */}
             <div className="flex-shrink-0">
-              <img
-                src="/assets/geetastoreslogo.png"
-                alt="Geeta Stores"
-                className="h-10 md:h-12 w-auto object-contain"
-              />
+              <img src="/assets/geetastoreslogo.png" alt="Geeta Stores" className="h-10 md:h-12 w-auto object-contain" />
             </div>
-
-            {/* Right: Location - only show if location is provided */}
             {locationDisplayText && (
               <div className="flex items-center gap-1 text-neutral-700 text-xs md:text-sm">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
@@ -312,135 +328,14 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
         </div>
       </div>
 
-      {/* Sticky section: Search Bar and Category Tabs - Always sticky */}
-      <div
-        ref={stickyRef}
-        className="sticky top-0 z-50"
-        style={{
-          ...(scrollProgress >= 0.1 && {
-            background: `linear-gradient(to bottom right,
-              ${rgbToRgba(theme.primary[0], 1 - scrollProgress)},
-              ${rgbToRgba(theme.primary[1], 1 - scrollProgress)},
-              ${rgbToRgba(theme.primary[2], 1 - scrollProgress)}),
-              rgba(255, 255, 255, ${scrollProgress})`,
-            boxShadow: `0 4px 6px -1px rgba(0, 0, 0, ${scrollProgress * 0.1})`,
-            transition: 'background 0.1s ease-out, box-shadow 0.1s ease-out',
-          }),
-        }}
-      >
-        <div className="px-4 md:px-6 lg:px-8 pt-2 md:pt-2 pb-2 md:pb-2">
-          {/* Search Bar */}
-          <div
-            onClick={() => navigate('/search')}
-            className="w-full md:w-auto md:max-w-xl md:mx-auto rounded-xl shadow-lg px-3 py-2 md:px-3 md:py-1.5 flex items-center gap-2 cursor-pointer hover:shadow-xl transition-all duration-300 mb-2 md:mb-1.5 bg-white"
-            style={{
-              backgroundColor: scrollProgress > 0.1 ? `rgba(249, 250, 251, ${scrollProgress})` : 'white',
-              border: scrollProgress > 0.1 ? `1px solid rgba(229, 231, 235, ${scrollProgress})` : 'none',
-            }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 md:w-4 md:h-4">
-              <circle cx="11" cy="11" r="8" stroke={scrollProgress > 0.5 ? "#9ca3af" : "#6b7280"} strokeWidth="2" />
-              <path d="m21 21-4.35-4.35" stroke={scrollProgress > 0.5 ? "#9ca3af" : "#6b7280"} strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            <div className="flex-1 relative h-4 md:h-4 overflow-hidden">
-              {searchSuggestions.map((suggestion, index) => {
-                const isActive = index === currentSearchIndex;
-                const prevIndex = (currentSearchIndex - 1 + searchSuggestions.length) % searchSuggestions.length;
-                const isPrev = index === prevIndex;
-
-                return (
-                  <div
-                    key={suggestion}
-                    className={`absolute inset-0 flex items-center transition-all duration-500 ${isActive
-                      ? 'translate-y-0 opacity-100'
-                      : isPrev
-                        ? '-translate-y-full opacity-0'
-                        : 'translate-y-full opacity-0'
-                      }`}
-                  >
-                    <span className={`text-xs md:text-xs`} style={{ color: scrollProgress > 0.5 ? '#9ca3af' : '#6b7280' }}>
-                      Search &apos;{suggestion}&apos;
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 md:w-4 md:h-4">
-              <path d="M12 1C13.1 1 14 1.9 14 3C14 4.1 13.1 5 12 5C10.9 5 10 4.1 10 3C10 1.9 10.9 1 12 1Z" fill={scrollProgress > 0.5 ? "#9ca3af" : "#6b7280"} />
-              <path d="M19 10V17C19 18.1 18.1 19 17 19H7C5.9 19 5 18.1 5 17V10" stroke={scrollProgress > 0.5 ? "#9ca3af" : "#6b7280"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M12 11V17" stroke={scrollProgress > 0.5 ? "#9ca3af" : "#6b7280"} strokeWidth="2" strokeLinecap="round" />
-              <path d="M8 11V17" stroke={scrollProgress > 0.5 ? "#9ca3af" : "#6b7280"} strokeWidth="2" strokeLinecap="round" />
-              <path d="M16 11V17" stroke={scrollProgress > 0.5 ? "#9ca3af" : "#6b7280"} strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          </div>
-        </div>
-
-        {/* Category Tabs */}
-        <div className="border-b border-neutral-400/40 w-full" style={{ paddingBottom: 0 }}>
-          <div
-            ref={tabsContainerRef}
-            className="relative flex gap-2 md:gap-3 overflow-x-auto scrollbar-hide -mx-4 md:mx-0 px-4 md:px-6 lg:px-8 md:justify-center scroll-smooth"
-            style={{ paddingBottom: '12px' }}
-            data-padding-bottom="md:8px"
-          >
-            {/* Sliding Indicator */}
-            {indicatorStyle.width > 0 && (
-              <div
-                className="absolute bottom-0 h-1 bg-neutral-900 rounded-t-md transition-all duration-300 ease-out pointer-events-none"
-                style={{
-                  left: `${indicatorStyle.left}px`,
-                  width: `${indicatorStyle.width}px`,
-                  transition: 'left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                  zIndex: 0,
-                }}
-              />
-            )}
-
-            {tabs.map((tab) => {
-              const isActive = activeTab === tab.id;
-              const tabColor = isActive
-                ? 'text-neutral-900'
-                : scrollProgress > 0.5
-                  ? 'text-neutral-600'
-                  : 'text-neutral-800';
-
-              return (
-                <button
-                  key={tab.id}
-                  ref={(el) => {
-                    if (el) {
-                      tabRefs.current.set(tab.id, el);
-                    } else {
-                      tabRefs.current.delete(tab.id);
-                    }
-                  }}
-                  onClick={() => handleTabClick(tab.id)}
-                  className={`flex-shrink-0 flex flex-col md:flex-row items-center justify-center min-w-[50px] md:min-w-fit md:px-3 py-1 md:py-1.5 relative ${tabColor} z-10`}
-                  style={{
-                    transition: 'color 0.3s ease-out',
-                  }}
-                  type="button"
-                >
-                  <div className={`mb-0.5 md:hidden w-5 h-5 flex items-center justify-center ${tabColor}`} style={{
-                    transition: 'color 0.3s ease-out, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    transform: isActive ? 'scale(1.1)' : 'scale(1)',
-                  }}>
-                    {tab.icon}
-                  </div>
-                  <span
-                    className={`text-[10px] md:text-xs md:whitespace-nowrap ${isActive ? 'font-semibold' : 'font-medium'}`}
-                    style={{
-                      transition: 'font-weight 0.3s ease-out',
-                    }}
-                  >
-                    {tab.label}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      </div>
+      {isSticky ? (
+        <>
+          <div style={{ height: '110px' }} />
+          {createPortal(renderStickyContent(), document.body)}
+        </>
+      ) : (
+        renderStickyContent()
+      )}
     </div>
   );
 }
