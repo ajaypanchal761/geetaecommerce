@@ -189,11 +189,11 @@ export default function SellerSignUp() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-teal-50 to-green-50 flex flex-col items-center justify-center px-4 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-teal-50 to-green-50 flex flex-col items-center justify-start md:justify-center px-4 pt-14 pb-8 md:py-4">
       {/* Back Button */}
       <button
         onClick={() => navigate(-1)}
-        className="absolute top-4 left-4 z-10 w-10 h-10 rounded-full bg-white shadow-md flex items-center justify-center hover:bg-neutral-50 transition-colors"
+        className="fixed md:absolute top-2 md:top-4 left-4 z-10 w-10 h-10 rounded-full bg-white shadow-md flex items-center justify-center hover:bg-neutral-50 transition-colors"
         aria-label="Back"
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -204,29 +204,30 @@ export default function SellerSignUp() {
       {/* Sign Up Card */}
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden">
         {/* Header Section */}
-        <div className="px-6 py-4 text-center border-b border-green-700" style={{ backgroundColor: 'rgb(21 178 74 / var(--tw-bg-opacity, 1))' }}>
-          <div className="mb-0 -mt-4">
+        {/* Header Section */}
+        <div className="px-6 py-1 text-center border-b border-green-700" style={{ backgroundColor: 'rgb(21 178 74 / var(--tw-bg-opacity, 1))' }}>
+          <div className="mb-1">
             <img
               src="/assets/geetastoreslogo.png"
               alt="Geeta Stores"
-              className="h-44 w-full max-w-xs mx-auto object-fill object-bottom"
+              className="h-16 md:h-16 w-auto mx-auto object-contain"
             />
           </div>
-          <h1 className="text-2xl font-bold text-white mb-1 -mt-12">Seller Sign Up</h1>
-          <p className="text-green-50 text-sm -mt-2">Create your seller account</p>
+          <h1 className="text-xl md:text-2xl font-bold text-white mb-1">Seller Sign Up</h1>
+          <p className="text-green-50 text-sm">Create your seller account</p>
         </div>
 
         {/* Sign Up Form */}
-        <div className="p-6 space-y-4 seller-signup-form" style={{ maxHeight: '70vh', overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <div className="p-3 space-y-2 seller-signup-form" style={{ maxHeight: '70vh', overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           <style>{`
             .seller-signup-form::-webkit-scrollbar {
               display: none;
             }
           `}</style>
           {!showOTP ? (
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-2 md:space-y-4">
               {/* Required Fields Section */}
-              <div className="space-y-4">
+              <div className="space-y-2 md:space-y-4">
                 <h3 className="text-sm font-semibold text-neutral-700 border-b pb-2">Required Information</h3>
 
                 <div>
@@ -240,7 +241,7 @@ export default function SellerSignUp() {
                     onChange={handleInputChange}
                     placeholder="Enter your name"
                     required
-                    className="w-full px-3 py-2.5 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+                    className="w-full px-3 py-1.5 md:py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
                     disabled={loading}
                   />
                 </div>
@@ -261,7 +262,7 @@ export default function SellerSignUp() {
                       placeholder="Enter mobile number"
                       required
                       maxLength={10}
-                      className="flex-1 px-3 py-2.5 text-sm placeholder:text-neutral-400 focus:outline-none"
+                      className="flex-1 px-3 py-1.5 md:py-2 text-sm placeholder:text-neutral-400 focus:outline-none"
                       disabled={loading}
                     />
                   </div>
@@ -278,7 +279,7 @@ export default function SellerSignUp() {
                     onChange={handleInputChange}
                     placeholder="Enter email address"
                     required
-                    className="w-full px-3 py-2.5 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+                    className="w-full px-3 py-1.5 md:py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
                     disabled={loading}
                   />
                 </div>
@@ -294,7 +295,7 @@ export default function SellerSignUp() {
                     onChange={handleInputChange}
                     placeholder="Enter store name"
                     required
-                    className="w-full px-3 py-2.5 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+                    className="w-full px-3 py-1.5 md:py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
                     disabled={loading}
                   />
                 </div>
@@ -378,7 +379,7 @@ export default function SellerSignUp() {
                     min="0.1"
                     max="100"
                     step="0.1"
-                    className="w-full px-3 py-2.5 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+                    className="w-full px-3 py-1.5 md:py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
                     disabled={loading}
                   />
                   <p className="mt-1 text-xs text-neutral-500">
@@ -397,7 +398,7 @@ export default function SellerSignUp() {
                     onChange={handleInputChange}
                     placeholder="Enter city"
                     required
-                    className="w-full px-3 py-2.5 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+                    className="w-full px-3 py-1.5 md:py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
                     disabled={loading}
                   />
                 </div>
@@ -423,7 +424,7 @@ export default function SellerSignUp() {
                       value={formData.panCard}
                       onChange={handleInputChange}
                       placeholder="PAN Card Number"
-                      className="w-full px-3 py-2.5 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+                      className="w-full px-3 py-1.5 md:py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
                       disabled={loading}
                     />
                   </div>
@@ -436,7 +437,7 @@ export default function SellerSignUp() {
                       value={formData.taxName}
                       onChange={handleInputChange}
                       placeholder="Tax Name"
-                      className="w-full px-3 py-2.5 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+                      className="w-full px-3 py-1.5 md:py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
                       disabled={loading}
                     />
                   </div>
@@ -449,7 +450,7 @@ export default function SellerSignUp() {
                       value={formData.taxNumber}
                       onChange={handleInputChange}
                       placeholder="Tax Number"
-                      className="w-full px-3 py-2.5 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+                      className="w-full px-3 py-1.5 md:py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
                       disabled={loading}
                     />
                   </div>
@@ -462,7 +463,7 @@ export default function SellerSignUp() {
                       value={formData.ifsc}
                       onChange={handleInputChange}
                       placeholder="IFSC Code"
-                      className="w-full px-3 py-2.5 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+                      className="w-full px-3 py-1.5 md:py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
                       disabled={loading}
                     />
                   </div>
