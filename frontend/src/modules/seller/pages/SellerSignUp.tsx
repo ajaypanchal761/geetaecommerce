@@ -113,8 +113,9 @@ export default function SellerSignUp() {
 
     try {
       // Validate location is selected
-      if (!formData.searchLocation || !formData.latitude || !formData.longitude) {
-        setError('Please select your store location using the location search');
+      if (!formData.searchLocation || !formData.latitude || !formData.longitude ||
+          formData.latitude === '0' || formData.longitude === '0') {
+        setError('Please search and SELECT your store location from the suggestions list.');
         return;
       }
 

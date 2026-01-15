@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+// Extend the Window interface to include gm_authFailure
+declare global {
+  interface Window {
+    gm_authFailure?: () => void;
+  }
+}
+
 interface GoogleMapsAutocompleteProps {
   value: string;
   onChange: (address: string, lat: number, lng: number, placeName: string, components?: { city?: string; state?: string }) => void;
@@ -8,9 +15,6 @@ interface GoogleMapsAutocompleteProps {
   disabled?: boolean;
   required?: boolean;
 }
-
-// Google Maps types are now declared globally in types/googlemaps.d.ts
-// We use window.google directly from the global namespace
 
 // Clean address by removing Plus Codes and unwanted identifiers
 const cleanAddress = (address: string): string => {
@@ -47,17 +51,88 @@ export default function GoogleMapsAutocomplete({
   const [error, setError] = useState<string>('');
   const [inputValue, setInputValue] = useState(value);
 
+  // Fallback state
+  const [useFallback, setUseFallback] = useState(false);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+
   // Update local input value when prop changes
   useEffect(() => {
     setInputValue(value);
   }, [value]);
 
+  // Handle global auth failure from Google Maps (standard callback)
+  useEffect(() => {
+    window.gm_authFailure = () => {
+      console.warn('Google Maps Authentication Failed. Switching to OpenStreetMap fallback.');
+      setUseFallback(true);
+      setError(''); // Clear error since we are handling it
+      setIsLoaded(true); // Allow interaction
+    };
+  }, []);
+
+  // Search Nominatim (OpenStreetMap)
+  const searchNominatim = async (query: string) => {
+    if (!query || query.length < 3) {
+      setSuggestions([]);
+      return;
+    }
+
+    setLoadingSuggestions(true);
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=in&limit=5&addressdetails=1`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setSuggestions(data);
+        setShowSuggestions(true);
+      }
+    } catch (err) {
+      console.error('OSM search failed:', err);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setInputValue(val);
+
+    // Always notify parent of text change (even without coords yet)
+    onChange(val, 0, 0, val);
+
+    if (useFallback) {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        searchNominatim(val);
+      }, 500);
+    }
+  };
+
+  const handleSuggestionClick = (place: any) => {
+    const lat = parseFloat(place.lat);
+    const lng = parseFloat(place.lon);
+    const rawAddress = place.display_name;
+    const address = cleanAddress(rawAddress);
+    const placeName = place.name || address.split(',')[0];
+    const addr = place.address || {};
+
+    const city = addr.city || addr.town || addr.village || addr.municipality || '';
+    const state = addr.state || addr.region || '';
+
+    setInputValue(address);
+    setSuggestions([]);
+    setShowSuggestions(false);
+
+    onChange(address, lat, lng, placeName, { city, state });
+  };
+
   // Initialize autocomplete using the legacy Autocomplete API
-  // Note: The new PlaceAutocompleteElement is recommended for new customers from March 2025,
-  // but it requires a different implementation pattern (Web Component).
-  // For now, we continue using the legacy Autocomplete which still works for existing customers.
   const initializeAutocomplete = useCallback(() => {
-    if (!inputRef.current || !window.google?.maps?.places) return;
+    if (!inputRef.current || !window.google?.maps?.places || useFallback) return;
 
     // Clean up any existing autocomplete
     if (autocompleteRef.current) {
@@ -73,7 +148,7 @@ export default function GoogleMapsAutocomplete({
       const places = window.google.maps.places as any;
 
       if (!places.Autocomplete) {
-        setError('Google Maps Places Autocomplete not available');
+        setUseFallback(true);
         return;
       }
 
@@ -89,13 +164,16 @@ export default function GoogleMapsAutocomplete({
         const place = autocomplete.getPlace();
 
         if (!place.geometry || !place.geometry.location) {
-          setError('No location details found for this place');
+          // If no details, might be user pressed enter on text.
+          // Check if we should fallback to search logic?
+          // For now, keep as is or trigger error.
+          // setError('No location details found for this place');
           return;
         }
 
         const lat = place.geometry.location.lat();
         const lng = place.geometry.location.lng();
-        const rawAddress = place.formatted_address || place.name || value;
+        const rawAddress = place.formatted_address || place.name || inputValue;
         const address = cleanAddress(rawAddress);
         const placeName = place.name || address;
 
@@ -118,19 +196,20 @@ export default function GoogleMapsAutocomplete({
         onChange(address, lat, lng, placeName, { city, state });
         setError('');
       });
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      console.error('Autocomplete initialization error:', err);
-      setError(`Failed to initialize autocomplete: ${errorMessage}`);
+    } catch (err) {
+      console.warn('Google Autocomplete init failed, using fallback', err);
+      setUseFallback(true);
     }
-  }, [onChange, value]);
+  }, [onChange, inputValue, useFallback]);
 
   // Load Google Maps API script with async loading
   useEffect(() => {
     const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
     if (!apiKey) {
-      setError('Google Maps API key is not configured');
+      console.warn('No Google Maps API Key found, using fallback.');
+      setUseFallback(true);
+      setIsLoaded(true);
       return;
     }
 
@@ -153,7 +232,7 @@ export default function GoogleMapsAutocomplete({
       return () => clearInterval(checkInterval);
     }
 
-    // Load the script with async loading as recommended by Google
+    // Load the script
     const script = document.createElement('script');
     script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&loading=async`;
     script.async = true;
@@ -163,47 +242,49 @@ export default function GoogleMapsAutocomplete({
       initializeAutocomplete();
     };
     script.onerror = () => {
-      setError('Failed to load Google Maps API');
+      console.warn('Google Maps Script failed to load, switching to fallback.');
+      setUseFallback(true);
+      setIsLoaded(true);
     };
     document.head.appendChild(script);
 
-    return () => {
-      if (autocompleteRef.current) {
-        try {
-          window.google?.maps?.event?.clearInstanceListeners?.(autocompleteRef.current);
-        } catch {
-          // Ignore cleanup errors
-        }
-      }
-    };
   }, [initializeAutocomplete]);
 
-  useEffect(() => {
-    if (isLoaded && inputRef.current && !autocompleteRef.current) {
-      initializeAutocomplete();
-    }
-  }, [isLoaded, value, initializeAutocomplete]);
-
   return (
-    <div className="w-full">
+    <div className="w-full relative">
       <input
         ref={inputRef}
         type="text"
         value={inputValue}
-        onChange={(e) => {
-          setInputValue(e.target.value);
-          onChange(e.target.value, 0, 0, e.target.value);
-        }}
+        onChange={handleInputChange}
+        onFocus={() => useFallback && inputValue.length > 2 && setShowSuggestions(true)}
         placeholder={placeholder}
         className={`w-full px-3 py-2 border border-neutral-300 rounded-lg placeholder:text-neutral-400 focus:outline-none focus:border-orange-500 bg-white ${className}`}
-        disabled={disabled || !isLoaded}
+        disabled={disabled || (!isLoaded && !useFallback)}
         required={required}
         autoComplete="off"
       />
-      {error && (
+
+      {/* Suggestions Dropdown for Fallback Mode */}
+      {useFallback && showSuggestions && suggestions.length > 0 && (
+        <ul className="absolute z-50 w-full bg-white border border-neutral-200 rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto">
+           {suggestions.map((place, index) => (
+             <li
+               key={index}
+               onClick={() => handleSuggestionClick(place)}
+               className="px-4 py-2 hover:bg-neutral-50 cursor-pointer text-sm text-neutral-700 border-b border-neutral-100 last:border-0"
+             >
+               <div className="font-medium">{place.name || place.display_name.split(',')[0]}</div>
+               <div className="text-xs text-neutral-500 truncate">{place.display_name}</div>
+             </li>
+           ))}
+        </ul>
+      )}
+
+      {error && !useFallback && (
         <p className="mt-1 text-xs text-red-600">{error}</p>
       )}
-      {!isLoaded && !error && (
+      {!isLoaded && !useFallback && !error && (
         <p className="mt-1 text-xs text-neutral-500">Loading location services...</p>
       )}
     </div>

@@ -512,8 +512,74 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // All retries failed
-    console.error('Reverse geocoding failed after retries:', lastError);
+    // All retries failed - Log as warning instead of error since we have a fallback
+    console.warn('Google Maps Reverse geocoding failed, switching to OpenStreetMap fallback:', lastError?.message);
+
+    // Fallback to OpenStreetMap (Nominatim) if Google Maps fails
+    // This ensures we show a real address instead of coordinates even if API key is invalid
+    try {
+      console.log('Attempting OpenStreetMap fallback...');
+      // Use namedetails=1 to get potential building names
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&namedetails=1`,
+        { headers: { 'Accept-Language': 'en-US,en;q=0.9' } }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data && !data.error) {
+           const addr = data.address || {};
+
+           // key details
+           const city = addr.city || addr.town || addr.village || addr.municipality || '';
+           const state = addr.state || addr.region || '';
+           const pincode = addr.postcode || '';
+
+           // 1. Start with the full display name provided by OSM (usually best formatted)
+           // Clean it using our existing helper
+           let finalAddress = cleanAddress(data.display_name || '');
+
+           // 2. See if we can make it better by prepending a specific name if it's missing
+           // e.g. if display_name is "New Palasia, Indore..." but namedetails has "Princess Center"
+           const name = data.namedetails?.name || addr.amenity || addr.shop || addr.office || addr.building || '';
+
+           if (name && finalAddress && !finalAddress.toLowerCase().includes(name.toLowerCase())) {
+             finalAddress = `${name}, ${finalAddress}`;
+           }
+
+           // 3. Last resort fallback if display_name was empty for some reason
+           if (!finalAddress) {
+              const parts = [
+                addr.house_number,
+                addr.road,
+                addr.suburb,
+                city,
+                state,
+                pincode
+              ].filter(Boolean);
+              finalAddress = parts.join(', ');
+           }
+
+           const osmResult = {
+             formatted_address: finalAddress || `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+             city,
+             state,
+             pincode
+           };
+
+           // Cache the OSM result too
+           geocodeCache.set(cacheKey, {
+             data: osmResult,
+             timestamp: Date.now()
+           });
+
+           return osmResult;
+        }
+      }
+    } catch (osmError) {
+      console.warn('OSM fallback failed:', osmError);
+    }
+
     return { formatted_address: `${lat}, ${lng}` };
   };
 
