@@ -18,7 +18,7 @@ import { asyncHandler } from "../utils/asyncHandler";
 const router = Router();
 
 // All upload routes require authentication
-router.use(authenticate);
+// router.use(authenticate); // Commented out to allow public document upload for signup
 
 /**
  * POST /api/v1/upload/image
@@ -26,6 +26,7 @@ router.use(authenticate);
  */
 router.post(
   "/image",
+  authenticate,
   requireUserType("Admin", "Seller"),
   uploadSingleImage.single("image"),
   handleUploadError,
@@ -56,6 +57,7 @@ router.post(
  */
 router.post(
   "/images",
+  authenticate,
   requireUserType("Admin", "Seller"),
   uploadMultipleImages.array("images", 10), // Max 10 images
   handleUploadError,
@@ -92,7 +94,7 @@ router.post(
  */
 router.post(
   "/document",
-  authenticate, // All authenticated users can upload documents
+  // authenticate, // Removed to allow signup uploads
   uploadDocument.single("document"),
   handleUploadError,
   asyncHandler(async (req: Request, res: Response) => {
@@ -103,14 +105,16 @@ router.post(
       });
     }
 
-    // Determine folder based on user type
-    let folder: string = CLOUDINARY_FOLDERS.SELLER_DOCUMENTS;
+    // Determine folder: Use provided folder OR fallback based on user type
+    let folder: string = (req.body.folder as string) || CLOUDINARY_FOLDERS.SELLER_DOCUMENTS;
     const userType = (req as any).user?.userType;
 
-    if (userType === "Delivery") {
-      folder = CLOUDINARY_FOLDERS.DELIVERY_DOCUMENTS;
-    } else if (userType === "Seller") {
-      folder = CLOUDINARY_FOLDERS.SELLER_DOCUMENTS;
+    if (!req.body.folder && userType) {
+        if (userType === "Delivery") {
+            folder = CLOUDINARY_FOLDERS.DELIVERY_DOCUMENTS;
+        } else if (userType === "Seller") {
+            folder = CLOUDINARY_FOLDERS.SELLER_DOCUMENTS;
+        }
     }
 
     // Check if it's an image or PDF
@@ -182,6 +186,7 @@ router.post(
  */
 router.delete(
   "/:publicId",
+  authenticate,
   requireUserType("Admin", "Seller"),
   asyncHandler(async (req: Request, res: Response) => {
     const { publicId } = req.params;

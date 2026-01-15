@@ -70,9 +70,16 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
 
   // Format location display text
   const locationDisplayText = useMemo(() => {
-    if (userLocation?.address) return userLocation.address;
-    if (userLocation?.city && userLocation?.state) return `${userLocation.city}, ${userLocation.state}`;
-    if (userLocation?.city) return userLocation.city;
+    if (userLocation) {
+      if (userLocation.address) {
+        return userLocation.address;
+      } else if (userLocation.city && userLocation.state) {
+        return `${userLocation.city}, ${userLocation.state}`;
+      } else if (userLocation.city) {
+        return userLocation.city;
+      }
+      return '';
+    }
     return '';
   }, [userLocation]);
 

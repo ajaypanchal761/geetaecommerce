@@ -11,6 +11,7 @@ import {
   Category as apiCategory,
 } from "../../../services/api/categoryService";
 import { useAuth } from "../../../context/AuthContext";
+import QRScannerModal from "../../../components/QRScannerModal";
 
 // ... (interfaces remain same)
 
@@ -38,6 +39,7 @@ export default function SellerProductList() {
     pages: number;
   } | null>(null);
   const [allCategories, setAllCategories] = useState<apiCategory[]>([]);
+  const [showScanner, setShowScanner] = useState(false);
   const { user } = useAuth();
 
   // Fetch categories
@@ -139,6 +141,11 @@ export default function SellerProductList() {
 
   const handleEdit = (productId: string) => {
     navigate(`/seller/product/edit/${productId}`);
+  };
+
+  const handleScan = (decodedText: string) => {
+    setSearchTerm(decodedText);
+    setShowScanner(false);
   };
 
   // ... (rest of logic: flatten, filter, sort)
@@ -420,18 +427,41 @@ export default function SellerProductList() {
                 <polyline points="6 9 12 15 18 9"></polyline>
               </svg>
             </button>
-            <div className="relative">
-              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-neutral-400 text-xs">
+            <div className="relative flex items-center gap-2">
+              <span className="text-neutral-400 text-xs">
                 Search:
               </span>
-              <input
-                type="text"
-                className="pl-14 pr-3 py-1.5 bg-neutral-100 border-none rounded text-sm focus:ring-1 focus:ring-teal-500 w-48"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder=""
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  className="pl-2 pr-10 py-1.5 bg-neutral-100 border-none rounded text-sm focus:ring-1 focus:ring-teal-500 w-48"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Name, SKU, Barcode..."
+                />
+                <button
+                    onClick={() => setShowScanner(true)}
+                    className="absolute right-1 top-1/2 -translate-y-1/2 p-1 bg-white hover:bg-neutral-50 rounded text-neutral-500 hover:text-teal-600 transition-colors shadow-sm border border-neutral-200"
+                    title="Scan Barcode"
+                >
+                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
+                        <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
+                        <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
+                        <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
+                        <line x1="12" y1="3" x2="12" y2="21"></line>
+                     </svg>
+                </button>
+              </div>
             </div>
+
+            {/* Scanner Modal */}
+             {showScanner && (
+                <QRScannerModal
+                  onScanSuccess={handleScan}
+                  onClose={() => setShowScanner(false)}
+                />
+              )}
           </div>
         </div>
 
