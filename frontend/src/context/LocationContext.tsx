@@ -84,23 +84,14 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         if (sessionGranted === 'true') {
           console.log('[LocationContext] Permission already granted in this session.');
 
-          // 2. Check for cached location in localStorage
-          const cachedLocation = localStorage.getItem(LOCATION_STORAGE_KEY);
-          if (cachedLocation) {
-            try {
-              const parsedLocation = JSON.parse(cachedLocation);
-              console.log('[LocationContext] Using cached location from this session:', parsedLocation.address);
-              setLocation(parsedLocation);
-              setIsLocationEnabled(true);
-              setLocationPermissionStatus('session_granted');
-            } catch (e) {
-              console.error('[LocationContext] Failed to parse cached location:', e);
-            }
-          } else {
-            // Permission granted but no location? Prompt to refresh it
-            console.log('[LocationContext] Session permission exists but no cached location.');
-            setLocationPermissionStatus('session_granted');
-          }
+          // 2. Ignore cache to force fresh location check every time
+          // const cachedLocation = localStorage.getItem(LOCATION_STORAGE_KEY);
+          // if (cachedLocation) { ... }
+
+          // Instead, treat as if we have permission but need to refresh coordinates
+          console.log('[LocationContext] Permission granted in session, fetching fresh location...');
+          setLocationPermissionStatus('session_granted');
+          requestLocation(); // Automatically fetch fresh location
         } else {
           console.log('[LocationContext] No session-level permission found. User will be prompted.');
           setLocation(null);

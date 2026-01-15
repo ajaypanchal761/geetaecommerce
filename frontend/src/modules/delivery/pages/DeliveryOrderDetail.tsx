@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getOrderDetails, updateOrderStatus, getSellerLocationsForOrder, sendDeliveryOtp, verifyDeliveryOtp, updateDeliveryLocation } from '../../../services/api/delivery/deliveryService';
 import deliveryIcon from '@assets/deliveryboy/deliveryIcon.png';
 import GoogleMapsTracking from '../../../components/GoogleMapsTracking';
+import QRScannerModal from '../../../components/QRScannerModal';
 
 // Helper to get delivery icon URL (works in both dev and production)
 const getDeliveryIconUrl = () => {
@@ -103,6 +104,7 @@ export default function DeliveryOrderDetail() {
     const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
     const [routeInfo, setRouteInfo] = useState<{ distance: string; duration: string } | null>(null);
     const [locationError, setLocationError] = useState<string | null>(null);
+    const [showScanner, setShowScanner] = useState(false);
 
     const fetchOrder = async () => {
         if (!id) return;
@@ -146,6 +148,28 @@ export default function DeliveryOrderDetail() {
             }
         };
     }, []);
+
+    const handleScanSuccess = async (decodedText: string) => {
+        setShowScanner(false);
+        if (!order) return;
+
+        // Check if scanned text matches Order ID or MongoDB ID
+        if (decodedText === order.orderId || decodedText === order._id) {
+            // If order is Out for Delivery, we can mark it as Delivered directly via scan
+            if (order.status === 'Out for Delivery') {
+                const confirmDelivery = window.confirm(`Order verified! Mark as Delivered?`);
+                if (confirmDelivery) {
+                     await handleStatusChange('Delivered');
+                }
+            } else if (order.status === 'Ready for pickup') {
+                 await handleStatusChange('Picked up');
+            } else {
+                 alert(`Scanned Order: ${decodedText}. Current Order: ${order.orderId}`);
+            }
+        } else {
+            alert("Invalid QR Code! This code does not match the current order.");
+        }
+    };
 
 
     const handleSendOtp = async () => {
@@ -720,10 +744,27 @@ export default function DeliveryOrderDetail() {
 
             {/* Floating Glassmorphic Action Button Dock - Order Taken button or status update */}
             {nextStatus && order.status !== 'Picked up' && !showOtpInput && (
-                <div className="fixed bottom-24 left-6 right-6 z-30">
+                <div className="fixed bottom-24 left-6 right-6 z-30 flex gap-3">
+                    {/* Scan Button (Visible when Out for Delivery or Ready for Pickup) */}
+                   {(order.status === 'Out for Delivery' || order.status === 'Ready for pickup') && (
+                        <button
+                            onClick={() => setShowScanner(true)}
+                            className="w-16 h-full rounded-2xl bg-neutral-900 text-white flex items-center justify-center shadow-lg active:scale-95 transition-transform"
+                            title="Scan QR Code"
+                        >
+                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
+                                <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
+                                <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
+                                <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
+                                <rect x="7" y="7" width="10" height="10" rx="1"></rect>
+                             </svg>
+                        </button>
+                   )}
+
                     <button
                         onClick={() => handleStatusChange(nextStatus)}
-                        className="w-full py-4 rounded-2xl bg-black/75 backdrop-blur-md border border-white/20 shadow-[0_8px_32px_0_rgba(0,0,0,0.3)] text-white font-bold text-lg transition-transform active:scale-[0.98] flex items-center justify-center gap-3 overflow-hidden group"
+                        className="flex-1 py-4 rounded-2xl bg-black/75 backdrop-blur-md border border-white/20 shadow-[0_8px_32px_0_rgba(0,0,0,0.3)] text-white font-bold text-lg transition-transform active:scale-[0.98] flex items-center justify-center gap-3 overflow-hidden group"
                         disabled={loading}
                     >
                         <span className="relative z-10">
@@ -735,6 +776,14 @@ export default function DeliveryOrderDetail() {
                         <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent pointer-events-none"></div>
                     </button>
                 </div>
+            )}
+
+            {/* Scanner Modal */}
+            {showScanner && (
+                <QRScannerModal
+                    onScanSuccess={handleScanSuccess}
+                    onClose={() => setShowScanner(false)}
+                />
             )}
         </div>
     );
