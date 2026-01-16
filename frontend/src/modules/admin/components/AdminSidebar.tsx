@@ -294,8 +294,6 @@ const menuSections: MenuSection[] = [
                 strokeLinejoin="round">
                 <path d="M21 10C21 17 12 23 12 23C12 23 3 17 3 10C3 7.61305 3.94821 5.32387 5.63604 3.63604C7.32387 1.94821 9.61305 1 12 1C14.3869 1 16.6761 1.94821 18.364 3.63604C20.0518 5.32387 21 7.61305 21 10Z"></path>
                 <circle cx="12" cy="10" r="3"></circle>
-                <path d="M17 21V19C17 17.9391 16.5786 16.9217 15.8284 16.1716C15.0783 15.4214 14.0609 15 13 15H5C3.93913 15 2.92172 15.4214 2.17157 16.1716C1.42143 16.9217 1 17.9391 1 19V21"></path>
-                <circle cx="9" cy="7" r="4"></circle>
               </svg>
             ),
           },
@@ -359,9 +357,6 @@ const menuSections: MenuSection[] = [
                 <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
                 <circle cx="5.5" cy="18.5" r="2.5"></circle>
                 <circle cx="18.5" cy="18.5" r="2.5"></circle>
-                <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z"></path>
-                <path d="M14 2V8H20"></path>
-                <path d="M8 11H16M8 15H12"></path>
               </svg>
             ),
           },
@@ -1101,9 +1096,7 @@ export default function AdminSidebar({ onClose }: AdminSidebarProps) {
                       <ul className="mt-1 space-y-1 ml-4">
                         {item.submenuItems &&
                           item.submenuItems.map((subItem) => {
-                            const subActive =
-                              location.pathname === subItem.path ||
-                              location.pathname.startsWith(subItem.path + "/");
+                            const subActive = location.pathname === subItem.path;
                             return (
                               <li key={subItem.path}>
                                 <button

@@ -14,20 +14,18 @@ import { useAuth } from "../../../context/AuthContext";
 import CategoryFormModal from "../components/CategoryFormModal";
 import CategoryTreeView from "../components/CategoryTreeView";
 import CategoryListView from "../components/CategoryListView";
+import ThemedDropdown from "../components/ThemedDropdown"; // Import the new component
 import {
   buildCategoryTree,
   searchCategories,
   filterCategoriesByStatus,
 } from "../../../utils/categoryUtils";
 
-// Flatten tree structure for filtering (works for both tree and list view)
+// Flatten tree structure for filtering
 const flattenTree = (cats: Category[]): Category[] => {
   const result: Category[] = [];
   cats.forEach((cat) => {
-    // Create a copy without children to avoid circular references, but preserve all other properties
     const { children, ...catWithoutChildren } = cat;
-
-    // Normalize parentId - convert object to string if needed
     let normalizedParentId: string | null = null;
     if (catWithoutChildren.parentId) {
       if (typeof catWithoutChildren.parentId === "string") {
@@ -36,17 +34,14 @@ const flattenTree = (cats: Category[]): Category[] => {
         typeof catWithoutChildren.parentId === "object" &&
         catWithoutChildren.parentId !== null
       ) {
-        // It's populated, extract the _id
         normalizedParentId =
           (catWithoutChildren.parentId as { _id?: string })._id || null;
       }
     }
 
-    // Preserve childrenCount and other metadata
     result.push({
       ...catWithoutChildren,
       parentId: normalizedParentId,
-      // Explicitly preserve childrenCount if it exists
       childrenCount:
         cat.childrenCount ||
         (children && children.length > 0 ? children.length : 0),
@@ -93,7 +88,6 @@ export default function AdminCategory() {
       });
       if (response.success) {
         setCategories(response.data);
-        // Preserve existing expanded IDs if provided, otherwise auto-expand all
         if (preserveExpandedIds && preserveExpandedIds.size > 0) {
           setExpandedIds(preserveExpandedIds);
         } else {
@@ -111,7 +105,7 @@ export default function AdminCategory() {
           setExpandedIds(allIds);
         }
       }
-    } catch (err: unknown) {
+    } catch (err: any) {
       console.error("Error fetching categories:", err);
       const errorMessage =
         err && typeof err === "object" && "response" in err
@@ -124,21 +118,16 @@ export default function AdminCategory() {
     }
   };
 
-  // Filter and search categories
   const filteredCategories = useMemo(() => {
-    // Always flatten first to get a flat array for filtering
     const flatCategories = flattenTree(categories);
     let filtered = [...flatCategories];
 
-    // Apply search filter
     if (searchQuery.trim()) {
       filtered = searchCategories(filtered, searchQuery);
-      // If searching, also include children of matching parents (even if children don't match)
       const matchingParentIds = new Set(filtered.map((cat) => cat._id));
       const childrenOfMatches = flatCategories.filter(
         (cat) => cat.parentId && matchingParentIds.has(cat.parentId)
       );
-      // Merge and deduplicate
       const allFiltered = [...filtered, ...childrenOfMatches];
       const uniqueFiltered = Array.from(
         new Map(allFiltered.map((cat) => [cat._id, cat])).values()
@@ -146,13 +135,11 @@ export default function AdminCategory() {
       filtered = uniqueFiltered;
     }
 
-    // Apply status filter
     filtered = filterCategoriesByStatus(filtered, statusFilter);
 
     return filtered;
   }, [categories, searchQuery, statusFilter]);
 
-  // Build tree for tree view
   const categoryTree = useMemo(() => {
     if (viewMode === "tree") {
       return buildCategoryTree(filteredCategories);
@@ -160,7 +147,6 @@ export default function AdminCategory() {
     return [];
   }, [filteredCategories, viewMode]);
 
-  // Handle create category
   const handleCreateCategory = () => {
     setModalMode("create");
     setEditingCategory(null);
@@ -168,7 +154,6 @@ export default function AdminCategory() {
     setModalOpen(true);
   };
 
-  // Handle create subcategory
   const handleCreateSubcategory = (parent: Category) => {
     setModalMode("create-subcategory");
     setEditingCategory(null);
@@ -176,7 +161,6 @@ export default function AdminCategory() {
     setModalOpen(true);
   };
 
-  // Handle edit category
   const handleEdit = (category: Category) => {
     setModalMode("edit");
     setEditingCategory(category);
@@ -184,7 +168,6 @@ export default function AdminCategory() {
     setModalOpen(true);
   };
 
-  // Handle delete category
   const handleDelete = async (category: Category) => {
     if (
       !window.confirm(
@@ -200,7 +183,7 @@ export default function AdminCategory() {
         alert("Category deleted successfully!");
         fetchCategories();
       }
-    } catch (error: unknown) {
+    } catch (error: any) {
       const errorMessage =
         error && typeof error === "object" && "response" in error
           ? (error as { response?: { data?: { message?: string } } }).response
@@ -210,7 +193,6 @@ export default function AdminCategory() {
     }
   };
 
-  // Handle bulk delete
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) {
       alert("Please select at least one category to delete.");
@@ -241,7 +223,7 @@ export default function AdminCategory() {
         setSelectedIds(new Set());
         fetchCategories();
       }
-    } catch (error: unknown) {
+    } catch (error: any) {
       const errorMessage =
         error && typeof error === "object" && "response" in error
           ? (error as { response?: { data?: { message?: string } } }).response
@@ -251,7 +233,6 @@ export default function AdminCategory() {
     }
   };
 
-  // Handle toggle status
   const handleToggleStatus = async (category: Category) => {
     const newStatus = category.status === "Active" ? "Inactive" : "Active";
     const cascade =
@@ -273,7 +254,7 @@ export default function AdminCategory() {
         alert(`Category status updated to ${newStatus}`);
         fetchCategories();
       }
-    } catch (error: unknown) {
+    } catch (error: any) {
       const errorMessage =
         error && typeof error === "object" && "response" in error
           ? (error as { response?: { data?: { message?: string } } }).response
@@ -285,7 +266,6 @@ export default function AdminCategory() {
     }
   };
 
-  // Handle form submit
   const handleFormSubmit = async (
     data: CreateCategoryData | UpdateCategoryData
   ) => {
@@ -299,10 +279,7 @@ export default function AdminCategory() {
       const response = await createCategory(data as CreateCategoryData);
       if (response.success) {
         alert("Category created successfully!");
-
-        // If creating a subcategory, expand the parent category after refresh
         if (modalMode === "create-subcategory" && parentCategory) {
-          // Preserve current expanded IDs and add parent ID
           const newExpandedIds = new Set(expandedIds);
           newExpandedIds.add(parentCategory._id);
           fetchCategories(newExpandedIds);
@@ -313,7 +290,6 @@ export default function AdminCategory() {
     }
   };
 
-  // Handle export
   const handleExport = () => {
     const headers = [
       "ID",
@@ -357,7 +333,6 @@ export default function AdminCategory() {
     document.body.removeChild(link);
   };
 
-  // Handle select/deselect
   const handleSelect = (id: string) => {
     setSelectedIds((prev) => {
       const newSet = new Set(prev);
@@ -378,7 +353,6 @@ export default function AdminCategory() {
     }
   };
 
-  // Handle expand/collapse
   const handleToggleExpand = (id: string) => {
     setExpandedIds((prev) => {
       const newSet = new Set(prev);
@@ -410,205 +384,179 @@ export default function AdminCategory() {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6 -mx-3 sm:-mx-4 md:-mx-6 -mt-3 sm:-mt-4 md:-mt-6">
+    <div className="flex flex-col h-full space-y-4">
       {/* Header Section */}
-      <div className="bg-white border-b border-neutral-200 px-3 sm:px-4 md:px-6 py-3 sm:py-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
-          <h1 className="text-xl sm:text-2xl font-bold text-neutral-900">
-            Manage Categories
-          </h1>
-          <div className="flex items-center gap-2 text-xs sm:text-sm">
-            <span className="text-neutral-500">Dashboard</span>
-            <span className="text-neutral-400">/</span>
-            <span className="text-neutral-700">Categories</span>
-          </div>
-        </div>
-      </div>
+      <div className="bg-white border-b border-neutral-200">
+         <div className="px-4 py-4 md:px-6 md:py-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+           <div>
+             <h1 className="text-xl md:text-2xl font-bold text-neutral-900 tracking-tight">Manage Categories</h1>
+             <p className="text-sm text-neutral-500 mt-1">Organize and manage your product catalog</p>
+           </div>
 
-      {/* Main Content */}
-      <div className="px-3 sm:px-4 md:px-6">
-        <div className="bg-white rounded-lg shadow-sm border border-neutral-200 overflow-hidden">
-          {/* Green Banner */}
-          <div className="bg-green-600 text-white px-4 sm:px-6 py-2 sm:py-3">
-            <h2 className="text-base sm:text-lg font-semibold">
-              Category Management
-            </h2>
-          </div>
-
-          {/* Filter and Action Bar */}
-          <div className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-neutral-200 bg-neutral-50">
-            <div className="flex flex-col lg:flex-row flex-wrap items-start lg:items-center gap-3 sm:gap-4">
-              {/* Add Category Button */}
-              <button
+           <div className="flex items-center gap-3">
+             <button
                 onClick={handleCreateCategory}
-                className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded text-sm font-medium flex items-center gap-2 transition-colors w-full sm:w-auto">
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2">
-                  <line x1="12" y1="5" x2="12" y2="19"></line>
-                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow-sm transition-all focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 flex items-center gap-2"
+             >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                   <line x1="12" y1="5" x2="12" y2="19"></line>
+                   <line x1="5" y1="12" x2="19" y2="12"></line>
                 </svg>
                 Add Category
-              </button>
+             </button>
 
-              {/* View Mode Toggle */}
-              <div className="flex items-center gap-2 bg-white border border-neutral-300 rounded p-1">
-                <button
-                  onClick={() => setViewMode("tree")}
-                  className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
-                    viewMode === "tree"
-                      ? "bg-teal-600 text-white"
-                      : "text-neutral-700 hover:bg-neutral-100"
-                  }`}>
-                  Tree View
-                </button>
-                <button
-                  onClick={() => setViewMode("list")}
-                  className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
-                    viewMode === "list"
-                      ? "bg-teal-600 text-white"
-                      : "text-neutral-700 hover:bg-neutral-100"
-                  }`}>
-                  List View
-                </button>
-              </div>
-
-              {/* Status Filter */}
-              <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-neutral-700">
-                  Status:
-                </label>
-                <select
-                  value={statusFilter}
-                  onChange={(e) =>
-                    setStatusFilter(
-                      e.target.value as "All" | "Active" | "Inactive"
-                    )
-                  }
-                  className="px-3 py-2 border border-neutral-300 rounded text-sm bg-white focus:outline-none focus:ring-1 focus:ring-teal-500">
-                  <option value="All">All Status</option>
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
-              </div>
-
-              {/* Search */}
-              <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-                <label className="text-sm font-medium text-neutral-700">
-                  Search:
-                </label>
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setListPage(1);
-                  }}
-                  placeholder="Search by name..."
-                  className="flex-1 px-3 py-2 border border-neutral-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-teal-500"
-                />
-              </div>
-
-              {/* Export Button */}
               <button
                 onClick={handleExport}
-                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm font-medium flex items-center gap-2 transition-colors w-full sm:w-auto">
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                  <polyline points="7 10 12 15 17 10"></polyline>
-                  <line x1="12" y1="15" x2="12" y2="3"></line>
-                </svg>
-                Export
+                className="bg-white border border-neutral-300 hover:bg-neutral-50 text-neutral-700 px-4 py-2.5 rounded-lg text-sm font-medium shadow-sm transition-all flex items-center gap-2"
+              >
+                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                 </svg>
+                 Export
               </button>
+           </div>
+         </div>
+      </div>
 
-              {/* Bulk Delete Button (List View) */}
-              {viewMode === "list" && selectedIds.size > 0 && (
-                <button
-                  onClick={handleBulkDelete}
-                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-sm font-medium flex items-center gap-2 transition-colors">
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2">
-                    <polyline points="3 6 5 6 21 6"></polyline>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                  </svg>
-                  Delete Selected ({selectedIds.size})
-                </button>
-              )}
-            </div>
+      {/* Main Content Area */}
+      <div className="flex-1 px-4 md:px-6 pb-6">
+        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden flex flex-col">
 
-            {/* Tree View Controls */}
-            {viewMode === "tree" && (
-              <div className="mt-3 flex items-center gap-2">
-                <button
-                  onClick={handleExpandAll}
-                  className="px-3 py-1.5 text-xs font-medium text-neutral-700 bg-white border border-neutral-300 rounded hover:bg-neutral-50 transition-colors">
-                  Expand All
-                </button>
-                <button
-                  onClick={handleCollapseAll}
-                  className="px-3 py-1.5 text-xs font-medium text-neutral-700 bg-white border border-neutral-300 rounded hover:bg-neutral-50 transition-colors">
-                  Collapse All
-                </button>
+           {/* Controls Bar */}
+           <div className="p-4 border-b border-neutral-200 bg-neutral-50/50 space-y-4">
+              <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+
+                 {/* Left Side Controls */}
+                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full xl:w-auto">
+                    {/* View Toggle */}
+                    <div className="bg-neutral-100 p-1 rounded-lg border border-neutral-200 flex shrink-0">
+                       <button
+                          onClick={() => setViewMode("tree")}
+                          className={`flex-1 sm:flex-none px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
+                             viewMode === "tree" ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-500 hover:text-neutral-700"
+                          }`}
+                       >
+                          Tree
+                       </button>
+                       <button
+                          onClick={() => setViewMode("list")}
+                          className={`flex-1 sm:flex-none px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
+                             viewMode === "list" ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-500 hover:text-neutral-700"
+                          }`}
+                       >
+                          List
+                       </button>
+                    </div>
+
+                    {/* Status Filter */}
+                    <div className="w-full sm:w-48">
+                       <ThemedDropdown
+                          options={['All', 'Active', 'Inactive']}
+                          value={statusFilter}
+                          onChange={(val) => setStatusFilter(val)}
+                          placeholder="Filter by Status"
+                       />
+                    </div>
+                 </div>
+
+                 {/* Right Side Controls */}
+                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full xl:w-auto">
+                    {/* Search */}
+                    <div className="relative w-full sm:w-64">
+                       <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <circle cx="11" cy="11" r="8"></circle>
+                          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                       </svg>
+                       <input
+                          type="text"
+                          value={searchQuery}
+                          onChange={(e) => {
+                             setSearchQuery(e.target.value);
+                             setListPage(1);
+                          }}
+                          placeholder="Search categories..."
+                          className="w-full pl-9 pr-4 py-2 bg-white border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
+                       />
+                    </div>
+
+                    {/* Bulk Delete (List View Only) */}
+                    {viewMode === "list" && selectedIds.size > 0 && (
+                       <button
+                          onClick={handleBulkDelete}
+                          className="bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 border border-red-200 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                       >
+                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                             <polyline points="3 6 5 6 21 6"></polyline>
+                             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                          </svg>
+                          Delete ({selectedIds.size})
+                       </button>
+                    )}
+
+                    {/* Expand/Collapse (Tree View Only) */}
+                     {viewMode === "tree" && (
+                       <div className="flex items-center gap-2 shrink-0">
+                         <button onClick={handleExpandAll} className="px-3 py-2 text-xs font-medium text-neutral-600 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 transition-colors">
+                           Expand All
+                         </button>
+                         <button onClick={handleCollapseAll} className="px-3 py-2 text-xs font-medium text-neutral-600 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 transition-colors">
+                           Collapse All
+                         </button>
+                       </div>
+                     )}
+                 </div>
               </div>
-            )}
-          </div>
+           </div>
 
-          {/* Content Area */}
-          <div className="p-4 sm:p-6">
-            {loading ? (
-              <div className="text-center py-8 text-neutral-500">
-                Loading categories...
-              </div>
-            ) : error ? (
-              <div className="text-center py-8 text-red-600">{error}</div>
-            ) : viewMode === "tree" ? (
-              <CategoryTreeView
-                categories={categoryTree}
-                onAddSubcategory={handleCreateSubcategory}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                onToggleStatus={handleToggleStatus}
-                expandedIds={expandedIds}
-                onToggleExpand={handleToggleExpand}
-              />
-            ) : (
-              <CategoryListView
-                categories={filteredCategories}
-                selectedIds={selectedIds}
-                onSelect={handleSelect}
-                onSelectAll={handleSelectAll}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                currentPage={listPage}
-                itemsPerPage={itemsPerPage}
-                onPageChange={setListPage}
-              />
-            )}
-          </div>
+           {/* Content View */}
+           <div className="min-h-[400px]">
+             {loading ? (
+               <div className="flex flex-col items-center justify-center h-64 text-neutral-500">
+                  <div className="w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+                  <p className="text-sm font-medium">Loading categories...</p>
+               </div>
+             ) : error ? (
+               <div className="p-8 text-center bg-red-50 border-b border-red-100">
+                  <p className="text-red-600 font-medium">{error}</p>
+               </div>
+             ) : (
+                <div className="p-4 sm:p-6">
+                   {viewMode === "tree" ? (
+                      <CategoryTreeView
+                         categories={categoryTree}
+                         onAddSubcategory={handleCreateSubcategory}
+                         onEdit={handleEdit}
+                         onDelete={handleDelete}
+                         onToggleStatus={handleToggleStatus}
+                         expandedIds={expandedIds}
+                         onToggleExpand={handleToggleExpand}
+                      />
+                   ) : (
+                      <CategoryListView
+                         categories={filteredCategories}
+                         selectedIds={selectedIds}
+                         onSelect={handleSelect}
+                         onSelectAll={handleSelectAll}
+                         onEdit={handleEdit}
+                         onDelete={handleDelete}
+                         currentPage={listPage}
+                         itemsPerPage={itemsPerPage}
+                         onPageChange={setListPage}
+                      />
+                   )}
+                </div>
+             )}
+           </div>
         </div>
       </div>
 
       {/* Footer */}
-      <div className="text-center py-4 text-xs sm:text-sm text-neutral-600">
-        Copyright © 2025. Developed By{" "}
-        <a href="#" className="text-blue-600 hover:text-blue-700">
-          Geeta Stores - 10 Minute App
-        </a>
+      <div className="text-center py-6 text-xs text-neutral-500 border-t border-neutral-200 mt-auto bg-white">
+        <div className="max-w-7xl mx-auto px-4">
+           Copyright © 2025. Developed By <span className="font-semibold text-teal-600">Geeta Stores - 10 Minute App</span>
+        </div>
       </div>
 
       {/* Category Form Modal */}

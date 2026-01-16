@@ -78,22 +78,42 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       console.log('[LocationContext] Checking initial permission status...');
 
       try {
-        // 1. Check sessionStorage for session-level permission
+        // 1. Check for cached location first to prevent popup on refresh
+        const cachedLocationData = localStorage.getItem(LOCATION_STORAGE_KEY);
+        let restoredFromCache = false;
+
+        if (cachedLocationData) {
+          try {
+            const parsedLocation = JSON.parse(cachedLocationData);
+            if (parsedLocation && parsedLocation.latitude && parsedLocation.longitude) {
+              console.log('[LocationContext] Restoring cached location from localStorage');
+              setLocation(parsedLocation);
+              setIsLocationEnabled(true);
+              setLocationPermissionStatus('granted');
+              restoredFromCache = true;
+            }
+          } catch (e) {
+            console.error('Failed to parse cached location', e);
+          }
+        }
+
         const sessionGranted = sessionStorage.getItem(SESSION_PERMISSION_KEY);
 
         if (sessionGranted === 'true') {
           console.log('[LocationContext] Permission already granted in this session.');
-
-          // 2. Ignore cache to force fresh location check every time
-          // const cachedLocation = localStorage.getItem(LOCATION_STORAGE_KEY);
-          // if (cachedLocation) { ... }
-
-          // Instead, treat as if we have permission but need to refresh coordinates
-          console.log('[LocationContext] Permission granted in session, fetching fresh location...');
           setLocationPermissionStatus('session_granted');
-          requestLocation(); // Automatically fetch fresh location
-        } else {
-          console.log('[LocationContext] No session-level permission found. User will be prompted.');
+
+          // If we didn't restore from cache, or if we want to ensure fresh data, we can request
+          // But since we want to avoid the popup/loading state if possible, we rely on cache if available
+          if (!restoredFromCache) {
+             console.log('[LocationContext] No cache found, fetching fresh location...');
+             requestLocation();
+          } else {
+             // Optional: Refresh silently in background if needed, but for now just using cache is enough to stop popup
+             // requestLocation();
+          }
+        } else if (!restoredFromCache) {
+          console.log('[LocationContext] No session-level permission and no cache. User will be prompted.');
           setLocation(null);
           setIsLocationEnabled(false);
           setLocationPermissionStatus('prompt');

@@ -600,7 +600,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Tables Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6">
         {/* View New Orders Table */}
         <div className="bg-white rounded-lg shadow-sm border border-neutral-200 overflow-hidden">
           <div className="bg-teal-600 text-white px-4 sm:px-6 py-3">
