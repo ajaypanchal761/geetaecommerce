@@ -14,4 +14,5 @@ router.get('/withdrawals', walletController.getWithdrawalRequests);
 router.post('/withdrawals', walletController.createWithdrawalRequest);
 router.get('/earnings', walletController.getOrderEarnings);
 
+
 export default router;
