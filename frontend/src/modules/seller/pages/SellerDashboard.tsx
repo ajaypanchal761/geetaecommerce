@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import DashboardCard from '../components/DashboardCard';
 import OrderChart from '../components/OrderChart';
 import AlertCard from '../components/AlertCard';
@@ -34,7 +35,6 @@ export default function SellerDashboard() {
 
     fetchDashboardData();
   }, []);
-
 
   const getStatusBadgeClass = (status: NewOrder['status']) => {
     switch (status) {
@@ -192,6 +192,30 @@ export default function SellerDashboard() {
     </svg>
   );
 
+  // Animation variants
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+      },
+    },
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        type: 'spring',
+        stiffness: 100,
+        damping: 10,
+      },
+    },
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -209,262 +233,218 @@ export default function SellerDashboard() {
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <motion.div
+      className="space-y-4 sm:space-y-6"
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+    >
       {/* KPI Cards Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-        <DashboardCard icon={userIcon} title="Total User" value={stats.totalUser} accentColor="#3b82f6" />
-        <DashboardCard icon={categoryIcon} title="Total Category" value={stats.totalCategory} accentColor="#eab308" />
-        <DashboardCard icon={subcategoryIcon} title="Total Subcategory" value={stats.totalSubcategory} accentColor="#ec4899" />
-        <DashboardCard icon={productIcon} title="Total Product" value={stats.totalProduct} accentColor="#f97316" />
-        <DashboardCard icon={ordersIcon} title="Total Orders" value={stats.totalOrders} accentColor="#3b82f6" />
-        <DashboardCard icon={completedOrdersIcon} title="Completed Orders" value={stats.completedOrders} accentColor="#16a34a" />
-        <DashboardCard icon={pendingOrdersIcon} title="Pending Orders" value={stats.pendingOrders} accentColor="#a855f7" />
-        <DashboardCard icon={cancelledOrdersIcon} title="Cancelled Orders" value={stats.cancelledOrders} accentColor="#ef4444" />
-      </div>
+      <motion.div
+        className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4"
+        variants={itemVariants}
+      >
+        <motion.div whileHover={{ scale: 1.02 }} transition={{ type: 'spring', stiffness: 300 }} className="h-full">
+          <DashboardCard icon={userIcon} title="Total User" value={stats.totalUser} accentColor="#3b82f6" />
+        </motion.div>
+        <motion.div whileHover={{ scale: 1.02 }} transition={{ type: 'spring', stiffness: 300 }} className="h-full">
+          <DashboardCard icon={categoryIcon} title="Total Category" value={stats.totalCategory} accentColor="#eab308" />
+        </motion.div>
+        <motion.div whileHover={{ scale: 1.02 }} transition={{ type: 'spring', stiffness: 300 }} className="h-full">
+          <DashboardCard icon={subcategoryIcon} title="Total Subcategory" value={stats.totalSubcategory} accentColor="#ec4899" />
+        </motion.div>
+        <motion.div whileHover={{ scale: 1.02 }} transition={{ type: 'spring', stiffness: 300 }} className="h-full">
+          <DashboardCard icon={productIcon} title="Total Product" value={stats.totalProduct} accentColor="#f97316" />
+        </motion.div>
+        <motion.div whileHover={{ scale: 1.02 }} transition={{ type: 'spring', stiffness: 300 }} className="h-full">
+          <DashboardCard icon={ordersIcon} title="Total Orders" value={stats.totalOrders} accentColor="#3b82f6" />
+        </motion.div>
+        <motion.div whileHover={{ scale: 1.02 }} transition={{ type: 'spring', stiffness: 300 }} className="h-full">
+          <DashboardCard icon={completedOrdersIcon} title="Completed Orders" value={stats.completedOrders} accentColor="#16a34a" />
+        </motion.div>
+        <motion.div whileHover={{ scale: 1.02 }} transition={{ type: 'spring', stiffness: 300 }} className="h-full">
+          <DashboardCard icon={pendingOrdersIcon} title="Pending Orders" value={stats.pendingOrders} accentColor="#a855f7" />
+        </motion.div>
+        <motion.div whileHover={{ scale: 1.02 }} transition={{ type: 'spring', stiffness: 300 }} className="h-full">
+          <DashboardCard icon={cancelledOrdersIcon} title="Cancelled Orders" value={stats.cancelledOrders} accentColor="#ef4444" />
+        </motion.div>
+      </motion.div>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        <OrderChart title={`Order - ${new Date().toLocaleString('default', { month: 'short' })} ${new Date().getFullYear()}`} data={stats.dailyOrderData} maxValue={Math.max(...stats.dailyOrderData.map(d => d.value), 5)} height={400} />
-        <OrderChart title={`Order - ${new Date().getFullYear()}`} data={stats.yearlyOrderData} maxValue={Math.max(...stats.yearlyOrderData.map(d => d.value), 20)} height={400} />
-      </div>
+      <motion.div
+        className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6"
+        variants={itemVariants}
+      >
+        <motion.div className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-300 border border-neutral-100 overflow-hidden" whileHover={{ y: -4 }}>
+          <OrderChart title={`Order - ${new Date().toLocaleString('default', { month: 'short' })} ${new Date().getFullYear()}`} data={stats.dailyOrderData} maxValue={Math.max(...stats.dailyOrderData.map(d => d.value), 5)} height={400} />
+        </motion.div>
+        <motion.div className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-300 border border-neutral-100 overflow-hidden" whileHover={{ y: -4 }}>
+          <OrderChart title={`Order - ${new Date().getFullYear()}`} data={stats.yearlyOrderData} maxValue={Math.max(...stats.yearlyOrderData.map(d => d.value), 20)} height={400} />
+        </motion.div>
+      </motion.div>
 
       {/* Alerts and Button Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <motion.div
+        className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+        variants={itemVariants}
+      >
         {/* Alert Cards - Side by Side */}
-        <AlertCard icon={soldOutIcon} title="Product Sold Out" value={stats.soldOutProducts} accentColor="#ec4899" />
-        <AlertCard icon={lowStockIcon} title="Product low on Stock" value={stats.lowStockProducts} accentColor="#eab308" />
-      </div>
+        <motion.div whileHover={{ scale: 1.01 }} className="h-full">
+          <AlertCard icon={soldOutIcon} title="Product Sold Out" value={stats.soldOutProducts} accentColor="#ec4899" />
+        </motion.div>
+        <motion.div whileHover={{ scale: 1.01 }} className="h-full">
+          <AlertCard icon={lowStockIcon} title="Product low on Stock" value={stats.lowStockProducts} accentColor="#eab308" />
+        </motion.div>
+      </motion.div>
 
       {/* View New Orders Table Section */}
-      <div className="bg-white rounded-lg shadow-sm border border-neutral-200 overflow-hidden">
+      <motion.div
+        className="bg-white rounded-xl shadow-lg border border-neutral-100 overflow-hidden"
+        variants={itemVariants}
+      >
         {/* Teal Header Bar */}
-        <div className="bg-teal-600 text-white px-4 sm:px-6 py-3">
-          <h2 className="text-base sm:text-lg font-semibold">View New Orders</h2>
+        <div className="bg-gradient-to-r from-teal-600 to-teal-500 text-white px-6 py-4 flex justify-between items-center">
+          <h2 className="text-lg font-bold tracking-tight">View New Orders</h2>
+          <div className="bg-white/20 px-3 py-1 rounded-full text-xs font-medium backdrop-blur-sm">
+            Live Updates
+          </div>
         </div>
 
         {/* Show Entries Control */}
-        <div className="px-4 sm:px-6 py-3 border-b border-neutral-200">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-neutral-700">Show</span>
-            <input
-              type="number"
-              value={entriesPerPage}
-              onChange={(e) => {
-                const value = parseInt(e.target.value) || 10;
-                setEntriesPerPage(Math.max(1, Math.min(100, value)));
-                setCurrentPage(1);
-              }}
-              className="w-16 px-2 py-1 border border-neutral-300 rounded text-sm text-neutral-900 bg-white focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500"
-              min="1"
-              max="100"
-            />
-            <span className="text-sm text-neutral-700">entries</span>
+        <div className="px-6 py-4 border-b border-neutral-100 bg-neutral-50/30 w-full">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-neutral-600">Show</span>
+              <div className="relative">
+                <select
+                  value={entriesPerPage}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value) || 10;
+                    setEntriesPerPage(Math.max(1, Math.min(100, value)));
+                    setCurrentPage(1);
+                  }}
+                  className="appearance-none w-20 px-3 py-1.5 border border-neutral-300 rounded-lg text-sm text-neutral-700 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 shadow-sm transition-all"
+                >
+                  <option value="5">5</option>
+                  <option value="10">10</option>
+                  <option value="20">20</option>
+                  <option value="50">50</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-neutral-500">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                </div>
+              </div>
+              <span className="text-sm font-medium text-neutral-600">entries</span>
+            </div>
           </div>
         </div>
 
         {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[600px]">
-            <thead className="bg-neutral-50 border-b border-neutral-200">
+        <div className="overflow-x-auto w-full">
+          <table className="w-full min-w-[700px]">
+            <thead className="bg-neutral-50 border-b border-neutral-200/60">
               <tr>
-                <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider">
-                  ID
-                </th>
-                <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider">
-                  <div className="flex items-center gap-2">
-                    O. Date
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="text-neutral-400 cursor-pointer"
-                    >
-                      <path
-                        d="M7 10L12 5L17 10M7 14L12 19L17 14"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                </th>
-                <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider">
-                  <div className="flex items-center gap-2">
-                    Status
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="text-neutral-400 cursor-pointer"
-                    >
-                      <path
-                        d="M7 10L12 5L17 10M7 14L12 19L17 14"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                </th>
-                <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider">
-                  <div className="flex items-center gap-2">
-                    Amount
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="text-neutral-400 cursor-pointer"
-                    >
-                      <path
-                        d="M7 10L12 5L17 10M7 14L12 19L17 14"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                </th>
-                <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider">
-                  <div className="flex items-center gap-2">
-                    Action
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="text-neutral-400 cursor-pointer"
-                    >
-                      <path
-                        d="M7 10L12 5L17 10M7 14L12 19L17 14"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                </th>
+                <th className="px-6 py-3.5 text-left text-xs font-bold text-neutral-500 uppercase tracking-wider">ID</th>
+                <th className="px-6 py-3.5 text-left text-xs font-bold text-neutral-500 uppercase tracking-wider">Order Date</th>
+                <th className="px-6 py-3.5 text-left text-xs font-bold text-neutral-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3.5 text-left text-xs font-bold text-neutral-500 uppercase tracking-wider">Amount</th>
+                <th className="px-6 py-3.5 text-left text-xs font-bold text-neutral-500 uppercase tracking-wider">Action</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-neutral-200">
-              {displayedOrders.map((order) => (
-                <tr key={order.id} className="hover:bg-neutral-50">
-                  <td className="px-4 sm:px-6 py-3 text-sm text-neutral-900">{order.id}</td>
-                  <td className="px-4 sm:px-6 py-3 text-sm text-neutral-600">{order.orderDate}</td>
-                  <td className="px-4 sm:px-6 py-3">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeClass(order.status)}`}>
+            <tbody className="bg-white divide-y divide-neutral-100">
+              {displayedOrders.map((order, index) => (
+                <motion.tr
+                  key={order.id}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="hover:bg-teal-50/30 transition-colors duration-150 group"
+                >
+                  <td className="px-6 py-4 text-sm font-medium text-neutral-900">
+                    <span className="font-mono bg-neutral-100 px-2 py-1 rounded text-neutral-600 group-hover:bg-white group-hover:shadow-sm transition-all">#{order.id}</span>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-neutral-600">{order.orderDate}</td>
+                  <td className="px-6 py-4">
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold shadow-sm ${getStatusBadgeClass(order.status)}`}>
                       {order.status}
                     </span>
                   </td>
-                  <td className="px-4 sm:px-6 py-3 text-sm text-neutral-900">₹ {order.amount}</td>
-                  <td className="px-4 sm:px-6 py-3">
+                  <td className="px-6 py-4 text-sm font-semibold text-neutral-900">₹ {order.amount.toLocaleString('en-IN')}</td>
+                  <td className="px-6 py-4">
                     <button
                       onClick={() => navigate(`/seller/orders/${order.id}`)}
-                      className="bg-teal-600 hover:bg-teal-700 text-white p-2 rounded transition-colors"
+                      className="bg-white border border-teal-200 text-teal-600 hover:bg-teal-600 hover:text-white p-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 transform hover:scale-105 active:scale-95"
                       aria-label="View order details"
+                      title="View Details"
                     >
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <circle
-                          cx="11"
-                          cy="11"
-                          r="8"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                        <path
-                          d="M21 21L16.65 16.65"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M15 12C15 13.6569 13.6569 15 12 15C10.3431 15 9 13.6569 9 12C9 10.3431 10.3431 9 12 9C13.6569 9 15 10.3431 15 12Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M2.45825 12C3.73253 7.94288 7.52281 5 12.0002 5C16.4776 5 20.2679 7.94288 21.5422 12C20.2679 16.0571 16.4776 19 12.0002 19C7.52281 19 3.73253 16.0571 2.45825 12Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
                     </button>
                   </td>
-                </tr>
+                </motion.tr>
               ))}
             </tbody>
           </table>
         </div>
 
         {/* Pagination Footer */}
-        <div className="px-4 sm:px-6 py-3 border-t border-neutral-200 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0">
-          <div className="text-xs sm:text-sm text-neutral-700">
-            Showing {startIndex + 1} to {Math.min(endIndex, newOrders.length)} of {newOrders.length} entries
+        <div className="px-6 py-4 border-t border-neutral-100 bg-neutral-50/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="text-sm font-medium text-neutral-500">
+            Showing <span className="text-neutral-900">{startIndex + 1}</span> to <span className="text-neutral-900">{Math.min(endIndex, newOrders.length)}</span> of <span className="text-neutral-900">{newOrders.length}</span> entries
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
               disabled={currentPage === 1}
-              className={`p-2 border border-neutral-300 rounded ${currentPage === 1
-                ? 'text-neutral-400 cursor-not-allowed bg-neutral-50'
-                : 'text-neutral-700 hover:bg-neutral-50'
+              className={`flex items-center justify-center p-2 rounded-lg border transition-all ${currentPage === 1
+                ? 'border-neutral-200 text-neutral-300 cursor-not-allowed bg-neutral-50'
+                : 'border-neutral-300 text-neutral-600 hover:bg-white hover:border-teal-500 hover:text-teal-600 shadow-sm hover:shadow'
                 }`}
-              aria-label="Previous page"
             >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M15 18L9 12L15 6"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 18l-6-6 6-6" />
               </svg>
             </button>
+            <div className="hidden sm:flex items-center gap-1">
+              {[...Array(Math.min(5, totalPages))].map((_, i) => {
+                 let p = i + 1;
+                 if (totalPages > 5 && currentPage > 3) {
+                    p = currentPage - 2 + i;
+                    if (p > totalPages) p = i + 1 + (totalPages - 5);
+                 }
+
+                 return (
+                  <button
+                    key={p}
+                    onClick={() => setCurrentPage(p)}
+                    className={`min-w-[32px] h-8 flex items-center justify-center rounded-md text-sm font-medium transition-all ${
+                      currentPage === p
+                      ? 'bg-teal-600 text-white shadow-md'
+                      : 'text-neutral-600 hover:bg-neutral-100'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                 );
+              })}
+            </div>
             <button
               onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
               disabled={currentPage === totalPages}
-              className={`p-2 border border-neutral-300 rounded ${currentPage === totalPages
-                ? 'text-neutral-400 cursor-not-allowed bg-neutral-50'
-                : 'text-neutral-700 hover:bg-neutral-50'
+              className={`flex items-center justify-center p-2 rounded-lg border transition-all ${currentPage === totalPages
+                ? 'border-neutral-200 text-neutral-300 cursor-not-allowed bg-neutral-50'
+                : 'border-neutral-300 text-neutral-600 hover:bg-white hover:border-teal-500 hover:text-teal-600 shadow-sm hover:shadow'
                 }`}
-              aria-label="Next page"
             >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M9 18L15 12L9 6"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 18l6-6-6-6" />
               </svg>
             </button>
           </div>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
-

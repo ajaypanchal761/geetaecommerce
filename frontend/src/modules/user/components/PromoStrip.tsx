@@ -897,7 +897,7 @@ export default function PromoStrip({ activeTab = "all" }: PromoStripProps) {
                                 <div
                                   key={idx}
                                   className="flex-shrink-0 bg-white rounded flex items-center justify-center overflow-hidden border border-neutral-200"
-                                  style={{ width: "24px", height: "24px" }}>
+                                  style={{ width: "42px", height: "42px" }}>
                                   <img
                                     src={imageUrl}
                                     alt={`Subcategory ${idx + 1}`}
@@ -913,7 +913,7 @@ export default function PromoStrip({ activeTab = "all" }: PromoStripProps) {
                                       if (parent) {
                                         parent.innerHTML =
                                           categoryIcons[idx] || "📦";
-                                        parent.style.fontSize = "18px";
+                                        parent.style.fontSize = "24px";
                                         parent.style.display = "flex";
                                         parent.style.alignItems = "center";
                                         parent.style.justifyContent = "center";
@@ -928,9 +928,9 @@ export default function PromoStrip({ activeTab = "all" }: PromoStripProps) {
                                 key={idx}
                                 className="flex-shrink-0 bg-transparent rounded flex items-center justify-center overflow-hidden"
                                 style={{
-                                  width: "24px",
-                                  height: "24px",
-                                  fontSize: "18px",
+                                  width: "42px",
+                                  height: "42px",
+                                  fontSize: "24px",
                                 }}>
                                 {icon}
                               </div>

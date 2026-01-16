@@ -27,6 +27,7 @@ import {
   getHeaderCategoriesPublic,
   HeaderCategory,
 } from "../../../services/api/headerCategoryService";
+import ThemedDropdown from "../components/ThemedDropdown";
 
 export default function SellerAddProduct() {
   const navigate = useNavigate();
@@ -562,15 +563,16 @@ export default function SellerAddProduct() {
       <div className="flex-1">
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Product Section */}
-          <div className="bg-white rounded-lg shadow-sm border border-neutral-200 overflow-hidden">
-            <div className="bg-teal-600 text-white px-4 sm:px-6 py-3">
-              <h2 className="text-lg font-semibold">Product</h2>
+          {/* Product Section */}
+          <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
+            <div className="bg-teal-600 text-white px-6 py-4">
+              <h2 className="text-lg font-semibold tracking-wide">Product Details</h2>
             </div>
-            <div className="p-4 sm:p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Product Name
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                    Product Name <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -578,415 +580,343 @@ export default function SellerAddProduct() {
                     value={formData.productName}
                     onChange={handleChange}
                     placeholder="Enter Product Name"
-                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
                   />
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Select Header Category{" "}
-                    <span className="text-red-500">*</span>
+                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                    Header Category <span className="text-red-500">*</span>
                   </label>
-                  <select
-                    name="headerCategory"
+                  <ThemedDropdown
+                    options={headerCategories.map(hc => ({ id: hc._id, label: hc.name, value: hc._id }))}
                     value={formData.headerCategory}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white">
-                    <option value="">Select Header Category</option>
-                    {headerCategories.map((headerCat) => (
-                      <option key={headerCat._id} value={headerCat._id}>
-                        {headerCat.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setFormData(prev => ({ ...prev, headerCategory: val }))}
+                    placeholder="Select Header Category"
+                  />
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Select Category
-                    {!formData.headerCategory && (
-                      <span className="text-xs text-neutral-500 ml-1">
-                        (Select header category first)
-                      </span>
-                    )}
+                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                    Category
                   </label>
-                  <select
-                    name="category"
-                    value={formData.category}
-                    onChange={handleChange}
-                    disabled={!formData.headerCategory}
-                    className={`w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${
-                      !formData.headerCategory
-                        ? "bg-neutral-100 cursor-not-allowed text-neutral-500"
-                        : "bg-white"
-                    }`}>
-                    <option value="">
-                      {formData.headerCategory
-                        ? "Select Category"
-                        : "Select Header Category First"}
-                    </option>
-                    {categories
+                  <ThemedDropdown
+                    options={categories
                       .filter((cat: any) => {
-                        // Filter categories by selected header category if header category is selected
                         if (formData.headerCategory) {
-                          const catHeaderId =
-                            typeof cat.headerCategoryId === "string"
+                          const catHeaderId = typeof cat.headerCategoryId === "string"
                               ? cat.headerCategoryId
                               : cat.headerCategoryId?._id;
                           return catHeaderId === formData.headerCategory;
                         }
                         return true;
                       })
-                      .map((cat: any) => (
-                        <option
-                          key={cat._id || cat.id}
-                          value={cat._id || cat.id}>
-                          {cat.name}
-                        </option>
-                      ))}
-                  </select>
+                      .map((cat: any) => ({ id: cat._id || cat.id, label: cat.name, value: cat._id || cat.id }))
+                    }
+                    value={formData.category}
+                    onChange={(val) => setFormData(prev => ({ ...prev, category: val }))}
+                    placeholder={formData.headerCategory ? "Select Category" : "Select Header Category First"}
+                    disabled={!formData.headerCategory}
+                  />
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Select SubCategory
-                    {!formData.category && (
-                      <span className="text-xs text-neutral-500 ml-1">
-                        (Select category first)
-                      </span>
-                    )}
+                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                    SubCategory
                   </label>
-                  <select
-                    name="subcategory"
+                  <ThemedDropdown
+                    options={subcategories.map(sub => ({ id: sub._id, label: sub.subcategoryName, value: sub._id }))}
                     value={formData.subcategory}
-                    onChange={handleChange}
+                    onChange={(val) => setFormData(prev => ({ ...prev, subcategory: val }))}
+                    placeholder={formData.category ? "Select Subcategory" : "Select Category First"}
                     disabled={!formData.category}
-                    className={`w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${
-                      !formData.category
-                        ? "bg-neutral-100 cursor-not-allowed text-neutral-500"
-                        : "bg-white"
-                    }`}>
-                    <option value="">
-                      {formData.category
-                        ? "Select Subcategory"
-                        : "Select Category First"}
-                    </option>
-                    {subcategories.map((sub) => (
-                      <option key={sub._id} value={sub._id}>
-                        {sub.subcategoryName}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Select Sub-SubCategory
-                    {!formData.subcategory && (
-                      <span className="text-xs text-neutral-500 ml-1">
-                        (Select subcategory first)
-                      </span>
-                    )}
+                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                    Sub-SubCategory
                   </label>
-                  <select
-                    name="subSubCategory"
+                  <ThemedDropdown
+                    options={subSubCategories.map(sub => ({ id: sub._id, label: sub.name, value: sub._id }))}
                     value={formData.subSubCategory}
-                    onChange={handleChange}
+                    onChange={(val) => setFormData(prev => ({ ...prev, subSubCategory: val }))}
+                    placeholder={formData.subcategory ? "Select Sub-SubCategory" : "Select Subcategory First"}
                     disabled={!formData.subcategory}
-                    className={`w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${
-                      !formData.subcategory
-                        ? "bg-neutral-100 cursor-not-allowed text-neutral-500"
-                        : "bg-white"
-                    }`}>
-                    <option value="">Select Sub-SubCategory</option>
-                    {subSubCategories.map((subSub) => (
-                      <option key={subSub._id} value={subSub._id}>
-                        {subSub.name}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Product Publish Or Unpublish?
+                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                    Publish Product?
                   </label>
-                  <select
-                    name="publish"
+                  <ThemedDropdown
+                    options={['Yes', 'No']}
                     value={formData.publish}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white">
-                    <option value="No">No</option>
-                    <option value="Yes">Yes</option>
-                  </select>
+                    onChange={(val) => setFormData(prev => ({ ...prev, publish: val }))}
+                  />
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Make Product Popular?
+                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                    Make Popular?
                   </label>
-                  <select
-                    name="popular"
+                  <ThemedDropdown
+                    options={['Yes', 'No']}
                     value={formData.popular}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white">
-                    <option value="No">No</option>
-                    <option value="Yes">Yes</option>
-                  </select>
+                    onChange={(val) => setFormData(prev => ({ ...prev, popular: val }))}
+                  />
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Insert to Deal of the day?
+                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                    Deal of the Day?
                   </label>
-                  <select
-                    name="dealOfDay"
+                  <ThemedDropdown
+                    options={['Yes', 'No']}
                     value={formData.dealOfDay}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white">
-                    <option value="No">No</option>
-                    <option value="Yes">Yes</option>
-                  </select>
+                    onChange={(val) => setFormData(prev => ({ ...prev, dealOfDay: val }))}
+                  />
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Select Brand
+                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                    Brand
                   </label>
-                  <select
-                    name="brand"
+                  <ThemedDropdown
+                    options={brands.map(brand => ({ id: brand._id, label: brand.name, value: brand._id }))}
                     value={formData.brand}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white">
-                    <option value="">Select Brand</option>
-                    {brands.map((brand) => (
-                      <option key={brand._id} value={brand._id}>
-                        {brand.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setFormData(prev => ({ ...prev, brand: val }))}
+                    placeholder="Select Brand"
+                  />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Select Tags
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                    Tags <span className="text-xs text-neutral-500 font-normal ml-1">(Separated by comma)</span>
                   </label>
                   <input
                     type="text"
                     name="tags"
                     value={formData.tags}
                     onChange={handleChange}
-                    placeholder="Select or create tags"
-                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    placeholder="Enter tags for search optimization"
+                    className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
                   />
-                  <p className="text-xs text-red-500 mt-1">
-                    This will help for search
-                  </p>
                 </div>
               </div>
+
               <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-2">
-                  Product Small Description
+                <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                  Short Description
                 </label>
                 <textarea
                   name="smallDescription"
                   value={formData.smallDescription}
                   onChange={handleChange}
-                  placeholder="Enter Product Small Description"
+                  placeholder="Enter a brief product description..."
                   rows={4}
-                  className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 resize-none"
+                  className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 resize-none transition-all"
                 />
               </div>
             </div>
           </div>
 
           {/* SEO Content Section */}
-          <div className="bg-white rounded-lg shadow-sm border border-neutral-200 overflow-hidden">
-            <div className="bg-teal-600 text-white px-4 sm:px-6 py-3">
-              <h2 className="text-lg font-semibold">SEO Content</h2>
+          {/* SEO Content Section */}
+          <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
+            <div className="bg-teal-600 text-white px-6 py-4">
+              <h2 className="text-lg font-semibold tracking-wide">SEO Configuration</h2>
             </div>
-            <div className="p-4 sm:p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-2">
-                  Title
-                </label>
-                <input
-                  type="text"
-                  name="seoTitle"
-                  value={formData.seoTitle}
-                  onChange={handleChange}
-                  placeholder="Enter SEO Title"
-                  className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-2">
-                  SEO Keywords
-                </label>
-                <input
-                  type="text"
-                  name="seoKeywords"
-                  value={formData.seoKeywords}
-                  onChange={handleChange}
-                  placeholder="Enter SEO Keywords"
-                  className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-2">
-                  SEO Image Alt Text
-                </label>
-                <input
-                  type="text"
-                  name="seoImageAlt"
-                  value={formData.seoImageAlt}
-                  onChange={handleChange}
-                  placeholder="Enter SEO Image Alt Text"
-                  className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-2">
-                  SEO Description
-                </label>
-                <textarea
-                  name="seoDescription"
-                  value={formData.seoDescription}
-                  onChange={handleChange}
-                  placeholder="Enter SEO Description"
-                  rows={4}
-                  className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 resize-none"
-                />
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                    meta Title
+                  </label>
+                  <input
+                    type="text"
+                    name="seoTitle"
+                    value={formData.seoTitle}
+                    onChange={handleChange}
+                    placeholder="Enter meta Title"
+                    className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                    meta Keywords
+                  </label>
+                  <input
+                    type="text"
+                    name="seoKeywords"
+                    value={formData.seoKeywords}
+                    onChange={handleChange}
+                    placeholder="Enter meta Keywords"
+                    className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                    Image Alt Attributes
+                  </label>
+                  <input
+                    type="text"
+                    name="seoImageAlt"
+                    value={formData.seoImageAlt}
+                    onChange={handleChange}
+                    placeholder="Enter Image Alt Text"
+                    className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                    meta Description
+                  </label>
+                  <textarea
+                    name="seoDescription"
+                    value={formData.seoDescription}
+                    onChange={handleChange}
+                    placeholder="Enter meta Description"
+                    rows={4}
+                    className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 resize-none transition-all"
+                  />
+                </div>
               </div>
             </div>
           </div>
 
           {/* Add Variation Section */}
-          <div className="bg-white rounded-lg shadow-sm border border-neutral-200 overflow-hidden">
-            <div className="bg-teal-600 text-white px-4 sm:px-6 py-3">
-              <h2 className="text-lg font-semibold">Add Variation</h2>
+          <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
+            <div className="bg-teal-600 text-white px-6 py-4">
+              <h2 className="text-lg font-semibold tracking-wide">Product Variations</h2>
             </div>
-            <div className="p-4 sm:p-6 space-y-4">
+            <div className="p-6 space-y-6">
               <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-2">
-                  Select Product Variation Type
+                <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                  Variation Type
                 </label>
-                <select
-                  name="variationType"
-                  value={formData.variationType}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white">
-                  <option value="">Select Product Type</option>
-                  <option value="Size">Size</option>
-                  <option value="Weight">Weight</option>
-                  <option value="Color">Color</option>
-                  <option value="Pack">Pack</option>
-                </select>
+                <div className="max-w-xs">
+                  <ThemedDropdown
+                    options={['Size', 'Weight', 'Color', 'Pack']}
+                    value={formData.variationType}
+                    onChange={(val) => setFormData(prev => ({ ...prev, variationType: val }))}
+                    placeholder="Select Variation Type"
+                  />
+                </div>
               </div>
 
               {/* Variation Form */}
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 bg-neutral-50 rounded-lg">
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Title (e.g., 100g)
-                  </label>
-                  <input
-                    type="text"
-                    value={variationForm.title}
-                    onChange={(e) =>
-                      setVariationForm({
-                        ...variationForm,
-                        title: e.target.value,
-                      })
-                    }
-                    placeholder="100g"
-                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Price *
-                  </label>
-                  <input
-                    type="number"
-                    value={variationForm.price}
-                    onChange={(e) =>
-                      setVariationForm({
-                        ...variationForm,
-                        price: e.target.value,
-                      })
-                    }
-                    placeholder="100"
-                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Discounted Price
-                  </label>
-                  <input
-                    type="number"
-                    value={variationForm.discPrice}
-                    onChange={(e) =>
-                      setVariationForm({
-                        ...variationForm,
-                        discPrice: e.target.value,
-                      })
-                    }
-                    placeholder="80"
-                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Stock (0 = Unlimited)
-                  </label>
-                  <input
-                    type="number"
-                    value={variationForm.stock}
-                    onChange={(e) =>
-                      setVariationForm({
-                        ...variationForm,
-                        stock: e.target.value,
-                      })
-                    }
-                    placeholder="0"
-                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  />
-                </div>
-                <div className="flex items-end">
-                  <button
-                    type="button"
-                    onClick={addVariation}
-                    className="w-full px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-medium">
-                    Add Variation
-                  </button>
+              <div className="bg-neutral-50 rounded-xl p-6 border border-neutral-200">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-start">
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
+                      Title
+                    </label>
+                    <input
+                      type="text"
+                      value={variationForm.title}
+                      onChange={(e) => setVariationForm({ ...variationForm, title: e.target.value })}
+                      placeholder="e.g. XL, 1kg"
+                      className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
+                      Price *
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400">₹</span>
+                      <input
+                        type="number"
+                        value={variationForm.price}
+                        onChange={(e) => setVariationForm({ ...variationForm, price: e.target.value })}
+                        placeholder="0.00"
+                        className="w-full pl-7 pr-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
+                      Discount Price
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400">₹</span>
+                      <input
+                        type="number"
+                        value={variationForm.discPrice}
+                        onChange={(e) => setVariationForm({ ...variationForm, discPrice: e.target.value })}
+                        placeholder="0.00"
+                        className="w-full pl-7 pr-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
+                      Stock
+                    </label>
+                    <input
+                      type="number"
+                      value={variationForm.stock}
+                      onChange={(e) => setVariationForm({ ...variationForm, stock: e.target.value })}
+                      placeholder="0 = Unlimited"
+                      className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                    />
+                  </div>
+                  <div className="flex items-end h-full pt-6">
+                    <button
+                      type="button"
+                      onClick={addVariation}
+                      className="w-full px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+                    >
+                      Add +
+                    </button>
+                  </div>
                 </div>
               </div>
 
               {/* Variations List */}
               {variations.length > 0 && (
-                <div className="mt-4">
-                  <h3 className="text-sm font-medium text-neutral-700 mb-2">
-                    Added Variations:
-                  </h3>
-                  <div className="space-y-2">
+                <div className="border border-neutral-200 rounded-lg overflow-hidden">
+                  <div className="bg-neutral-50 px-4 py-2 border-b border-neutral-200">
+                    <h3 className="text-sm font-semibold text-neutral-700">Added Variations</h3>
+                  </div>
+                  <div className="divide-y divide-neutral-100">
                     {variations.map((variation, index) => (
                       <div
                         key={index}
-                        className="flex items-center justify-between p-3 bg-white border border-neutral-200 rounded-lg">
-                        <div className="flex-1">
-                          <span className="font-medium">{variation.title}</span>{" "}
-                          - ₹{variation.price}
-                          {variation.discPrice > 0 && (
-                            <span className="text-green-600 ml-2">
-                              (₹{variation.discPrice})
+                        className="flex items-center justify-between p-4 bg-white hover:bg-neutral-50 transition-colors"
+                      >
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1">
+                          <div>
+                            <span className="text-xs text-neutral-400 block">Title</span>
+                            <span className="font-medium text-neutral-900">{variation.title}</span>
+                          </div>
+                          <div>
+                            <span className="text-xs text-neutral-400 block">Price</span>
+                            <span className="font-medium text-teal-600">₹{variation.price}</span>
+                            {variation.discPrice > 0 && (
+                               <span className="text-xs text-neutral-400 line-through ml-2">₹{variation.discPrice}</span>
+                            )}
+                          </div>
+                          <div>
+                            <span className="text-xs text-neutral-400 block">Stock</span>
+                            <span className="text-neutral-700">{variation.stock === 0 ? "Unlimited" : variation.stock}</span>
+                          </div>
+                          <div>
+                            <span className="text-xs text-neutral-400 block">Status</span>
+                            <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${variation.status === 'Available' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                              {variation.status}
                             </span>
-                          )}
-                          <span className="ml-4 text-sm text-neutral-600">
-                            Stock:{" "}
-                            {variation.stock === 0
-                              ? "Unlimited"
-                              : variation.stock}{" "}
-                            | Status: {variation.status}
-                          </span>
+                          </div>
                         </div>
                         <button
                           type="button"
                           onClick={() => removeVariation(index)}
-                          className="text-red-600 hover:text-red-700 ml-4">
-                          Remove
+                          className="ml-4 p-2 text-neutral-400 hover:text-red-600 transition-colors"
+                          title="Remove variation"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                         </button>
                       </div>
                     ))}
@@ -997,14 +927,14 @@ export default function SellerAddProduct() {
           </div>
 
           {/* Add Other Details Section */}
-          <div className="bg-white rounded-lg shadow-sm border border-neutral-200 overflow-hidden">
-            <div className="bg-teal-600 text-white px-4 sm:px-6 py-3">
-              <h2 className="text-lg font-semibold">Add Other Details</h2>
+          <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
+            <div className="bg-teal-600 text-white px-6 py-4">
+              <h2 className="text-lg font-semibold tracking-wide">Additional Details</h2>
             </div>
-            <div className="p-4 sm:p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
+                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     Manufacturer
                   </label>
                   <input
@@ -1012,12 +942,12 @@ export default function SellerAddProduct() {
                     name="manufacturer"
                     value={formData.manufacturer}
                     onChange={handleChange}
-                    placeholder="Enter Manufacturer"
-                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    placeholder="Enter Manufacturer Name"
+                    className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
+                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     Made In
                   </label>
                   <input
@@ -1025,42 +955,33 @@ export default function SellerAddProduct() {
                     name="madeIn"
                     value={formData.madeIn}
                     onChange={handleChange}
-                    placeholder="Enter Made In"
-                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    placeholder="Enter Country/Region"
+                    className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Select Tax
+                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                    Tax Category
                   </label>
-                  <select
-                    name="tax"
+                  <ThemedDropdown
+                    options={taxes.map(tax => ({ id: tax._id, label: `${tax.name} (${tax.percentage}%)`, value: tax._id }))}
                     value={formData.tax}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white">
-                    <option value="">Select Tax</option>
-                    {taxes.map((tax) => (
-                      <option key={tax._id} value={tax._id}>
-                        {tax.name} ({tax.percentage}%)
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setFormData(prev => ({ ...prev, tax: val }))}
+                    placeholder="Select Tax"
+                  />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    is Returnable?
+                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                    Returnable?
                   </label>
-                  <select
-                    name="isReturnable"
+                  <ThemedDropdown
+                    options={['Yes', 'No']}
                     value={formData.isReturnable}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white">
-                    <option value="No">No</option>
-                    <option value="Yes">Yes</option>
-                  </select>
+                    onChange={(val) => setFormData(prev => ({ ...prev, isReturnable: val }))}
+                  />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
+                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     Max Return Days
                   </label>
                   <input
@@ -1068,12 +989,12 @@ export default function SellerAddProduct() {
                     name="maxReturnDays"
                     value={formData.maxReturnDays}
                     onChange={handleChange}
-                    placeholder="Enter Max Return Days"
-                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    placeholder="e.g. 7"
+                    className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
+                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     FSSAI Lic. No.
                   </label>
                   <input
@@ -1081,24 +1002,24 @@ export default function SellerAddProduct() {
                     name="fssaiLicNo"
                     value={formData.fssaiLicNo}
                     onChange={handleChange}
-                    placeholder="Enter FSSAI Lic. No."
-                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    placeholder="Enter License Number"
+                    className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Total allowed quantity
+                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                    Total Allowed Quantity
                   </label>
                   <input
                     type="number"
                     name="totalAllowedQuantity"
                     value={formData.totalAllowedQuantity}
                     onChange={handleChange}
-                    placeholder="Enter Total allowed quantit"
-                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    placeholder="e.g. 10"
+                    className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
                   />
                   <p className="text-xs text-neutral-500 mt-1">
-                    Keep blank if no such limit
+                    Max quantity a user can buy at once
                   </p>
                 </div>
               </div>
@@ -1258,51 +1179,43 @@ export default function SellerAddProduct() {
           </div>
 
           {/* Shop by Store Section */}
-          <div className="bg-white rounded-lg shadow-sm border border-neutral-200 overflow-hidden">
-            <div className="bg-teal-600 text-white px-4 sm:px-6 py-3">
-              <h2 className="text-lg font-semibold">Shop by Store</h2>
+          <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
+            <div className="bg-teal-600 text-white px-6 py-4">
+              <h2 className="text-lg font-semibold tracking-wide">Store Visibility</h2>
             </div>
-            <div className="p-4 sm:p-6 space-y-4">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-sm text-blue-800">
-                  <strong>Note:</strong> If you select "Show in Shop by Store only", this product will only be visible in the Shop by Store section and will not appear on category pages, home page, or any other pages.
-                </p>
+            <div className="p-6 space-y-6">
+              <div className="bg-teal-50 border border-teal-200 rounded-lg p-4 flex gap-3 items-start">
+                 <svg className="w-5 h-5 text-teal-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                 <p className="text-sm text-teal-800">
+                   <strong>Note:</strong> If you select "Show in Shop by Store only", this product will <strong>only</strong> be visible in the selected store's specific page and will not appear on general category pages or the home page.
+                 </p>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
+                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     Show in Shop by Store only?
                   </label>
-                  <select
-                    name="isShopByStoreOnly"
+                  <ThemedDropdown
+                    options={['Yes', 'No']}
                     value={formData.isShopByStoreOnly}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white">
-                    <option value="No">No</option>
-                    <option value="Yes">Yes</option>
-                  </select>
+                    onChange={(val) => setFormData(prev => ({ ...prev, isShopByStoreOnly: val }))}
+                  />
                 </div>
                 {formData.isShopByStoreOnly === "Yes" && (
                   <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-2">
+                    <label className="block text-sm font-semibold text-neutral-700 mb-2">
                       Select Store <span className="text-red-500">*</span>
                     </label>
-                    <select
-                      name="shopId"
+                    <ThemedDropdown
+                      options={shops.map(shop => ({ id: shop._id, label: shop.name, value: shop._id }))}
                       value={formData.shopId}
-                      onChange={handleChange}
-                      required={formData.isShopByStoreOnly === "Yes"}
-                      className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white">
-                      <option value="">Select Store</option>
-                      {shops.map((shop) => (
-                        <option key={shop._id} value={shop._id}>
-                          {shop.name}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => setFormData(prev => ({ ...prev, shopId: val }))}
+                      placeholder="Select Store"
+                    />
                     {shops.length === 0 && (
-                      <p className="text-xs text-neutral-500 mt-1">
-                        No active stores available. Please contact admin to create stores.
+                      <p className="text-xs text-red-500 mt-2 flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                        No active stores available. Please contact admin.
                       </p>
                     )}
                   </div>

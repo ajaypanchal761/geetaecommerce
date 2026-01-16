@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { getCategories, Category } from '../../../services/api/categoryService';
+import ThemedDropdown from '../components/ThemedDropdown';
 
 export default function SellerCategory() {
     const [categories, setCategories] = useState<Category[]>([]);
@@ -40,34 +43,59 @@ export default function SellerCategory() {
         cat.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    const containerVariants = {
+        hidden: { opacity: 0, y: 20 },
+        visible: {
+            opacity: 1,
+            y: 0,
+            transition: {
+                duration: 0.4,
+                staggerChildren: 0.05
+            }
+        }
+    };
+
+    const itemVariants = {
+        hidden: { opacity: 0, x: -10 },
+        visible: { opacity: 1, x: 0 }
+    };
+
     return (
-        <div className="flex flex-col h-full">
+        <motion.div
+            className="flex flex-col h-full space-y-6"
+            initial="hidden"
+            animate="visible"
+            variants={containerVariants}
+        >
             {/* Page Header */}
-            <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-semibold text-neutral-800">Category</h1>
-                <div className="text-sm text-blue-500">
-                    <span className="cursor-pointer hover:underline">Home</span> <span className="text-neutral-400">/</span> <span className="text-neutral-600">Dashboard</span>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-xl shadow-sm border border-neutral-200">
+                <div>
+                    <h1 className="text-2xl font-bold text-neutral-900 tracking-tight">Category Management</h1>
+                    <p className="text-sm text-neutral-500 mt-1">View and manage product categories</p>
+                </div>
+                <div className="flex items-center gap-2 text-sm bg-neutral-50 px-3 py-1.5 rounded-lg border border-neutral-200 mt-3 sm:mt-0">
+                    <Link to="/seller" className="text-teal-600 hover:text-teal-700 font-medium cursor-pointer hover:underline">Home</Link>
+                    <span className="text-neutral-400">/</span>
+                    <span className="text-neutral-600">Category</span>
                 </div>
             </div>
 
             {/* Content Card */}
-            <div className="bg-white rounded-lg shadow-sm border border-neutral-200 flex-1 flex flex-col">
-                <div className="p-4 border-b border-neutral-100 font-medium text-neutral-700">
-                    View Category
-                </div>
+            <div className="bg-white rounded-xl shadow-sm border border-neutral-200 flex-1 flex flex-col overflow-hidden">
+                {/* Header Section */}
+                <div className="p-5 border-b border-neutral-100 bg-neutral-50/50 flex flex-col md:flex-row justify-between items-center gap-4">
+                    <h2 className="text-lg font-semibold text-neutral-800">Category List</h2>
 
-                {/* Controls */}
-                <div className="p-4 flex justify-end items-center gap-2">
-                    <div className="flex items-center gap-2">
-                        <select
-                            value={rowsPerPage}
-                            onChange={(e) => setRowsPerPage(Number(e.target.value))}
-                            className="bg-neutral-100 border-none rounded py-1.5 px-3text-sm focus:ring-0 cursor-pointer"
-                        >
-                            <option value={10}>10</option>
-                            <option value={20}>20</option>
-                            <option value={50}>50</option>
-                        </select>
+                    {/* Controls */}
+                    <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                        <div className="w-full sm:w-24">
+                            <ThemedDropdown
+                                options={[10, 20, 50, 100]}
+                                value={rowsPerPage}
+                                onChange={(val) => setRowsPerPage(Number(val))}
+                                placeholder="Rows"
+                            />
+                        </div>
 
                         <button
                             onClick={() => {
@@ -90,81 +118,96 @@ export default function SellerCategory() {
                                 link.click();
                                 document.body.removeChild(link);
                             }}
-                            className="bg-teal-700 hover:bg-teal-800 text-white px-3 py-1.5 rounded text-sm font-medium flex items-center gap-1 transition-colors"
+                            className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all shadow-sm hover:shadow active:scale-95"
                         >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                            Export
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-1"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            Export CSV
                         </button>
 
-                        <div className="relative">
-                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-neutral-400 text-xs">Search:</span>
+                        <div className="relative w-full sm:w-64">
                             <input
                                 type="text"
-                                className="pl-14 pr-3 py-1.5 bg-neutral-100 border-none rounded text-sm focus:ring-1 focus:ring-teal-500 w-48"
+                                className="w-full pl-10 pr-4 py-2 bg-white border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all placeholder:text-neutral-400"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
+                                placeholder="Search categories..."
                             />
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400">
+                                <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M21 21L16.65 16.65" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
                         </div>
                     </div>
                 </div>
 
                 {/* Loading and Error States */}
                 {loading && (
-                    <div className="flex items-center justify-center p-8">
-                        <div className="text-neutral-500">Loading categories...</div>
+                    <div className="flex flex-col items-center justify-center p-12">
+                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-teal-600 mb-4"></div>
+                        <div className="text-neutral-500 font-medium">Loading categories...</div>
                     </div>
                 )}
                 {error && !loading && (
-                    <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg m-4">
-                        {error}
+                    <div className="p-6 text-center">
+                        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mb-4">
+                            <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        </div>
+                        <h3 className="text-lg font-medium text-neutral-900">Error</h3>
+                        <p className="text-neutral-500 mt-1">{error}</p>
                     </div>
                 )}
 
                 {/* Table */}
                 {!loading && !error && (
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse border border-neutral-200">
+                        <table className="w-full text-left border-collapse">
                             <thead>
-                                <tr className="bg-neutral-50 text-xs font-bold text-neutral-800">
-                                    <th className="p-4 w-16 border border-neutral-200">
-                                        <div className="flex items-center justify-between cursor-pointer">ID <span className="text-neutral-300 text-[10px]">⇅</span></div>
-                                    </th>
-                                    <th className="p-4 border border-neutral-200">
-                                        <div className="flex items-center justify-between cursor-pointer">Category Name <span className="text-neutral-300 text-[10px]">⇅</span></div>
-                                    </th>
-                                    <th className="p-4 border border-neutral-200">
-                                        <div className="flex items-center justify-between cursor-pointer">Category Image <span className="text-neutral-300 text-[10px]">⇅</span></div>
-                                    </th>
-                                    <th className="p-4 border border-neutral-200">
-                                        <div className="flex items-center justify-between cursor-pointer">Total Subcategory <span className="text-neutral-300 text-[10px]">⇅</span></div>
-                                    </th>
+                                <tr className="bg-neutral-50/80 border-b border-neutral-200">
+                                    <th className="p-4 px-6 font-bold text-neutral-500 uppercase text-xs tracking-wider w-20">ID</th>
+                                    <th className="p-4 px-6 font-bold text-neutral-500 uppercase text-xs tracking-wider">Category Name</th>
+                                    <th className="p-4 px-6 font-bold text-neutral-500 uppercase text-xs tracking-wider text-center">Image</th>
+                                    <th className="p-4 px-6 font-bold text-neutral-500 uppercase text-xs tracking-wider text-center">Total Subcategory</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                {filteredCategories.map((category) => (
-                                    <tr key={category._id} className="hover:bg-neutral-50 transition-colors text-sm text-neutral-700">
-                                        <td className="p-4 align-middle border border-neutral-200">{category._id}</td>
-                                        <td className="p-4 align-middle border border-neutral-200">{category.name}</td>
-                                        <td className="p-4 border border-neutral-200">
-                                            <div className="w-16 h-12 bg-white border border-neutral-200 rounded p-1 flex items-center justify-center mx-auto">
+                            <tbody className="divide-y divide-neutral-100 bg-white">
+                                {filteredCategories.map((category, index) => (
+                                    <motion.tr
+                                        key={category._id}
+                                        className="hover:bg-teal-50/30 transition-colors group text-sm text-neutral-700"
+                                        variants={itemVariants}
+                                        custom={index}
+                                    >
+                                        <td className="p-4 px-6 align-middle font-mono text-neutral-500">#{category._id}</td>
+                                        <td className="p-4 px-6 align-middle font-medium text-neutral-900">{category.name}</td>
+                                        <td className="p-4 px-6 align-middle">
+                                            <div className="w-16 h-12 bg-white border border-neutral-200 rounded-lg p-1 flex items-center justify-center mx-auto shadow-sm group-hover:scale-110 transition-transform">
                                                 <img
                                                     src={category.image || '/assets/category-placeholder.png'}
                                                     alt={category.name}
-                                                    className="max-w-full max-h-full object-contain"
+                                                    className="max-w-full max-h-full object-contain rounded"
                                                     onError={(e) => {
                                                         (e.target as HTMLImageElement).src = 'https://placehold.co/60x40?text=Img';
                                                     }}
                                                 />
                                             </div>
                                         </td>
-                                        <td className="p-4 align-middle border border-neutral-200">{category.totalSubcategory || 0}</td>
-                                    </tr>
+                                        <td className="p-4 px-6 align-middle text-center">
+                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800">
+                                                {category.totalSubcategory || 0}
+                                            </span>
+                                        </td>
+                                    </motion.tr>
                                 ))}
                                 {filteredCategories.length === 0 && (
                                     <tr>
-                                        <td colSpan={4} className="p-8 text-center text-neutral-400 border border-neutral-200">
-                                            No categories found.
+                                        <td colSpan={4} className="p-12 text-center text-neutral-500">
+                                            <div className="flex flex-col items-center justify-center">
+                                                <div className="w-16 h-16 bg-neutral-100 rounded-full flex items-center justify-center mb-4">
+                                                    <svg className="w-8 h-8 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                                                </div>
+                                                <h3 className="text-lg font-medium text-neutral-900">No categories found</h3>
+                                                <p className="text-neutral-500 mt-1">Try adjusting your search</p>
+                                            </div>
                                         </td>
                                     </tr>
                                 )}
@@ -172,12 +215,17 @@ export default function SellerCategory() {
                         </table>
                     </div>
                 )}
-
-                {/* Pagination (Visual only mostly for now as per image doesn't show bottom) */}
-                <div className="p-4 border-t border-neutral-100 mt-auto">
-                    {/* Placeholder for potential pagination info if needed, or left empty as strictly per image top part */}
-                </div>
             </div>
-        </div>
+
+             {/* Footer */}
+             <footer className="text-center py-4">
+                <p className="text-sm text-neutral-500">
+                Copyright © 2025. Developed By{' '}
+                <Link to="/seller" className="text-teal-600 hover:text-teal-700 font-medium hover:underline">
+                    Geeta Stores
+                </Link>
+                </p>
+            </footer>
+        </motion.div>
     );
 }

@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as walletService from '../../../services/api/walletService';
+import ThemedDropdown from '../components/ThemedDropdown';
+import ThemedDatePicker from '../components/ThemedDatePicker';
 
 type TabType = 'transaction' | 'withdraw' | 'earning';
 
@@ -281,7 +283,7 @@ export default function SellerWallet() {
       </div>
 
       {/* Main Content Area */}
-      <div className="bg-white rounded-lg shadow-sm border border-neutral-200 overflow-hidden min-h-[400px]">
+      <div className="bg-white rounded-lg shadow-sm border border-neutral-200 min-h-[400px]">
         {/* Tabs */}
         <div className="border-b border-neutral-200">
           <nav className="flex -mb-px overflow-x-auto">
@@ -334,17 +336,18 @@ export default function SellerWallet() {
                 Date Range
               </label>
               <div className="flex gap-2">
-                <input
-                  type="date"
+                <ThemedDatePicker
                   value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
-                  className="flex-1 px-3 py-2 bg-white border border-neutral-300 rounded-lg text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+                  onChange={setFromDate}
+                  placeholder="Start Date"
+                  className="flex-1"
                 />
-                <input
-                  type="date"
+                <ThemedDatePicker
                   value={toDate}
-                  onChange={(e) => setToDate(e.target.value)}
-                  className="flex-1 px-3 py-2 bg-white border border-neutral-300 rounded-lg text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+                  onChange={setToDate}
+                  placeholder="End Date"
+                  className="flex-1"
+                  align="right"
                 />
               </div>
             </div>
@@ -354,34 +357,17 @@ export default function SellerWallet() {
               <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">
                 Status
               </label>
-              <select
+              <ThemedDropdown
+                options={['All', ...(
+                  activeTab === 'transaction'
+                    ? ['Completed', 'Pending', 'Failed']
+                    : activeTab === 'withdraw'
+                      ? ['Pending', 'Approved', 'Completed', 'Rejected']
+                      : ['Settled', 'Pending']
+                )]}
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
-              >
-                <option value="All">All Status</option>
-                {activeTab === 'transaction' && (
-                  <>
-                    <option value="Completed">Completed</option>
-                    <option value="Pending">Pending</option>
-                    <option value="Failed">Failed</option>
-                  </>
-                )}
-                {activeTab === 'withdraw' && (
-                  <>
-                    <option value="Pending">Pending</option>
-                    <option value="Approved">Approved</option>
-                    <option value="Completed">Completed</option>
-                    <option value="Rejected">Rejected</option>
-                  </>
-                )}
-                {activeTab === 'earning' && (
-                  <>
-                    <option value="Settled">Settled</option>
-                    <option value="Pending">Pending</option>
-                  </>
-                )}
-              </select>
+                onChange={setStatusFilter}
+              />
             </div>
           </div>
         </div>
