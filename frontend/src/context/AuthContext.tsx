@@ -7,6 +7,7 @@ import {
 } from "react";
 import {
   setAuthToken,
+  removeAuthToken,
 } from "../services/api/config";
 import {
   detectModuleFromPath,
@@ -57,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (token) {
       setAuthToken(token);
     } else {
-      setAuthToken(null);
+      removeAuthToken();
     }
   }, [token]);
 

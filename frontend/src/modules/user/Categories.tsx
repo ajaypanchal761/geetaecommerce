@@ -66,9 +66,12 @@ export default function Categories() {
   return (
     <div className="pb-4 md:pb-8 bg-white min-h-screen">
       {/* Page Header */}
-      <div className="px-4 py-4 md:px-6 md:py-6 bg-white border-b border-neutral-200 sticky top-0 z-10 shadow-sm">
+      {/* Page Header */}
+      <div className="px-4 py-4 md:px-6 md:py-6 bg-white border-b border-neutral-200 fixed top-0 left-0 right-0 z-20 shadow-sm md:sticky md:top-0">
         <h1 className="text-xl md:text-2xl font-bold text-neutral-900">Categories</h1>
       </div>
+      {/* Spacer for fixed header on mobile */}
+      <div className="h-[61px] md:hidden"></div>
 
       <div className="bg-neutral-50 pt-1 space-y-5 md:space-y-8 md:pt-4">
         {/* Render all admin-created home sections */}

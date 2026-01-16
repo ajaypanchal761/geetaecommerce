@@ -270,7 +270,7 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
       <div className="border-b border-neutral-400/40 w-full" style={{ paddingBottom: 0 }}>
         <div
           ref={tabsContainerRef}
-          className="relative grid grid-cols-[repeat(auto-fit,minmax(60px,1fr))] md:flex gap-2 md:gap-3 overflow-x-auto scrollbar-hide -mx-4 md:mx-0 px-4 md:px-6 lg:px-8 md:justify-center scroll-smooth"
+          className="relative flex md:justify-center gap-2 md:gap-3 overflow-x-auto scrollbar-hide -mx-4 md:mx-0 px-4 md:px-6 lg:px-8 scroll-smooth"
           style={{ paddingBottom: '12px' }}
           data-padding-bottom="md:8px"
         >
@@ -289,7 +289,7 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
                 key={tab.id}
                 ref={(el) => { if (el) tabRefs.current.set(tab.id, el); else tabRefs.current.delete(tab.id); }}
                 onClick={() => handleTabClick(tab.id)}
-                className={`flex-shrink-0 flex flex-col md:flex-row items-center justify-center w-full md:w-auto md:min-w-fit md:px-3 py-1 md:py-1.5 relative ${tabColor} z-10`}
+                className={`flex-shrink-0 flex flex-col md:flex-row items-center justify-center w-auto min-w-[60px] md:w-auto md:min-w-fit md:px-3 py-1 md:py-1.5 relative ${tabColor} z-10`}
                 style={{ transition: 'color 0.3s ease-out' }}
                 type="button"
               >
