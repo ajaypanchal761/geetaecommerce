@@ -2,7 +2,13 @@ import express, { Application, Request, Response } from "express";
 import { createServer } from "http";
 import cors from "cors";
 import dotenv from "dotenv";
+import dns from "dns";
 import connectDB from "./config/db";
+
+// Force IPv4 first for DNS resolution to avoid ENOTFOUND issues in Node.js 17+
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first');
+}
 import routes from "./routes";
 import { errorHandler } from "./middleware/errorHandler";
 import { notFound } from "./middleware/notFound";

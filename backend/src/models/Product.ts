@@ -127,8 +127,8 @@ const ProductSchema = new Schema<IProduct>(
       ref: "SubCategory",
     },
     subSubCategory: {
-      type: Schema.Types.ObjectId,
-      ref: "Category",
+      type: String,
+      trim: true,
     },
     headerCategoryId: {
       type: Schema.Types.ObjectId,
@@ -241,8 +241,8 @@ const ProductSchema = new Schema<IProduct>(
       trim: true,
     },
     tax: {
-      type: String,
-      trim: true,
+      type: Schema.Types.ObjectId,
+      ref: "Tax",
     },
     fssaiLicNo: {
       type: String,

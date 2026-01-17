@@ -26,6 +26,7 @@ export const createProduct = asyncHandler(
       headerCategoryId: productData.headerCategoryId, // Map headerCategoryId
       category: productData.categoryId, // Map categoryId to category
       subcategory: productData.subcategoryId,
+      subSubCategory: productData.subSubCategoryId,
       brand: productData.brandId,
       mainImage: productData.mainImageUrl, // Map mainImageUrl to mainImage
       galleryImages: productData.galleryImageUrls,
@@ -70,6 +71,7 @@ export const createProduct = asyncHandler(
     if (!newProductData.headerCategoryId)
       delete newProductData.headerCategoryId;
     if (!newProductData.subcategory) delete newProductData.subcategory;
+    if (!newProductData.subSubCategory) delete newProductData.subSubCategory;
     if (!newProductData.brand) delete newProductData.brand;
 
     // Handle Tax: Frontend sends taxId, Model expects 'tax' (string) or something else?
@@ -150,6 +152,9 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
       { productName: { $regex: search, $options: "i" } },
       { smallDescription: { $regex: search, $options: "i" } },
       { tags: { $in: [new RegExp(search as string, "i")] } },
+      { sku: { $regex: search, $options: "i" } },
+      { barcode: { $regex: search, $options: "i" } },
+      { "variations.sku": { $regex: search, $options: "i" } },
     ];
   }
 
@@ -173,10 +178,9 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
 
   // Stock filter
   if (stock === "inStock") {
-    query["variations.stock"] = { $gt: 0 };
+    query.stock = { $gt: 0 };
   } else if (stock === "outOfStock") {
-    query["variations.stock"] = 0;
-    query["variations.status"] = "Sold out";
+    query.stock = 0;
   }
 
   // Pagination
@@ -191,8 +195,9 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
   const products = await Product.find(query)
     .populate("category", "name")
     .populate("subcategory", "name")
+    // .populate("subSubCategory", "name") // Removed as it is now a string
     .populate("brand", "name")
-    .populate("tax", "name rate")
+    .populate("tax", "name percentage")
     .sort(sort)
     .skip(skip)
     .limit(limitNum);
@@ -231,10 +236,11 @@ export const getProductById = asyncHandler(
 
     const product = await Product.findOne({ _id: id, seller: sellerId })
       .populate("category", "name")
-      .populate("subcategory", "subcategoryName")
+      .populate("subcategory", "name")
+      // .populate("subSubCategory", "name") // Removed as it is now a string
       .populate("headerCategoryId", "name slug")
       .populate("brand", "name")
-      .populate("tax", "name rate");
+      .populate("tax", "name percentage");
 
     if (!product) {
       return res.status(404).json({
@@ -278,6 +284,10 @@ export const updateProduct = asyncHandler(
     if (updateData.subcategoryId) {
       updateData.subcategory = updateData.subcategoryId;
       delete updateData.subcategoryId;
+    }
+    if (updateData.subSubCategoryId) {
+      updateData.subSubCategory = updateData.subSubCategoryId;
+      delete updateData.subSubCategoryId;
     }
     if (updateData.brandId) {
       updateData.brand = updateData.brandId;
@@ -377,10 +387,11 @@ export const updateProduct = asyncHandler(
     // Re-populate for response
     const populatedProduct = await Product.findById(product._id)
       .populate("category", "name")
-      .populate("subcategory", "subcategoryName")
+      .populate("subcategory", "name")
+      // .populate("subSubCategory", "name") // Removed as it is now a string
       .populate("headerCategoryId", "name slug")
       .populate("brand", "name")
-      .populate("tax", "name rate");
+      .populate("tax", "name percentage");
 
     console.log("DEBUG updateProduct: product updated successfully");
 
