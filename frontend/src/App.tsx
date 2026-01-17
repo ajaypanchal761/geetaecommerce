@@ -30,6 +30,7 @@ const Search = lazy(() => import("./modules/user/Search"));
 const Orders = lazy(() => import("./modules/user/Orders"));
 const OrderDetail = lazy(() => import("./modules/user/OrderDetail"));
 const OrderAgain = lazy(() => import("./modules/user/OrderAgain"));
+const VideoFinds = lazy(() => import("./modules/user/VideoFinds"));
 const Account = lazy(() => import("./modules/user/Account"));
 const Categories = lazy(() => import("./modules/user/Categories"));
 const Category = lazy(() => import("./modules/user/Category"));
@@ -132,6 +133,8 @@ const AdminOrders = lazy(() => import("./modules/admin/pages/AdminOrders"));
 const AdminOrderDetail = lazy(() => import("./modules/admin/pages/AdminOrderDetail"));
 const AdminManageCustomer = lazy(() => import("./modules/admin/pages/AdminManageCustomer"));
 const AdminProfile = lazy(() => import("./modules/admin/pages/AdminProfile"));
+const AdminPOSOrders = lazy(() => import("./modules/admin/pages/AdminPOSOrders"));
+const AdminPOSReport = lazy(() => import("./modules/admin/pages/AdminPOSReport"));
 
 function App() {
   return (
@@ -291,6 +294,8 @@ function App() {
                         <Suspense fallback={<IconLoader forceShow />}>
                           <AdminLayout>
                             <Routes>
+                            <Route path="pos/orders" element={<AdminPOSOrders />} />
+                            <Route path="pos/report" element={<AdminPOSReport />} />
                             <Route path="" element={<AdminDashboard />} />
                             <Route path="profile" element={<AdminProfile />} />
                             <Route path="category" element={<AdminCategory />} />
@@ -354,6 +359,7 @@ function App() {
                             <Route path="/orders" element={<Orders />} />
                             <Route path="/orders/:id" element={<OrderDetail />} />
                             <Route path="/order-again" element={<OrderAgain />} />
+                            <Route path="/video-finds" element={<VideoFinds />} />
                             <Route path="/account" element={<Account />} />
                             <Route path="/about-us" element={<AboutUs />} />
                             <Route path="/faq" element={<FAQ />} />

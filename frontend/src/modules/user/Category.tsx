@@ -93,7 +93,7 @@ export default function CategoryPage() {
         if (selectedSubcategory !== "all") {
           params.subcategory = selectedSubcategory;
         }
-        // Include user location for seller service radius filtering
+        // Include user location for seller service filtering
         if (userLocation?.latitude && userLocation?.longitude) {
           params.latitude = userLocation.latitude;
           params.longitude = userLocation.longitude;

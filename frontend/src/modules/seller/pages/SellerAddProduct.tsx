@@ -486,7 +486,7 @@ export default function SellerAddProduct() {
         variations: variations,
         variationType: formData.variationType || undefined,
         isShopByStoreOnly: formData.isShopByStoreOnly === "Yes",
-        shopId: formData.isShopByStoreOnly === "Yes" && formData.shopId ? formData.shopId : undefined,
+        shopId: formData.shopId || undefined,
       };
 
       // Create or Update product via API
@@ -564,11 +564,11 @@ export default function SellerAddProduct() {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Product Section */}
           {/* Product Section */}
-          <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
-            <div className="bg-teal-600 text-white px-6 py-4">
+          <div className="bg-white rounded-xl shadow-sm border-t border-neutral-200">
+            <div className="bg-teal-600 text-white px-6 py-4 rounded-t-xl">
               <h2 className="text-lg font-semibold tracking-wide">Product Details</h2>
             </div>
-            <div className="p-6 space-y-6">
+            <div className="p-6 space-y-6 border-x border-b border-neutral-200 rounded-b-xl">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
@@ -787,11 +787,11 @@ export default function SellerAddProduct() {
           </div>
 
           {/* Add Variation Section */}
-          <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
-            <div className="bg-teal-600 text-white px-6 py-4">
+          <div className="bg-white rounded-xl shadow-sm border-t border-neutral-200">
+            <div className="bg-teal-600 text-white px-6 py-4 rounded-t-xl">
               <h2 className="text-lg font-semibold tracking-wide">Product Variations</h2>
             </div>
-            <div className="p-6 space-y-6">
+            <div className="p-6 space-y-6 border-x border-b border-neutral-200 rounded-b-xl">
               <div>
                 <label className="block text-sm font-semibold text-neutral-700 mb-2">
                   Variation Type
@@ -927,11 +927,11 @@ export default function SellerAddProduct() {
           </div>
 
           {/* Add Other Details Section */}
-          <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
-            <div className="bg-teal-600 text-white px-6 py-4">
+          <div className="bg-white rounded-xl shadow-sm border-t border-neutral-200">
+            <div className="bg-teal-600 text-white px-6 py-4 rounded-t-xl">
               <h2 className="text-lg font-semibold tracking-wide">Additional Details</h2>
             </div>
-            <div className="p-6 space-y-6">
+            <div className="p-6 space-y-6 border-x border-b border-neutral-200 rounded-b-xl">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
@@ -1179,11 +1179,11 @@ export default function SellerAddProduct() {
           </div>
 
           {/* Shop by Store Section */}
-          <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
-            <div className="bg-teal-600 text-white px-6 py-4">
+          <div className="bg-white rounded-xl shadow-sm border-t border-neutral-200">
+            <div className="bg-teal-600 text-white px-6 py-4 rounded-t-xl">
               <h2 className="text-lg font-semibold tracking-wide">Store Visibility</h2>
             </div>
-            <div className="p-6 space-y-6">
+            <div className="p-6 space-y-6 border-x border-b border-neutral-200 rounded-b-xl">
               <div className="bg-teal-50 border border-teal-200 rounded-lg p-4 flex gap-3 items-start">
                  <svg className="w-5 h-5 text-teal-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                  <p className="text-sm text-teal-800">
@@ -1201,7 +1201,6 @@ export default function SellerAddProduct() {
                     onChange={(val) => setFormData(prev => ({ ...prev, isShopByStoreOnly: val }))}
                   />
                 </div>
-                {formData.isShopByStoreOnly === "Yes" && (
                   <div>
                     <label className="block text-sm font-semibold text-neutral-700 mb-2">
                       Select Store <span className="text-red-500">*</span>
@@ -1219,7 +1218,6 @@ export default function SellerAddProduct() {
                       </p>
                     )}
                   </div>
-                )}
               </div>
             </div>
           </div>

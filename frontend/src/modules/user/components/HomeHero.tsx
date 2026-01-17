@@ -34,6 +34,104 @@ const ALL_TAB: Tab = {
   ),
 };
 
+interface LanguageDropdownProps {
+  language: string;
+  setLanguage: (lang: string) => void;
+  isSticky: boolean;
+  activeTab: string;
+}
+
+const LanguageDropdown = ({ language, setLanguage, isSticky, activeTab }: LanguageDropdownProps) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const theme = getTheme(activeTab || 'all');
+
+  // Extract primary color for active state
+  // Theme usually returns colors like '#HEX' or 'rgb(...)'.
+  // We'll use a fallback or try to use the theme's primary color.
+  const activeColor = theme.primary && theme.primary[0] ? theme.primary[0] : '#0d9488'; // Defaulting to teal-like if fail
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  const options = [
+    { value: 'EN', label: 'English' },
+    { value: 'HI', label: 'Hindi' }
+  ];
+
+  return (
+    <div
+      ref={dropdownRef}
+      className="relative flex items-center h-full"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-1 px-2 py-1 outline-none transition-colors border-r border-gray-300 mr-2 h-5"
+      >
+        <span
+          className="text-xs font-bold leading-none"
+          style={{ color: isSticky ? '#6b7280' : '#4b5563' }}
+        >
+          {language}
+        </span>
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={isSticky ? "#9ca3af" : "#6b7280"}
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={`transform transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+        >
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-full right-0 mt-2 w-32 bg-white rounded-lg shadow-xl border border-neutral-100 overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+          <div className="py-1">
+            {options.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => {
+                  setLanguage(opt.value);
+                  setIsOpen(false);
+                }}
+                className={`w-full text-left px-4 py-2 text-xs font-medium transition-colors hover:bg-neutral-50 flex items-center justify-between group`}
+                style={{
+                  color: language === opt.value ? activeColor : '#374151',
+                  backgroundColor: language === opt.value ? 'rgba(0,0,0,0.02)' : 'transparent'
+                }}
+              >
+                <span>{opt.label}</span>
+                {language === opt.value && (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 6L9 17l-5-5" />
+                  </svg>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroProps) {
   const [tabs, setTabs] = useState<Tab[]>([ALL_TAB]);
 
@@ -67,6 +165,7 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
   const [isSticky, setIsSticky] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 });
+  const [language, setLanguage] = useState('EN');
 
   // Format location display text
   const locationDisplayText = useMemo(() => {
@@ -220,7 +319,7 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
   const renderStickyContent = () => (
     <div
       ref={stickyRef}
-      className={isSticky ? 'fixed top-0 left-0 right-0 z-[9999] bg-[#fff7ed] shadow-md animate-fade-in' : 'relative z-10 bg-transparent'}
+      className={isSticky ? 'fixed top-0 left-0 right-0 z-[9999] bg-[#fff7ed] shadow-md animate-fade-in' : 'relative z-50 bg-transparent'}
       style={{
         transition: 'background-color 0.3s ease',
       }}
@@ -229,7 +328,7 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
         {/* Search Bar */}
         <div
           onClick={() => navigate('/search')}
-          className={`w-full md:w-auto md:max-w-xl md:mx-auto rounded-xl shadow-lg px-3 ${isSticky ? 'py-3 md:py-2.5' : 'py-2 md:py-1.5'} flex items-center gap-2 cursor-pointer hover:shadow-xl transition-all duration-300 mb-2 md:mb-1.5 bg-white`}
+          className={`w-full md:w-auto md:max-w-xl md:mx-auto rounded-xl shadow-lg px-3 ${isSticky ? 'py-3 md:py-2.5' : 'py-2 md:py-1.5'} flex items-center gap-2 cursor-pointer hover:shadow-xl transition-all duration-300 mb-2 md:mb-1.5 bg-white relative z-50`}
           style={{
             backgroundColor: isSticky ? `rgba(249, 250, 251, 1)` : 'white',
             border: isSticky ? `1px solid rgba(229, 231, 235, 1)` : 'none',
@@ -250,12 +349,19 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
                   className={`absolute inset-0 flex items-center transition-all duration-500 ${isActive ? 'translate-y-0 opacity-100' : isPrev ? '-translate-y-full opacity-0' : 'translate-y-full opacity-0'}`}
                 >
                   <span className={`text-xs md:text-xs`} style={{ color: isSticky ? '#9ca3af' : '#6b7280' }}>
-                    Search &apos;{suggestion}&apos;
+                    {language === 'HI' ? 'खोजें' : 'Search'} &apos;{suggestion}&apos;
                   </span>
                 </div>
               );
             })}
           </div>
+
+          <LanguageDropdown
+            language={language}
+            setLanguage={setLanguage}
+            isSticky={isSticky}
+            activeTab={activeTab || 'all'}
+          />
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 md:w-4 md:h-4">
             <path d="M12 1C13.1 1 14 1.9 14 3C14 4.1 13.1 5 12 5C10.9 5 10 4.1 10 3C10 1.9 10.9 1 12 1Z" fill={isSticky ? "#9ca3af" : "#6b7280"} />
             <path d="M19 10V17C19 18.1 18.1 19 17 19H7C5.9 19 5 18.1 5 17V10" stroke={isSticky ? "#9ca3af" : "#6b7280"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -310,6 +416,7 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
   return (
     <div
       ref={heroRef}
+      className="relative z-20"
       style={{ background: heroGradient, paddingBottom: 0, marginBottom: 0 }}
     >
       {/* Top section with logo - NOT sticky */}
