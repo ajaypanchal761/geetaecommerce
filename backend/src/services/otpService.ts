@@ -5,11 +5,11 @@ import Otp from '../models/Otp';
 const SMS_INDIA_HUB_API_KEY = process.env.SMS_INDIA_HUB_API_KEY;
 const SMS_INDIA_HUB_SENDER_ID = process.env.SMS_INDIA_HUB_SENDER_ID;
 const SMS_INDIA_HUB_DLT_TEMPLATE_ID = process.env.SMS_INDIA_HUB_DLT_TEMPLATE_ID;
-const SMS_INDIA_HUB_API_URL = 'http://cloud.smsindiahub.in/vendorsms/pushsms.aspx';
+const SMS_INDIA_HUB_API_URL = process.env.SMS_INDIA_HUB_API_URL || 'http://cloud.smsindiahub.in/vendorsms/pushsms.aspx';
 const API_TIMEOUT = 30000; // 30 seconds
 
 if (!SMS_INDIA_HUB_API_KEY || !SMS_INDIA_HUB_SENDER_ID) {
-  if (process.env.NODE_ENV === 'production') {
+  if (process.env.NODE_ENV === 'production' || process.env.USE_MOCK_OTP === 'false') {
     console.warn('SMS India HUB credentials are not fully set in environment variables');
   }
 }
@@ -262,10 +262,12 @@ export async function sendSmsOtp(
     const errorMessage = error.message || 'Failed to send OTP. Please try again.';
     console.error('SMS OTP Error (sendSmsOtp):', {
       error: errorMessage,
+      code: error.code,
       mobile,
       userType,
+      url: SMS_INDIA_HUB_API_URL
     });
-    throw new Error(errorMessage);
+    throw new Error(`SMS Service Error: ${errorMessage}`);
   }
 }
 
@@ -368,10 +370,12 @@ export async function sendOTP(
     const errorMessage = error.message || 'Failed to send OTP. Please try again.';
     console.error('SMS OTP Error (sendOTP):', {
       error: errorMessage,
+      code: error.code,
       mobile,
       userType,
+      url: SMS_INDIA_HUB_API_URL
     });
-    throw new Error(errorMessage);
+    throw new Error(`SMS Service Error: ${errorMessage}`);
   }
 }
 

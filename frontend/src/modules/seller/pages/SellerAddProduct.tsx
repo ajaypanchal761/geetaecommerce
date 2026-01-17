@@ -164,9 +164,7 @@ export default function SellerAddProduct() {
                 product.subcategoryId ||
                 "",
               subSubCategory:
-                (product.subSubCategory as any)?._id ||
-                (product as any).subSubCategoryId ||
-                "",
+                (product as any).subSubCategory || "",
               publish: product.publish ? "Yes" : "No",
               popular: product.popular ? "Yes" : "No",
               dealOfDay: product.dealOfDay ? "Yes" : "No",
@@ -409,6 +407,13 @@ export default function SellerAddProduct() {
         setUploadError("Please select a category.");
         return;
       }
+    } else {
+      // If shop by store only is Yes, then shopId is required
+      if (!formData.shopId) {
+        setUploadError("Please select a store.");
+        setUploading(false);
+        return;
+      }
     }
 
     setUploading(true);
@@ -441,11 +446,32 @@ export default function SellerAddProduct() {
         setFormData((prev) => ({ ...prev, galleryImageUrls }));
       }
 
-      // Validate variations
-      if (variations.length === 0) {
-        setUploadError("Please add at least one product variation");
-        setUploading(false);
-        return;
+      // Auto-add current variation if form is filled but list is empty
+      let finalVariations = [...variations];
+      if (finalVariations.length === 0) {
+        if (variationForm.title && variationForm.price) {
+          const price = parseFloat(variationForm.price);
+          const discPrice = parseFloat(variationForm.discPrice || "0");
+          const stock = parseInt(variationForm.stock || "0");
+
+          if (discPrice <= price) {
+            finalVariations.push({
+              title: variationForm.title,
+              price,
+              discPrice,
+              stock,
+              status: variationForm.status,
+            });
+          } else {
+            setUploadError("Discounted price cannot be greater than price in variation");
+            setUploading(false);
+            return;
+          }
+        } else {
+          setUploadError("Please add at least one product variation");
+          setUploading(false);
+          return;
+        }
       }
 
       // Prepare product data for API
@@ -483,7 +509,7 @@ export default function SellerAddProduct() {
         fssaiLicNo: formData.fssaiLicNo || undefined,
         mainImageUrl: mainImageUrl || undefined,
         galleryImageUrls,
-        variations: variations,
+        variations: finalVariations,
         variationType: formData.variationType || undefined,
         isShopByStoreOnly: formData.isShopByStoreOnly === "Yes",
         shopId: formData.shopId || undefined,
@@ -564,7 +590,7 @@ export default function SellerAddProduct() {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Product Section */}
           {/* Product Section */}
-          <div className="bg-white rounded-xl shadow-sm border-t border-neutral-200">
+          <div className="bg-white rounded-xl shadow-sm border border-neutral-200">
             <div className="bg-teal-600 text-white px-6 py-4 rounded-t-xl">
               <h2 className="text-lg font-semibold tracking-wide">Product Details</h2>
             </div>
@@ -637,12 +663,13 @@ export default function SellerAddProduct() {
                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     Sub-SubCategory
                   </label>
-                  <ThemedDropdown
-                    options={subSubCategories.map(sub => ({ id: sub._id, label: sub.name, value: sub._id }))}
+                  <input
+                    type="text"
+                    name="subSubCategory"
                     value={formData.subSubCategory}
-                    onChange={(val) => setFormData(prev => ({ ...prev, subSubCategory: val }))}
-                    placeholder={formData.subcategory ? "Select Sub-SubCategory" : "Select Subcategory First"}
-                    disabled={!formData.subcategory}
+                    onChange={handleChange}
+                    placeholder="Enter Sub-SubCategory"
+                    className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
                   />
                 </div>
 
@@ -724,8 +751,8 @@ export default function SellerAddProduct() {
 
           {/* SEO Content Section */}
           {/* SEO Content Section */}
-          <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
-            <div className="bg-teal-600 text-white px-6 py-4">
+          <div className="bg-white rounded-xl shadow-sm border border-neutral-200">
+            <div className="bg-teal-600 text-white px-6 py-4 rounded-t-xl">
               <h2 className="text-lg font-semibold tracking-wide">SEO Configuration</h2>
             </div>
             <div className="p-6 space-y-6">
@@ -787,7 +814,7 @@ export default function SellerAddProduct() {
           </div>
 
           {/* Add Variation Section */}
-          <div className="bg-white rounded-xl shadow-sm border-t border-neutral-200">
+          <div className="bg-white rounded-xl shadow-sm border border-neutral-200">
             <div className="bg-teal-600 text-white px-6 py-4 rounded-t-xl">
               <h2 className="text-lg font-semibold tracking-wide">Product Variations</h2>
             </div>
@@ -927,7 +954,7 @@ export default function SellerAddProduct() {
           </div>
 
           {/* Add Other Details Section */}
-          <div className="bg-white rounded-xl shadow-sm border-t border-neutral-200">
+          <div className="bg-white rounded-xl shadow-sm border border-neutral-200">
             <div className="bg-teal-600 text-white px-6 py-4 rounded-t-xl">
               <h2 className="text-lg font-semibold tracking-wide">Additional Details</h2>
             </div>
@@ -1027,8 +1054,8 @@ export default function SellerAddProduct() {
           </div>
 
           {/* Add Images Section */}
-          <div className="bg-white rounded-lg shadow-sm border border-neutral-200 overflow-hidden">
-            <div className="bg-teal-600 text-white px-4 sm:px-6 py-3">
+          <div className="bg-white rounded-lg shadow-sm border border-neutral-200">
+            <div className="bg-teal-600 text-white px-4 sm:px-6 py-3 rounded-t-lg">
               <h2 className="text-lg font-semibold">Add Images</h2>
             </div>
             <div className="p-4 sm:p-6 space-y-6">
@@ -1179,7 +1206,7 @@ export default function SellerAddProduct() {
           </div>
 
           {/* Shop by Store Section */}
-          <div className="bg-white rounded-xl shadow-sm border-t border-neutral-200">
+          <div className="bg-white rounded-xl shadow-sm border border-neutral-200">
             <div className="bg-teal-600 text-white px-6 py-4 rounded-t-xl">
               <h2 className="text-lg font-semibold tracking-wide">Store Visibility</h2>
             </div>
@@ -1232,7 +1259,7 @@ export default function SellerAddProduct() {
                   ? "bg-neutral-400 cursor-not-allowed text-white"
                   : "bg-teal-600 hover:bg-teal-700 text-white"
               }`}>
-              {uploading ? "Uploading Images..." : "Add Product"}
+              {uploading ? "Uploading Images..." : id ? "Update Product" : "Add Product"}
             </button>
           </div>
         </form>

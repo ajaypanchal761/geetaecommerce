@@ -24,6 +24,10 @@ export default function QRScannerModal({
               qrbox: { width: 250, height: 250 },
               aspectRatio: 1.0,
               showTorchButtonIfSupported: true,
+              // Ideally prefer back camera
+              videoConstraints: {
+                  facingMode: "environment"
+              }
             },
             /* verbose= */ false
         );
@@ -80,6 +84,12 @@ export default function QRScannerModal({
 
         {/* Scanner Area */}
         <div className="p-4 bg-gray-50">
+            <style>{`
+                #reader__status_span,
+                #reader__header_message {
+                    display: none !important;
+                }
+            `}</style>
             <div id="reader" className="w-full rounded-lg overflow-hidden border-2 border-dashed border-gray-300"></div>
             <p className="text-center text-xs text-gray-500 mt-3">
                 Point your camera at a QR code or Barcode

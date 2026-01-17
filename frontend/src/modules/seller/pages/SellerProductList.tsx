@@ -309,7 +309,14 @@ export default function SellerProductList() {
                   Category
                 </label>
                 <ThemedDropdown
-                  options={['All Category', ...categories]}
+                  options={[
+                    { id: 'all', label: 'All Category', value: 'All Category' },
+                    ...allCategories.map(cat => ({
+                      id: cat._id,
+                      label: cat.name,
+                      value: cat._id
+                    }))
+                  ]}
                   value={categoryFilter}
                   onChange={setCategoryFilter}
                   placeholder="Filter Category"
@@ -369,10 +376,10 @@ export default function SellerProductList() {
                   />
                   <button
                       onClick={() => setShowScanner(true)}
-                      className="absolute inset-y-0 right-0 px-3 flex items-center text-neutral-400 hover:text-teal-600 transition-colors border-l border-neutral-200"
+                      className="absolute inset-y-0 right-0 px-3 flex items-center text-teal-600 bg-teal-50 hover:bg-teal-100 hover:text-teal-700 transition-colors border-l border-neutral-200 rounded-r-lg"
                       title="Scan Barcode"
                   >
-                       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                       <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
                           <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
                           <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>

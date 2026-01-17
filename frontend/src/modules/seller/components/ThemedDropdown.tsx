@@ -14,6 +14,7 @@ interface ThemedDropdownProps {
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  showSearch?: boolean;
 }
 
 export default function ThemedDropdown({
@@ -23,9 +24,18 @@ export default function ThemedDropdown({
   placeholder = 'Select option',
   className = '',
   disabled = false,
+  showSearch = false,
 }: ThemedDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Reset search term when dropdown closes
+  useEffect(() => {
+    if (!isOpen) {
+      setSearchTerm('');
+    }
+  }, [isOpen]);
 
   // Normalize options to Option[] format
   const normalizedOptions: Option[] = options.map((opt) => {
@@ -34,6 +44,10 @@ export default function ThemedDropdown({
     }
     return { id: opt, label: String(opt), value: opt } as Option;
   });
+
+  const filteredOptions = normalizedOptions.filter((opt) =>
+    opt.label.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const selectedOption = normalizedOptions.find((opt) => opt.value === value);
 
@@ -86,8 +100,27 @@ export default function ThemedDropdown({
             transition={{ duration: 0.1 }}
             className="absolute z-50 w-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg max-h-60 overflow-auto focus:outline-none py-1"
           >
-            {normalizedOptions.length > 0 ? (
-              normalizedOptions.map((option) => (
+            {showSearch && (
+              <div className="px-2 pb-2 pt-1 border-b border-neutral-100 sticky top-0 bg-white z-10">
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </span>
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search..."
+                    className="w-full pl-8 pr-3 py-1.5 text-sm bg-neutral-50 border border-neutral-200 rounded-md focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/20"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+              </div>
+            )}
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((option) => (
                 <button
                   key={option.id}
                   type="button"
