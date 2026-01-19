@@ -22,6 +22,7 @@ export interface ProductVariation {
   stock: number;
   status: "Available" | "Sold out" | "In stock"; // Added In stock
   sku?: string;
+  barcode?: string;
 }
 
 export interface Product {

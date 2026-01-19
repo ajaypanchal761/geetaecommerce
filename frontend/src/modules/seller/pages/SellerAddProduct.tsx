@@ -27,7 +27,9 @@ import {
   getHeaderCategoriesPublic,
   HeaderCategory,
 } from "../../../services/api/headerCategoryService";
+
 import ThemedDropdown from "../components/ThemedDropdown";
+import { Html5Qrcode } from "html5-qrcode";
 
 export default function SellerAddProduct() {
   const navigate = useNavigate();
@@ -60,6 +62,8 @@ export default function SellerAddProduct() {
     galleryImageUrls: [] as string[],
     isShopByStoreOnly: "No",
     shopId: "",
+    pack: "",
+    barcode: "",
   });
 
   const [variations, setVariations] = useState<ProductVariation[]>([]);
@@ -69,6 +73,8 @@ export default function SellerAddProduct() {
     discPrice: "0",
     stock: "0",
     status: "Available" as "Available" | "Sold out",
+    barcode: "",
+    offerPrice: "",
   });
 
   const [mainImageFile, setMainImageFile] = useState<File | null>(null);
@@ -80,6 +86,9 @@ export default function SellerAddProduct() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string>("");
   const [successMessage, setSuccessMessage] = useState<string>("");
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanTarget, setScanTarget] = useState<"product" | "variation">("product");
+  const scannerRef = React.useRef<Html5Qrcode | null>(null);
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<SubCategory[]>([]);
@@ -188,6 +197,8 @@ export default function SellerAddProduct() {
               galleryImageUrls: product.galleryImageUrls || [],
               isShopByStoreOnly: (product as any).isShopByStoreOnly ? "Yes" : "No",
               shopId: (product as any).shopId?._id || (product as any).shopId || "",
+              pack: (product as any).pack || "",
+              barcode: (product as any).barcode || "",
             });
             setVariations(product.variations);
             if (product.mainImageUrl || product.mainImage) {
@@ -358,18 +369,23 @@ export default function SellerAddProduct() {
     const price = parseFloat(variationForm.price);
     const discPrice = parseFloat(variationForm.discPrice || "0");
     const stock = parseInt(variationForm.stock || "0");
+    const offerPrice = variationForm.offerPrice ? parseFloat(variationForm.offerPrice) : undefined;
 
     if (discPrice > price) {
       setUploadError("Discounted price cannot be greater than price");
       return;
     }
 
-    const newVariation: ProductVariation = {
+    const newVariation: any = {
       title: variationForm.title,
+      value: variationForm.title,
+      name: formData.variationType || "Variation",
       price,
       discPrice,
       stock,
       status: variationForm.status,
+      barcode: variationForm.barcode,
+      offerPrice,
     };
 
     setVariations([...variations, newVariation]);
@@ -379,12 +395,66 @@ export default function SellerAddProduct() {
       discPrice: "0",
       stock: "0",
       status: "Available",
+      barcode: "",
+      offerPrice: "",
     });
     setUploadError("");
   };
 
   const removeVariation = (index: number) => {
     setVariations((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const startScanning = (target: "product" | "variation" = "product") => {
+    setIsScanning(true);
+    setScanTarget(target);
+    // Slight delay to ensure DOM element exists
+    setTimeout(() => {
+        const html5QrCode = new Html5Qrcode("reader");
+        scannerRef.current = html5QrCode;
+        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+        html5QrCode.start(
+            { facingMode: "environment" },
+            config,
+            (decodedText) => {
+                // Success callback
+                if (target === "product") {
+                    setFormData(prev => ({ ...prev, barcode: decodedText }));
+                } else {
+                    setVariationForm(prev => ({ ...prev, barcode: decodedText }));
+                }
+                stopScanning();
+                // Optional: Play a beep sound
+                const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+                audio.play().catch(e => console.log('Audio play failed', e));
+                setSuccessMessage("Barcode Scanned Successfully!");
+                setTimeout(() => setSuccessMessage(""), 3000);
+            },
+            (errorMessage) => {
+                // Error callback (scanning...)
+                // console.log(errorMessage);
+            }
+        ).catch(err => {
+            console.error("Error starting scanner", err);
+            setUploadError("Failed to start camera. Please ensure permissions are granted.");
+            setIsScanning(false);
+        });
+    }, 100);
+  };
+
+  const stopScanning = () => {
+      if (scannerRef.current) {
+          scannerRef.current.stop().then(() => {
+              scannerRef.current?.clear();
+              setIsScanning(false);
+          }).catch(err => {
+              console.error("Failed to stop scanner", err);
+              setIsScanning(false);
+          });
+      } else {
+          setIsScanning(false);
+      }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -513,6 +583,8 @@ export default function SellerAddProduct() {
         variationType: formData.variationType || undefined,
         isShopByStoreOnly: formData.isShopByStoreOnly === "Yes",
         shopId: formData.shopId || undefined,
+        pack: (formData as any).pack || undefined,
+        barcode: (formData as any).barcode || undefined,
       };
 
       // Create or Update product via API
@@ -558,6 +630,8 @@ export default function SellerAddProduct() {
               galleryImageUrls: [],
               isShopByStoreOnly: "No",
               shopId: "",
+              pack: "",
+              barcode: "",
             });
             setVariations([]);
             setMainImageFile(null);
@@ -608,6 +682,20 @@ export default function SellerAddProduct() {
                     placeholder="Enter Product Name"
                     className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
                   />
+                </div>
+
+                <div className="md:col-span-2">
+                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                    Pack / Unit Size <span className="text-xs text-neutral-500 font-normal ml-1">(e.g. 1 kg, 500 ml, 1 pc)</span>
+                   </label>
+                   <input
+                     type="text"
+                     name="pack"
+                     value={(formData as any).pack}
+                     onChange={handleChange}
+                     placeholder="Enter Unit Size (displayed on card)"
+                     className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
+                   />
                 </div>
 
                 <div>
@@ -838,7 +926,7 @@ export default function SellerAddProduct() {
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-start">
                   <div>
                     <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
-                      Title
+                      Unit Value
                     </label>
                     <input
                       type="text"
@@ -890,13 +978,52 @@ export default function SellerAddProduct() {
                       className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
                     />
                   </div>
-                  <div className="flex items-end h-full pt-6">
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
+                      Offer Price
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400">₹</span>
+                      <input
+                        type="number"
+                        value={variationForm.offerPrice}
+                        onChange={(e) => setVariationForm({ ...variationForm, offerPrice: e.target.value })}
+                        placeholder="Optional"
+                        className="w-full pl-7 pr-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                      />
+                    </div>
+                  </div>
+                  <div className="md:col-span-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <div className="flex-1">
+                        <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
+                            Barcode
+                        </label>
+                        <div className="flex gap-2">
+                             <input
+                                type="text"
+                                value={variationForm.barcode}
+                                onChange={(e) => setVariationForm({ ...variationForm, barcode: e.target.value })}
+                                placeholder="Scan or Enter"
+                                className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => startScanning("variation")}
+                                className="px-3 py-2 bg-neutral-100 border border-neutral-300 rounded-lg hover:bg-neutral-200 text-neutral-600 transition-colors"
+                                title="Scan Barcode"
+                                >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
+                            </button>
+                        </div>
+                     </div>
+                  </div>
+                  <div className="flex items-end h-full pt-6 md:col-span-5 justify-end">
                     <button
                       type="button"
                       onClick={addVariation}
-                      className="w-full px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+                      className="px-6 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
                     >
-                      Add +
+                      Add Variation +
                     </button>
                   </div>
                 </div>
@@ -914,9 +1041,13 @@ export default function SellerAddProduct() {
                         key={index}
                         className="flex items-center justify-between p-4 bg-white hover:bg-neutral-50 transition-colors"
                       >
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1">
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 flex-1">
                           <div>
-                            <span className="text-xs text-neutral-400 block">Title</span>
+                             <span className="text-xs text-neutral-400 block">Barcode</span>
+                             <span className="text-neutral-700 text-sm">{variation.barcode || "-"}</span>
+                          </div>
+                          <div>
+                            <span className="text-xs text-neutral-400 block">Unit Value</span>
                             <span className="font-medium text-neutral-900">{variation.title}</span>
                           </div>
                           <div>
@@ -1048,6 +1179,29 @@ export default function SellerAddProduct() {
                   <p className="text-xs text-neutral-500 mt-1">
                     Max quantity a user can buy at once
                   </p>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                    Barcode (EAN/UPC)
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      name="barcode"
+                      value={(formData as any).barcode}
+                      onChange={handleChange}
+                      placeholder="Scan or enter barcode manually"
+                      className="flex-1 px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
+                    />
+                    <button
+                        type="button"
+                        onClick={() => startScanning("product")}
+                        className="px-4 py-2 bg-teal-50 border border-teal-200 rounded-lg hover:bg-teal-100 text-teal-700 flex items-center gap-2 font-medium transition-colors"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
+                        Scan Code
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1264,6 +1418,26 @@ export default function SellerAddProduct() {
           </div>
         </form>
       </div>
+      {/* Scanner Modal */}
+      {isScanning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden relative">
+            <div className="p-4 bg-teal-600 text-white flex justify-between items-center">
+              <h3 className="font-semibold">Scan Barcode</h3>
+              <button
+                onClick={stopScanning}
+                className="p-1 hover:bg-teal-700 rounded-full transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+              </button>
+            </div>
+            <div className="p-4 bg-neutral-900">
+                <div id="reader" className="w-full h-64 bg-neutral-800 rounded-lg overflow-hidden"></div>
+                <p className="text-center text-white text-sm mt-4">Point camera at a barcode to scan</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

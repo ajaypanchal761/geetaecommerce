@@ -4,10 +4,12 @@ import {
   getProducts,
   getCategories,
   deleteProduct,
+  updateProduct,
   type Product,
   type Category,
 } from "../../../services/api/admin/adminProductService";
 import { useAuth } from "../../../context/AuthContext";
+import AdminStockBulkEdit from "./AdminStockBulkEdit";
 
 interface ProductVariation {
   id: string;
@@ -18,9 +20,12 @@ interface ProductVariation {
   image: string;
   variation: string;
   stock: number | "Unlimited";
+  price: number;
+  compareAtPrice: number;
   status: "Published" | "Unpublished";
   category: string;
   categoryId: string;
+  publish: boolean;
 }
 
 const STATUS_OPTIONS = ["All Products", "Published", "Unpublished"];
@@ -38,6 +43,11 @@ export default function AdminStockManagement() {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showBulkEdit, setShowBulkEdit] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [savingChanges, setSavingChanges] = useState(false);
+  const [changedProductIds, setChangedProductIds] = useState<Set<string>>(new Set());
+
 
   const [filterCategory, setFilterCategory] = useState("All Category");
   const [filterSeller, setFilterSeller] = useState("All Sellers");
@@ -49,6 +59,8 @@ export default function AdminStockManagement() {
     try {
       setLoading(true);
       setError(null);
+      setHasUnsavedChanges(false);
+      setChangedProductIds(new Set());
 
       // Fetch categories for filter dropdown
       const categoriesResponse = await getCategories();
@@ -130,6 +142,72 @@ export default function AdminStockManagement() {
     navigate(`/admin/product/edit/${productId}`);
   };
 
+  // Inline edit handler
+  const handleInlineChange = (productId: string, field: string, value: any) => {
+    setProducts((prevProducts) => {
+        const newProducts = [...prevProducts];
+        const productIndex = newProducts.findIndex((p) => p._id === productId);
+
+        if (productIndex !== -1) {
+            newProducts[productIndex] = {
+                ...newProducts[productIndex],
+                [field]: value,
+            };
+            // Special handling for legacy field 'publish' vs 'status' string if needed,
+            // but AdminStockBulkEdit uses 'publish'.
+             if (field === 'status') {
+                 // If the table passes "Published", we map it to publish=true
+                newProducts[productIndex].publish = value === 'Published';
+             }
+        }
+        return newProducts;
+    });
+
+    setChangedProductIds((prev) => {
+        const newSet = new Set(prev);
+        newSet.add(productId);
+        return newSet;
+    });
+    setHasUnsavedChanges(true);
+  };
+
+  const handleSaveChanges = async () => {
+    if (changedProductIds.size === 0) return;
+
+    setSavingChanges(true);
+    try {
+        const promises = Array.from(changedProductIds).map(async (productId) => {
+            const product = products.find((p) => p._id === productId);
+            if (!product) return;
+
+             // Prepare update data. AdminStockBulkEdit updates:
+             // productName, category, compareAtPrice, price, stock, publish.
+            const updateData = {
+                productName: product.productName,
+                category: typeof product.category === 'object' && product.category ? product.category._id : product.category,
+                compareAtPrice: product.compareAtPrice,
+                price: product.price,
+                stock: product.stock,
+                publish: product.publish,
+            };
+
+            await updateProduct(productId, updateData);
+        });
+
+        await Promise.all(promises);
+        setChangedProductIds(new Set());
+        setHasUnsavedChanges(false);
+        alert("Changes saved successfully!");
+        fetchData(); // Refresh to ensure sync
+    } catch (error) {
+        console.error("Failed to save changes:", error);
+        alert("Failed to save some changes. Please try again.");
+    } finally {
+        setSavingChanges(false);
+    }
+  };
+
+
   // Flatten products with variations into individual rows
   const productVariations = useMemo(() => {
     const variations: ProductVariation[] = [];
@@ -166,11 +244,11 @@ export default function AdminStockManagement() {
             sellerId: sellerId,
             image: product.mainImage || product.galleryImages[0] || "",
             variation: `${variation.name}: ${variation.value}`,
-            stock:
-              variation.stock !== undefined
-                ? variation.stock
-                : product.stock || 0,
+            stock: variation.stock !== undefined ? variation.stock : product.stock || 0,
+            price: product.price, // Using product price as bulk edit does
+            compareAtPrice: product.compareAtPrice || 0,
             status: product.publish ? "Published" : "Unpublished",
+            publish: product.publish,
             category: categoryName,
             categoryId: categoryId,
           });
@@ -186,7 +264,10 @@ export default function AdminStockManagement() {
           image: product.mainImage || product.galleryImages[0] || "",
           variation: "Default",
           stock: product.stock || 0,
+          price: product.price,
+          compareAtPrice: product.compareAtPrice || 0,
           status: product.publish ? "Published" : "Unpublished",
+          publish: product.publish,
           category: categoryName,
           categoryId: categoryId,
         });
@@ -355,8 +436,17 @@ export default function AdminStockManagement() {
         {/* Main Panel */}
         <div className="bg-white rounded-lg shadow-sm border border-neutral-200">
           {/* Header */}
-          <div className="bg-teal-600 text-white px-6 py-4 rounded-t-lg">
+          <div className="bg-teal-600 text-white px-6 py-4 rounded-t-lg flex justify-between items-center">
             <h2 className="text-lg font-semibold">View Stock Management</h2>
+             {hasUnsavedChanges && (
+                <button
+                    onClick={handleSaveChanges}
+                    disabled={savingChanges}
+                    className="bg-white text-teal-600 px-4 py-1.5 rounded font-bold text-sm hover:bg-neutral-100 transition-colors shadow-sm flex items-center gap-2"
+                >
+                    {savingChanges ? "Saving..." : "Save Changes"}
+                </button>
+             )}
           </div>
 
           {/* Filters and Controls */}
@@ -457,6 +547,23 @@ export default function AdminStockManagement() {
               </div>
               <div className="flex items-center gap-2">
                 <button
+                  onClick={() => setShowBulkEdit(true)}
+                  className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded text-sm font-medium flex items-center gap-1 transition-colors">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                  </svg>
+                  Bulk Edit
+                </button>
+                <button
                   onClick={handleExport}
                   className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded text-sm font-medium flex items-center gap-1 transition-colors">
                   Export
@@ -496,12 +603,11 @@ export default function AdminStockManagement() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-neutral-50 text-xs font-bold text-neutral-800 border-b border-neutral-200">
-                  <th
-                    className="p-4 cursor-pointer hover:bg-neutral-100 transition-colors"
-                    onClick={() => handleSort("id")}>
-                    <div className="flex items-center">
-                      Variation Id <SortIcon column="id" />
-                    </div>
+                  <th className="p-4">
+                    Variation Id
+                  </th>
+                  <th className="p-4">
+                    Image
                   </th>
                   <th
                     className="p-4 cursor-pointer hover:bg-neutral-100 transition-colors"
@@ -510,45 +616,31 @@ export default function AdminStockManagement() {
                       Name <SortIcon column="name" />
                     </div>
                   </th>
-                  <th
-                    className="p-4 cursor-pointer hover:bg-neutral-100 transition-colors"
-                    onClick={() => handleSort("seller")}>
-                    <div className="flex items-center">
-                      Seller <SortIcon column="seller" />
-                    </div>
+                  <th className="p-4 w-32">
+                     Category
+                  </th>
+                  <th className="p-4 w-24">
+                     MRP (₹)
+                  </th>
+                  <th className="p-4 w-24">
+                     Price (₹)
                   </th>
                   <th
-                    className="p-4 cursor-pointer hover:bg-neutral-100 transition-colors"
-                    onClick={() => handleSort("image")}>
-                    <div className="flex items-center">
-                      Image <SortIcon column="image" />
-                    </div>
-                  </th>
-                  <th
-                    className="p-4 cursor-pointer hover:bg-neutral-100 transition-colors"
-                    onClick={() => handleSort("variation")}>
-                    <div className="flex items-center">
-                      Variation <SortIcon column="variation" />
-                    </div>
-                  </th>
-                  <th
-                    className="p-4 cursor-pointer hover:bg-neutral-100 transition-colors"
+                    className="p-4 cursor-pointer hover:bg-neutral-100 transition-colors w-24"
                     onClick={() => handleSort("stock")}>
                     <div className="flex items-center">
                       Stock <SortIcon column="stock" />
                     </div>
                   </th>
                   <th
-                    className="p-4 cursor-pointer hover:bg-neutral-100 transition-colors"
+                    className="p-4 cursor-pointer hover:bg-neutral-100 transition-colors text-center"
                     onClick={() => handleSort("status")}>
-                    <div className="flex items-center">
+                    <div className="flex items-center justify-center">
                       Status <SortIcon column="status" />
                     </div>
                   </th>
-                  <th className="p-4">
-                    <div className="flex items-center">
-                      Action
-                    </div>
+                  <th className="p-4 text-center">
+                    Action
                   </th>
                 </tr>
               </thead>
@@ -556,21 +648,21 @@ export default function AdminStockManagement() {
                 {loading ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={9}
                       className="p-8 text-center text-neutral-400">
                       Loading products...
                     </td>
                   </tr>
                 ) : error ? (
                   <tr>
-                    <td colSpan={8} className="p-8 text-center text-red-600">
+                    <td colSpan={9} className="p-8 text-center text-red-600">
                       {error}
                     </td>
                   </tr>
                 ) : displayedProducts.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={9}
                       className="p-8 text-center text-neutral-400">
                       No products found.
                     </td>
@@ -580,53 +672,88 @@ export default function AdminStockManagement() {
                     <tr
                       key={product.id}
                       className="hover:bg-neutral-50 transition-colors text-sm text-neutral-700 border-b border-neutral-200">
-                      <td className="p-4 align-middle">
+                      <td className="p-4 align-middle text-xs text-neutral-500">
                         {product.id.slice(-6)}
                       </td>
-                      <td className="p-4 align-middle">{product.name}</td>
-                      <td className="p-4 align-middle">{product.seller}</td>
-                      <td className="p-4 align-middle">
+                       <td className="p-4 align-middle">
                         {product.image ? (
                           <img
                             src={product.image}
                             alt={product.name}
-                            className="w-12 h-16 object-cover rounded"
+                            className="w-10 h-10 object-cover rounded border border-neutral-200"
                             onError={(e) => {
                               (e.target as HTMLImageElement).src =
                                 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="60" height="80"%3E%3Crect width="60" height="80" fill="%23e5e7eb"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%239ca3af" font-size="10"%3ENo Image%3C/text%3E%3C/svg%3E';
                             }}
                           />
                         ) : (
-                          <div className="w-12 h-16 bg-neutral-100 rounded flex items-center justify-center text-xs text-neutral-400">
+                          <div className="w-10 h-10 bg-neutral-100 rounded flex items-center justify-center text-xs text-neutral-400">
                             No Image
                           </div>
                         )}
                       </td>
-                      <td className="p-4 align-middle">{product.variation}</td>
-                      <td className="p-4 align-middle">
-                        {product.stock === "Unlimited" ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800">
-                            Unlimited
-                          </span>
-                        ) : (
-                          <span>{product.stock}</span>
-                        )}
+                      <td className="p-2 align-middle">
+                          <input
+                            type="text"
+                            className="w-full px-2 py-1 border border-neutral-200 rounded focus:ring-1 focus:ring-teal-500 focus:border-teal-500 text-sm"
+                            value={product.name}
+                            onChange={(e) => handleInlineChange(product.productId, 'productName', e.target.value)}
+                          />
+                           <div className="text-xs text-neutral-400 mt-1">{product.variation !== "Default" ? product.variation : ""}</div>
+                      </td>
+                      <td className="p-2 align-middle">
+                        <select
+                           className="w-full px-2 py-1 border border-neutral-200 rounded focus:ring-1 focus:ring-teal-500 focus:border-teal-500 text-sm"
+                           value={product.categoryId}
+                           onChange={(e) => handleInlineChange(product.productId, 'category', e.target.value)}
+                        >
+                            <option value="">Select</option>
+                            {categories.map(c => (
+                                <option key={c._id} value={c._id}>{c.name}</option>
+                            ))}
+                        </select>
+                      </td>
+                      <td className="p-2 align-middle">
+                          <input
+                            type="number"
+                            className="w-full px-2 py-1 border border-neutral-200 rounded focus:ring-1 focus:ring-teal-500 focus:border-teal-500 text-sm text-right"
+                            value={product.compareAtPrice}
+                            onChange={(e) => handleInlineChange(product.productId, 'compareAtPrice', parseFloat(e.target.value) || 0)}
+                          />
+                      </td>
+                      <td className="p-2 align-middle">
+                          <input
+                            type="number"
+                            className="w-full px-2 py-1 border border-neutral-200 rounded focus:ring-1 focus:ring-teal-500 focus:border-teal-500 text-sm text-right font-medium"
+                            value={product.price}
+                            onChange={(e) => handleInlineChange(product.productId, 'price', parseFloat(e.target.value) || 0)}
+                          />
+                      </td>
+                      <td className="p-2 align-middle">
+                          <input
+                            type="number"
+                            className="w-full px-2 py-1 border border-neutral-200 rounded focus:ring-1 focus:ring-teal-500 focus:border-teal-500 text-sm text-right"
+                            value={product.stock === "Unlimited" ? 0 : product.stock}
+                            onChange={(e) => handleInlineChange(product.productId, 'stock', parseInt(e.target.value) || 0)}
+                          />
+                      </td>
+                      <td className="p-4 align-middle text-center">
+                        <label className="inline-flex items-center cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={product.publish}
+                                className="sr-only peer"
+                                onChange={(e) => handleInlineChange(product.productId, 'publish', e.target.checked)}
+                            />
+                            <div className="relative w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-teal-300 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-teal-600"></div>
+                        </label>
                       </td>
                       <td className="p-4 align-middle">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${product.status === "Published"
-                            ? "bg-teal-100 text-teal-800"
-                            : "bg-gray-100 text-gray-800"
-                            }`}>
-                          {product.status}
-                        </span>
-                      </td>
-                      <td className="p-4 align-middle">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center justify-center gap-2">
                           <button
                             onClick={() => handleEdit(product.productId)}
                             className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-                            title="Edit">
+                            title="Edit Details">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
@@ -723,6 +850,16 @@ export default function AdminStockManagement() {
           Geeta Stores - 10 Minute App
         </a>
       </footer>
+
+
+      {showBulkEdit && (
+        <AdminStockBulkEdit
+          products={products}
+          categories={categories}
+          onClose={() => setShowBulkEdit(false)}
+          onSave={fetchData}
+        />
+      )}
     </div>
   );
 }

@@ -135,6 +135,7 @@ const AdminManageCustomer = lazy(() => import("./modules/admin/pages/AdminManage
 const AdminProfile = lazy(() => import("./modules/admin/pages/AdminProfile"));
 const AdminPOSOrders = lazy(() => import("./modules/admin/pages/AdminPOSOrders"));
 const AdminPOSReport = lazy(() => import("./modules/admin/pages/AdminPOSReport"));
+const AdminVideoManagement = lazy(() => import("./modules/admin/pages/AdminVideoManagement"));
 
 function App() {
   return (
@@ -338,7 +339,9 @@ function App() {
                             <Route path="orders/out-for-delivery" element={<AdminOutForDeliveryOrders />} />
                             <Route path="orders/delivered" element={<AdminDeliveredOrders />} />
                             <Route path="orders/cancelled" element={<AdminCancelledOrders />} />
+                            <Route path="orders/cancelled" element={<AdminCancelledOrders />} />
                             <Route path="orders/:id" element={<AdminOrderDetail />} />
+                            <Route path="video-finds" element={<AdminVideoManagement />} />
                           </Routes>
                         </AdminLayout>
                         </Suspense>

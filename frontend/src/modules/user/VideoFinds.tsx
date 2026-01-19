@@ -314,12 +314,51 @@ const ReelItem = ({
 
 // --- Main Component ---
 
+// --- Main Component ---
+
 export default function VideoFinds() {
   const { currentTheme } = useThemeContext();
   const [activeReelIndex, setActiveReelIndex] = useState<number | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDesktop, setIsDesktop] = useState(window.matchMedia("(min-width: 768px)").matches);
+  const [videoList, setVideoList] = useState<VideoProduct[]>([]);
+
+  useEffect(() => {
+    const loadVideos = () => {
+        const savedVideos = localStorage.getItem('admin_video_finds');
+        if (savedVideos) {
+            setVideoList(JSON.parse(savedVideos));
+        } else {
+            setVideoList(MOCK_VIDEOS);
+        }
+    };
+
+    loadVideos();
+
+    const handleStorageChange = (e: StorageEvent) => {
+        if (e.key === 'admin_video_finds') {
+            loadVideos();
+        }
+    };
+
+    const handleCustomUpdate = () => loadVideos();
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('local-storage-update', handleCustomUpdate);
+
+    return () => {
+        window.removeEventListener('storage', handleStorageChange);
+        window.removeEventListener('local-storage-update', handleCustomUpdate);
+    };
+  }, []);
+
+  // Validate active index when list changes
+  useEffect(() => {
+    if (activeReelIndex !== null && activeReelIndex >= videoList.length) {
+        setActiveReelIndex(null);
+    }
+  }, [videoList, activeReelIndex]);
 
   useEffect(() => {
     const media = window.matchMedia("(min-width: 768px)");
@@ -333,13 +372,13 @@ export default function VideoFinds() {
     if (!containerRef.current) return;
     const { scrollTop, clientHeight } = containerRef.current;
     const index = Math.round(scrollTop / clientHeight);
-    if (activeReelIndex !== index && index >= 0 && index < MOCK_VIDEOS.length) {
+    if (activeReelIndex !== index && index >= 0 && index < videoList.length) {
       setActiveReelIndex(index);
     }
   };
 
   const nextReel = () => {
-    if (activeReelIndex !== null && activeReelIndex < MOCK_VIDEOS.length - 1) {
+    if (activeReelIndex !== null && activeReelIndex < videoList.length - 1) {
       setActiveReelIndex(activeReelIndex + 1);
     }
   };
@@ -361,7 +400,7 @@ export default function VideoFinds() {
 
       <div className="p-4">
         <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4">
-          {MOCK_VIDEOS.map((product, index) => (
+          {videoList.map((product, index) => (
             <GridVideoCard
               key={product.id}
               product={product}
@@ -400,7 +439,7 @@ export default function VideoFinds() {
                  className="h-full w-full overflow-y-scroll snap-y snap-mandatory no-scrollbar"
                  style={{ scrollBehavior: 'smooth' }}
                >
-                 {MOCK_VIDEOS.map((product, index) => (
+                 {videoList.map((product, index) => (
                    <div key={product.id} className="h-full w-full snap-start">
                      {/* Only render/play active or adjacent videos for performance?
                          For 3 items, render all but control play state via props.
@@ -450,7 +489,7 @@ export default function VideoFinds() {
                 <div className="hidden lg:block w-[280px] h-[500px] opacity-40 scale-90 blur-[1px] pointer-events-none relative rounded-2xl overflow-hidden shrink-0">
                   {activeReelIndex > 0 && (
                      <ReelItem
-                       product={MOCK_VIDEOS[activeReelIndex - 1]}
+                       product={videoList[activeReelIndex - 1]}
                        isActive={false}
                        isMuted={true}
                        toggleMute={() => {}}
@@ -463,7 +502,7 @@ export default function VideoFinds() {
                 {/* CENTER ACTIVE REEL */}
                 <div className="w-[360px] h-[640px] shadow-2xl rounded-2xl overflow-hidden shrink-0 relative bg-black transform hover:scale-[1.01] transition-transform duration-300">
                    <ReelItem
-                     product={MOCK_VIDEOS[activeReelIndex]}
+                     product={videoList[activeReelIndex]}
                      isActive={true}
                      isMuted={isMuted}
                      toggleMute={() => setIsMuted(!isMuted)}
@@ -473,9 +512,9 @@ export default function VideoFinds() {
 
                  {/* Next Reel Preview (Right) */}
                  <div className="hidden lg:block w-[280px] h-[500px] opacity-40 scale-90 blur-[1px] pointer-events-none relative rounded-2xl overflow-hidden shrink-0">
-                  {activeReelIndex < MOCK_VIDEOS.length - 1 && (
+                  {activeReelIndex < videoList.length - 1 && (
                      <ReelItem
-                       product={MOCK_VIDEOS[activeReelIndex + 1]}
+                       product={videoList[activeReelIndex + 1]}
                        isActive={false}
                        isMuted={true}
                        toggleMute={() => {}}
@@ -488,8 +527,8 @@ export default function VideoFinds() {
                 {/* Right Arrow */}
                 <button
                    onClick={nextReel}
-                   disabled={activeReelIndex === MOCK_VIDEOS.length - 1}
-                   className={`p-3 rounded-full bg-white text-black shadow-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all ${activeReelIndex === MOCK_VIDEOS.length - 1 ? 'opacity-0' : 'opacity-100'}`}
+                   disabled={activeReelIndex === videoList.length - 1}
+                   className={`p-3 rounded-full bg-white text-black shadow-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all ${activeReelIndex === videoList.length - 1 ? 'opacity-0' : 'opacity-100'}`}
                 >
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
                 </button>
