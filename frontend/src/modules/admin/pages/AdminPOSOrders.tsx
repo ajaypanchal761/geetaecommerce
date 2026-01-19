@@ -1,48 +1,80 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { getProducts, Product } from '../../../services/api/admin/adminProductService';
+import { createPOSOrder } from '../../../services/api/admin/adminOrderService';
+import { useToast } from '../../../context/ToastContext';
 
-// Mock Data for Demo
-const MOCK_PRODUCTS = [
-  { id: 'p1', name: 'Aashirvaad Atta 5kg', price: 240, purchasePrice: 210, category: 'Staples' },
-  { id: 'p2', name: 'Tata Salt 1kg', price: 25, purchasePrice: 18, category: 'Staples' },
-  { id: 'p3', name: 'Lays Chips Blue', price: 20, purchasePrice: 15, category: 'Snacks' },
-  { id: 'p4', name: 'Coke 750ml', price: 40, purchasePrice: 32, category: 'Beverages' },
-  { id: 'p5', name: 'Dove Soap', price: 50, purchasePrice: 40, category: 'Personal Care' },
-];
+// Interface for Cart Item extending Product
+interface CartItem extends Product {
+  qty: number;
+  customPrice?: number; // For edited selling price
+}
 
 const AdminPOSOrders = () => {
+  const { showToast } = useToast();
   const [selectedSeller, setSelectedSeller] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('Cash');
-  const [cart, setCart] = useState<any[]>([]);
+  const [cart, setCart] = useState<CartItem[]>([]);
+
+  // Data State
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(false);
 
   // Modals
   const [showQuickAdd, setShowQuickAdd] = useState(false);
-  const [editingItem, setEditingItem] = useState<any | null>(null);
+  const [editingItem, setEditingItem] = useState<CartItem | null>(null);
 
   // Quick Add Form
   const [quickForm, setQuickForm] = useState({ name: '', price: '', qty: '1' });
   // Edit Price Form
   const [editPriceForm, setEditPriceForm] = useState({ sellingPrice: '' });
 
-  // --- Cart Logic ---
-  const addToCart = (product: any) => {
-    setCart(prev => {
-      const existing = prev.find(item => item.id === product.id);
-      if (existing) {
-        return prev.map(item => item.id === product.id ? { ...item, qty: item.qty + 1 } : item);
+  // Fetch Products
+  useEffect(() => {
+    const fetchProducts = async () => {
+      setLoading(true);
+      try {
+        const response = await getProducts({
+          search: searchQuery,
+          status: 'Active',
+          limit: 20 // Reasonable limit for POS
+        });
+        if (response.success && response.data) {
+          setProducts(response.data);
+        }
+      } catch (error) {
+        console.error("Error fetching products:", error);
+        showToast("Failed to load products", "error");
+      } finally {
+        setLoading(false);
       }
-      // If purchasePrice is missing (e.g. mock data or quick add without it), default to 0 or same as price for display safety
-      return [...prev, { ...product, qty: 1, purchasePrice: product.purchasePrice || 0 }];
+    };
+
+    const debounceTimer = setTimeout(() => {
+        fetchProducts();
+    }, 500);
+
+    return () => clearTimeout(debounceTimer);
+  }, [searchQuery]);
+
+  // --- Cart Logic ---
+  const addToCart = (product: Product) => {
+    setCart(prev => {
+      const existing = prev.find(item => item._id === product._id);
+      if (existing) {
+        return prev.map(item => item._id === product._id ? { ...item, qty: item.qty + 1 } : item);
+      }
+      return [...prev, { ...product, qty: 1 }];
     });
   };
 
   const removeFromCart = (id: string) => {
-    setCart(prev => prev.filter(item => item.id !== id));
+    setCart(prev => prev.filter(item => item._id !== id));
   };
 
   const updateQuantity = (id: string, delta: number) => {
     setCart(prev => prev.map(item => {
-      if (item.id === id) {
+      if (item._id === id) {
         const newQty = Math.max(1, item.qty + delta);
         return { ...item, qty: newQty };
       }
@@ -51,28 +83,35 @@ const AdminPOSOrders = () => {
   };
 
   const calculateTotal = () => {
-    return cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
+    return cart.reduce((acc, item) => {
+        const price = item.customPrice !== undefined ? item.customPrice : item.price;
+        return acc + (price * item.qty);
+    }, 0);
   };
 
   // --- Handlers ---
   const handleQuickAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const newItem = {
-      id: 'quick-' + Date.now(),
-      name: quickForm.name,
+    // Quick Add creates a temporary mock product in cart
+    // In a real app, this might need backend support or special ID
+    const newItem: any = {
+      _id: 'quick-' + Date.now(),
+      productName: quickForm.name,
       price: parseFloat(quickForm.price),
-      purchasePrice: 0, // Unknown for quick add
       qty: parseInt(quickForm.qty) || 1,
-      isQuickAdd: true
+      mainImage: '', // Placeholder
+      // Add other required Product fields with defaults if necessary for strictly typed CartItem
     };
     setCart(prev => [...prev, newItem]);
     setShowQuickAdd(false);
     setQuickForm({ name: '', price: '', qty: '1' });
   };
 
-  const openEditModal = (item: any) => {
+  const openEditModal = (item: CartItem) => {
     setEditingItem(item);
-    setEditPriceForm({ sellingPrice: item.price.toString() });
+    // Use customPrice if set, otherwise default price
+    const currentPrice = item.customPrice !== undefined ? item.customPrice : item.price;
+    setEditPriceForm({ sellingPrice: currentPrice.toString() });
   };
 
   const handleEditPriceSubmit = (e: React.FormEvent) => {
@@ -80,18 +119,45 @@ const AdminPOSOrders = () => {
     if (!editingItem) return;
 
     setCart(prev => prev.map(item => {
-      if (item.id === editingItem.id) {
-        return { ...item, price: parseFloat(editPriceForm.sellingPrice) };
+      if (item._id === editingItem._id) {
+        return { ...item, customPrice: parseFloat(editPriceForm.sellingPrice) };
       }
       return item;
     }));
     setEditingItem(null);
   };
 
-  // Filter products based on search (standard behavior)
-  const filteredProducts = MOCK_PRODUCTS.filter(p =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const handlePlaceOrder = async () => {
+    if (cart.length === 0) {
+        showToast("Cart is empty", "error");
+        return;
+    }
+
+    try {
+        const orderData = {
+            customerId: "walk-in-customer", // Default or handle customer selection
+            items: cart.map(item => ({
+                productId: item._id.startsWith('quick-') ? '' : item._id, // Handle quick add items appropriately
+                name: item._id.startsWith('quick-') ? item.productName : undefined,
+                quantity: item.qty,
+                price: item.customPrice !== undefined ? item.customPrice : item.price
+            })),
+            paymentMethod: paymentMethod,
+            paymentStatus: "Paid" as "Paid" // Assuming immediate payment in POS
+        };
+
+        const response = await createPOSOrder(orderData);
+        if (response.success) {
+            showToast("Order placed successfully!", "success");
+            setCart([]);
+        } else {
+            showToast("Failed to place order", "error");
+        }
+    } catch (error) {
+        console.error("Order error:", error);
+        showToast("Error processing order", "error");
+    }
+  };
 
   return (
     <div className="p-4 bg-gray-50 min-h-screen font-sans">
@@ -142,20 +208,32 @@ const AdminPOSOrders = () => {
 
             {/* Products Grid */}
             <div className="flex-1 overflow-y-auto p-4 bg-gray-50/30">
-               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {filteredProducts.map(product => (
-                      <div key={product.id} onClick={() => addToCart(product)} className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm hover:shadow-md cursor-pointer transition-all flex flex-col items-center text-center group">
-                           <div className="w-16 h-16 bg-gray-100 rounded mb-2 flex items-center justify-center text-xs text-gray-400">IMG</div>
-                           <h3 className="text-sm font-medium text-gray-800 line-clamp-2">{product.name}</h3>
-                           <div className="mt-2 text-green-600 font-bold">₹{product.price}</div>
-                      </div>
-                  ))}
-                  {filteredProducts.length === 0 && (
-                      <div className="col-span-full py-10 text-center text-gray-400 text-sm">
-                          No products found
-                      </div>
-                  )}
-               </div>
+               {loading ? (
+                   <div className="flex justify-center items-center h-40">
+                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                   </div>
+               ) : (
+                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      {products.map(product => (
+                          <div key={product._id} onClick={() => addToCart(product)} className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm hover:shadow-md cursor-pointer transition-all flex flex-col items-center text-center group">
+                               <div className="w-16 h-16 bg-gray-100 rounded mb-2 flex items-center justify-center overflow-hidden">
+                                   {product.mainImage ? (
+                                       <img src={product.mainImage} alt={product.productName} className="w-full h-full object-cover" />
+                                   ) : (
+                                       <span className="text-xs text-gray-400">IMG</span>
+                                   )}
+                               </div>
+                               <h3 className="text-sm font-medium text-gray-800 line-clamp-2">{product.productName}</h3>
+                               <div className="mt-2 text-green-600 font-bold">₹{product.price}</div>
+                          </div>
+                      ))}
+                      {products.length === 0 && (
+                          <div className="col-span-full py-10 text-center text-gray-400 text-sm">
+                              No products found
+                          </div>
+                      )}
+                   </div>
+               )}
             </div>
           </div>
         </div>
@@ -200,7 +278,7 @@ const AdminPOSOrders = () => {
                           <div key={index} className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-lg hover:border-blue-200 transition-colors shadow-sm">
                               <div className="flex-1">
                                   <div className="flex items-center gap-2">
-                                     <h4 className="text-sm font-medium text-gray-800 line-clamp-1">{item.name}</h4>
+                                     <h4 className="text-sm font-medium text-gray-800 line-clamp-1">{item.productName}</h4>
                                      <button
                                         onClick={() => openEditModal(item)}
                                         className="text-gray-400 hover:text-blue-600 transition-colors" title="Edit Price"
@@ -209,17 +287,17 @@ const AdminPOSOrders = () => {
                                      </button>
                                   </div>
                                   <div className="flex items-center gap-2 mt-1">
-                                      <span className="text-xs text-gray-500">₹{item.price} x</span>
+                                      <span className="text-xs text-gray-500">₹{item.customPrice !== undefined ? item.customPrice : item.price} x</span>
                                       <div className="flex items-center border border-gray-200 rounded">
-                                          <button onClick={() => updateQuantity(item.id, -1)} className="px-1.5 py-0.5 hover:bg-gray-100 text-gray-600">-</button>
+                                          <button onClick={() => updateQuantity(item._id, -1)} className="px-1.5 py-0.5 hover:bg-gray-100 text-gray-600">-</button>
                                           <span className="px-2 text-xs font-medium">{item.qty}</span>
-                                          <button onClick={() => updateQuantity(item.id, 1)} className="px-1.5 py-0.5 hover:bg-gray-100 text-gray-600">+</button>
+                                          <button onClick={() => updateQuantity(item._id, 1)} className="px-1.5 py-0.5 hover:bg-gray-100 text-gray-600">+</button>
                                       </div>
                                   </div>
                               </div>
                               <div className="text-right">
-                                  <div className="font-semibold text-gray-900">₹{item.price * item.qty}</div>
-                                  <button onClick={() => removeFromCart(item.id)} className="text-xs text-red-500 hover:text-red-700 mt-1">Remove</button>
+                                  <div className="font-semibold text-gray-900">₹{(item.customPrice !== undefined ? item.customPrice : item.price) * item.qty}</div>
+                                  <button onClick={() => removeFromCart(item._id)} className="text-xs text-red-500 hover:text-red-700 mt-1">Remove</button>
                               </div>
                           </div>
                       ))
@@ -255,8 +333,11 @@ const AdminPOSOrders = () => {
                           </div>
                       </div>
 
-                      <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2">
-                          <span>Access Payment</span>
+                      <button
+                        onClick={handlePlaceOrder}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2"
+                      >
+                          <span>Place Order</span>
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
                       </button>
                   </div>
@@ -323,7 +404,10 @@ const AdminPOSOrders = () => {
                 <div className="p-6 space-y-4">
                     <div className="bg-blue-50 border border-blue-100 rounded p-3 mb-2">
                         <p className="text-xs text-blue-600 font-semibold uppercase tracking-wider">Purchase Price</p>
-                        <p className="text-lg font-bold text-blue-800">₹{editingItem.purchasePrice || 'N/A'}</p>
+                        {/* Note: 'purchasePrice' is typically Cost Price. If backend doesn't provide it, we show 0 or N/A.
+                            If 'compareAtPrice' is closer to MRP/Original, we might show that depending on need,
+                            but user specifically asked for purchase price. */}
+                        <p className="text-lg font-bold text-blue-800">₹{(editingItem as any).purchasePrice || 0}</p>
                     </div>
 
                     <form onSubmit={handleEditPriceSubmit} className="space-y-4">
@@ -350,3 +434,4 @@ const AdminPOSOrders = () => {
 };
 
 export default AdminPOSOrders;
+
