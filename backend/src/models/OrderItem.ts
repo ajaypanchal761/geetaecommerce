@@ -35,12 +35,12 @@ const OrderItemSchema = new Schema<IOrderItem>(
     product: {
       type: Schema.Types.ObjectId,
       ref: "Product",
-      required: [true, "Product is required"],
+      required: false,
     },
     seller: {
       type: Schema.Types.ObjectId,
       ref: "Seller",
-      required: [true, "Seller is required"],
+      required: false,
     },
 
     // Product Details (snapshot)

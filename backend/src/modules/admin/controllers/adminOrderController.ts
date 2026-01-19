@@ -1,4 +1,6 @@
 import { Request, Response } from "express";
+import mongoose from "mongoose";
+import axios from "axios";
 import { asyncHandler } from "../../../utils/asyncHandler";
 import Order from "../../../models/Order";
 import OrderItem from "../../../models/OrderItem";
@@ -6,6 +8,8 @@ import Delivery from "../../../models/Delivery";
 import DeliveryAssignment from "../../../models/DeliveryAssignment";
 import Return from "../../../models/Return";
 import { notifySellersOfOrderUpdate } from "../../../services/sellerNotificationService";
+import Product from "../../../models/Product";
+import Customer from "../../../models/Customer";
 import { Server as SocketIOServer } from "socket.io";
 
 /**
@@ -581,5 +585,340 @@ export const exportOrders = asyncHandler(
       `attachment; filename=orders_${Date.now()}.csv`
     );
     res.send(csvContent);
+  }
+);
+
+/**
+ * Create POS Order
+ */
+export const createPOSOrder = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { customerId, items, paymentMethod, paymentStatus } = req.body;
+
+    // Validate request
+    if (!customerId || !items || !items.length || !paymentMethod) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields: customerId, items, paymentMethod",
+      });
+    }
+
+    // Fetch customer
+    const customer = await Customer.findById(customerId);
+    if (!customer) {
+      return res.status(404).json({
+        success: false,
+        message: "Customer not found",
+      });
+    }
+
+    // Initialize Order Document first to get an ID
+    // We'll save it after calculating totals
+    // But to satisfy OrderItem 'order' required field, we need an Order ID.
+    // Strategy: Create Order with dummy totals, create Items, then update Order totals.
+
+    // 1. Create Order shell
+    let order = await Order.create({
+      customer: customer._id,
+      customerName: customer.name,
+      customerEmail: customer.email,
+      customerPhone: customer.phone,
+      deliveryAddress: {
+        address: customer.address || "POS Order",
+        city: customer.city || "POS",
+        pincode: customer.pincode || "000000",
+        state: customer.state || "POS"
+      },
+      items: [],
+      subtotal: 0,
+      tax: 0,
+      shipping: 0,
+      discount: 0,
+      total: 0,
+      paymentMethod,
+      paymentStatus: paymentStatus || "Paid",
+      status: "Delivered",
+      deliveryBoyStatus: "Delivered",
+      deliveredAt: new Date(),
+      adminNotes: "Created via POS System"
+    });
+
+    // 2. Create Order Items
+    let subtotal = 0;
+    const orderItemsIds = [];
+
+    for (const item of items) {
+       // item: { productId, quantity, price, name }
+
+       let productData: any = {
+           productName: item.name || "Custom Item", // Expect name from frontend or default
+           mainImage: "",
+           sku: "",
+           seller: null
+       };
+       let productId = null;
+
+       // Check if productId is a valid ObjectId (Real Product)
+       if (mongoose.Types.ObjectId.isValid(item.productId)) {
+           const product = await Product.findById(item.productId).populate('seller');
+           if (product) {
+               productId = product._id;
+               productData = {
+                   productName: product.productName,
+                   mainImage: product.mainImage,
+                   sku: product.sku,
+                   seller: (product.seller as any)._id || product.seller
+               };
+           }
+       }
+
+       const total = Number(item.price) * Number(item.quantity);
+       subtotal += total;
+
+       const orderItemPayload: any = {
+         order: order._id,
+         productName: productData.productName,
+         productImage: productData.mainImage,
+         sku: productData.sku,
+         unitPrice: item.price,
+         quantity: item.quantity,
+         total: total,
+         status: "Delivered"
+       };
+
+       if (productId) {
+           orderItemPayload.product = productId;
+       }
+
+       // Only add seller if it exists (Custom items have no seller)
+       if (productData.seller) {
+           orderItemPayload.seller = productData.seller;
+       }
+
+       const orderItem = await OrderItem.create(orderItemPayload);
+       orderItemsIds.push(orderItem._id);
+    }
+
+    // 3. Update Order with correct totals and items
+    const tax = 0;
+    const shipping = 0;
+    const discount = 0;
+    const total = subtotal + tax + shipping - discount;
+
+    order.items = orderItemsIds;
+    order.subtotal = subtotal;
+    order.total = total;
+
+    await order.save();
+
+    return res.status(201).json({
+      success: true,
+      message: "POS Order created successfully",
+      data: order,
+    });
+  }
+);
+
+/**
+ * Initiate POS Online Order (Razorpay/Cashfree)
+ */
+export const initiatePOSOnlineOrder = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { customerId, items, gateway } = req.body;
+
+    if (!customerId || !items || !items.length || !gateway) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields",
+      });
+    }
+
+    const customer = await Customer.findById(customerId);
+    if (!customer) {
+      return res.status(404).json({ success: false, message: "Customer not found" });
+    }
+
+    // Calculate Total
+    let subtotal = 0;
+    const orderItemsPayload = [];
+
+    for (const item of items) {
+       let productData: any = {
+           productName: item.name || "Custom Item",
+           mainImage: "",
+           sku: "",
+           seller: null
+       };
+       let productId = null;
+
+       if (item.productId && mongoose.Types.ObjectId.isValid(item.productId)) {
+           const product = await Product.findById(item.productId).populate('seller');
+           if (product) {
+               productId = product._id;
+               productData = {
+                   productName: product.productName,
+                   mainImage: product.mainImage,
+                   sku: product.sku,
+                   seller: product.seller ? ((product.seller as any)._id || product.seller) : null
+               };
+           }
+       }
+
+       const total = Number(item.price) * Number(item.quantity);
+       subtotal += total;
+
+       const payload: any = {
+         productName: productData.productName,
+         productImage: productData.mainImage,
+         sku: productData.sku,
+         unitPrice: item.price,
+         quantity: item.quantity,
+         total: total,
+         status: "Pending" // Initial status
+       };
+       if (productId) payload.product = productId;
+       if (productData.seller) payload.seller = productData.seller;
+
+       orderItemsPayload.push(payload);
+    }
+
+    // Create Pending Order
+    const order = await Order.create({
+      customer: customer._id,
+      customerName: customer.name,
+      customerEmail: customer.email,
+      customerPhone: customer.phone,
+      deliveryAddress: {
+        address: customer.address || "POS Order",
+        city: customer.city || "POS",
+        pincode: customer.pincode || "000000",
+        state: customer.state || "POS"
+      },
+      items: [], // Will populate after creating items
+      subtotal: subtotal,
+      total: subtotal, // Assuming no tax/shipping for POS for now
+      paymentMethod: gateway,
+      paymentStatus: "Pending",
+      status: "Pending",
+      adminNotes: `POS Online Order via ${gateway}`
+    });
+
+    // Create Items
+    const itemIds = [];
+    for (const payload of orderItemsPayload) {
+        payload.order = order._id;
+        const item = await OrderItem.create(payload);
+        itemIds.push(item._id);
+    }
+    order.items = itemIds;
+    await order.save();
+
+    // Initiate Gateway Payment
+    const amountInPaise = Math.round(subtotal * 100);
+
+    if (gateway === 'Razorpay') {
+        const auth = Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString('base64');
+        try {
+            const razorpayResponse = await axios.post('https://api.razorpay.com/v1/orders', {
+                amount: amountInPaise,
+                currency: "INR",
+                receipt: order.orderNumber,
+                notes: { order_id: order._id.toString() }
+            }, {
+                headers: { 'Authorization': `Basic ${auth}` }
+            });
+
+            return res.status(200).json({
+                success: true,
+                data: {
+                    gateway: 'Razorpay',
+                    orderId: order._id,
+                    razorpayOrderId: razorpayResponse.data.id,
+                    amount: subtotal,
+                    key: process.env.RAZORPAY_KEY_ID,
+                    customer: {
+                        name: customer.name,
+                        email: customer.email,
+                        contact: customer.phone
+                    }
+                }
+            });
+        } catch (error: any) {
+            console.error("Razorpay Error:", error.response?.data || error);
+            return res.status(500).json({ success: false, message: "Gateway Error" });
+        }
+    } else if (gateway === 'Cashfree') {
+        try {
+            const baseUrl = process.env.CASHFREE_MODE === 'production'
+                ? 'https://api.cashfree.com/pg'
+                : 'https://sandbox.cashfree.com/pg';
+
+            const cashfreeResponse = await axios.post(`${baseUrl}/orders`, {
+                order_id: `pos_${order._id}_${Date.now()}`, // Unique Order ID required by CF
+                order_amount: subtotal,
+                order_currency: "INR",
+                customer_details: {
+                    customer_id: customer._id.toString(),
+                    customer_email: customer.email || "pos@example.com",
+                    customer_phone: customer.phone || "9999999999"
+                },
+                order_meta: {
+                    return_url: `${process.env.FRONTEND_URL || 'http://localhost:5173/'}admin/pos/success?order_id=${order._id}` // Not strictly used in seamless/popup but required
+                }
+            }, {
+                headers: {
+                    'x-client-id': process.env.CASHFREE_APP_ID,
+                    'x-client-secret': process.env.CASHFREE_SECRET_KEY,
+                    'x-api-version': '2023-08-01'
+                }
+            });
+
+            return res.status(200).json({
+                success: true,
+                data: {
+                    gateway: 'Cashfree',
+                    orderId: order._id,
+                    paymentSessionId: cashfreeResponse.data.payment_session_id,
+                    amount: subtotal,
+                    isSandbox: process.env.CASHFREE_MODE !== 'production'
+                }
+            });
+        } catch (error: any) {
+            console.error("Cashfree Error:", error.response?.data || error);
+            return res.status(500).json({ success: false, message: "Gateway Error" });
+        }
+    }
+
+    return res.status(400).json({ success: false, message: "Invalid Gateway" });
+  }
+);
+
+/**
+ * Verify POS Online Payment
+ */
+export const verifyPOSPayment = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { orderId, paymentId, status } = req.body; // status = 'success' from frontend
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+        return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    order.paymentStatus = "Paid";
+    order.status = "Delivered"; // Auto deliver for POS
+    order.deliveryBoyStatus = "Delivered";
+    order.deliveredAt = new Date();
+    order.adminNotes = (order.adminNotes || "") + `\nPayment Verified (ID: ${paymentId})`;
+
+    await order.save();
+
+    // Update items status
+    await OrderItem.updateMany({ order: order._id }, { status: "Delivered" });
+
+    return res.status(200).json({
+        success: true,
+        message: "Payment verified and Order completed"
+    });
   }
 );

@@ -216,3 +216,39 @@ export const exportOrders = async (
   });
   return response.data;
 };
+
+export interface CreatePOSOrderData {
+  customerId: string;
+  items: Array<{
+    productId: string;
+    quantity: number;
+    price: number;
+    name?: string;
+  }>;
+  paymentMethod: string;
+  paymentStatus?: "Pending" | "Paid" | "Failed";
+}
+
+/**
+ * Create POS Order
+ */
+export const createPOSOrder = async (
+  data: CreatePOSOrderData
+): Promise<ApiResponse<Order>> => {
+  const response = await api.post<ApiResponse<Order>>("/admin/orders/pos", data);
+  return response.data;
+};
+
+export const initiatePOSOnlineOrder = async (
+    data: any
+  ): Promise<ApiResponse<any>> => {
+    const response = await api.post<ApiResponse<any>>("/admin/orders/pos/online", data);
+    return response.data;
+  };
+
+export const verifyPOSPayment = async (
+    data: any
+  ): Promise<ApiResponse<any>> => {
+    const response = await api.post<ApiResponse<any>>("/admin/orders/pos/verify", data);
+    return response.data;
+  };

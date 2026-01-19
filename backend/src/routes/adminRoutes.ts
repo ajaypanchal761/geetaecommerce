@@ -145,6 +145,9 @@ router.put("/products/bulk-update", productController.bulkUpdateProducts);
 
 // ==================== Order Routes ====================
 router.get("/orders", orderController.getAllOrders);
+router.post("/orders/pos", orderController.createPOSOrder);
+router.post("/orders/pos/online", orderController.initiatePOSOnlineOrder);
+router.post("/orders/pos/verify", orderController.verifyPOSPayment);
 router.get("/orders/status/:status", orderController.getOrdersByStatus);
 router.get("/orders/:id", orderController.getOrderById);
 router.patch("/orders/:id/status", orderController.updateOrderStatus);
