@@ -18,7 +18,8 @@ const AdminPOSOrders = () => {
   const [cart, setCart] = useState<CartItem[]>(() => {
     try {
       const saved = localStorage.getItem('pos_cart');
-      return saved ? JSON.parse(saved) : [];
+      const parsed = saved ? JSON.parse(saved) : [];
+      return Array.isArray(parsed) ? parsed.filter((item: any) => item && item._id) : [];
     } catch (e) {
       console.error("Failed to load cart from local storage", e);
       return [];
@@ -265,7 +266,7 @@ const AdminPOSOrders = () => {
         const orderData = {
             customerId: selectedCustomer ? selectedCustomer._id : "walk-in-customer",
             items: cart.map(item => ({
-                productId: item._id.startsWith('quick-') ? 'custom_item' : item._id, // Use valid ID or custom tag
+                productId: item._id?.startsWith('quick-') ? 'custom_item' : item._id, // Use valid ID or custom tag
                 name: item.productName,
                 quantity: item.qty,
                 price: item.customPrice !== undefined ? item.customPrice : item.price
@@ -288,7 +289,7 @@ const AdminPOSOrders = () => {
 
                 const options = {
                     key: key,
-                    amount: amount * 100,
+                    amount: Math.round(amount * 100),
                     currency: "INR",
                     name: "Geeta Stores",
                     description: "POS Payment",
@@ -297,8 +298,9 @@ const AdminPOSOrders = () => {
                         await handleVerifyPayment(orderId, response.razorpay_payment_id);
                     },
                     prefill: {
-                        name: "Walk-in Customer",
-                        contact: ""
+                        name: selectedCustomer?.name || "Walk-in Customer",
+                        contact: selectedCustomer?.phone || undefined,
+                        email: selectedCustomer?.email || undefined
                     },
                     theme: {
                         color: "#3399cc"
@@ -363,7 +365,7 @@ const AdminPOSOrders = () => {
         const orderData = {
             customerId: selectedCustomer ? selectedCustomer._id : "walk-in-customer",
             items: cart.map(item => ({
-                productId: item._id.startsWith('quick-') ? '' : item._id,
+                productId: item._id?.startsWith('quick-') ? '' : item._id,
                 name: item.productName,
                 quantity: item.qty,
                 price: item.customPrice !== undefined ? item.customPrice : item.price

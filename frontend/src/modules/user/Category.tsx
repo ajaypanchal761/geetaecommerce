@@ -94,10 +94,10 @@ export default function CategoryPage() {
           params.subcategory = selectedSubcategory;
         }
         // Include user location for seller service filtering
-        if (userLocation?.latitude && userLocation?.longitude) {
-          params.latitude = userLocation.latitude;
-          params.longitude = userLocation.longitude;
-        }
+        // if (userLocation?.latitude && userLocation?.longitude) {
+        //   params.latitude = userLocation.latitude;
+        //   params.longitude = userLocation.longitude;
+        // }
 
         const response = await getProducts(params);
         if (response.success) {

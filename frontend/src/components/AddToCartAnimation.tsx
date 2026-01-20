@@ -32,13 +32,13 @@ interface AddToCartAnimationProps {
 
 /**
  * AddToCartAnimation Component
- * 
+ *
  * A self-contained component that handles:
  * - Fly-to-cart animation when products are added
  * - Bounce-out animation when products are removed
  * - Pulse animation on cart changes
  * - "View cart" button display at bottom center
- * 
+ *
  * This component automatically integrates with the CartContext and
  * listens for cart changes to trigger appropriate animations.
  */
@@ -309,7 +309,7 @@ export default function AddToCartAnimation({
       )}
 
       <AnimatePresence>
-        {cart.itemCount > 0 && !shouldHidePill && (
+        {!shouldHidePill && (
           <motion.div
             initial={{ y: 60, opacity: 0, scale: 0.8 }}
             animate={{
@@ -332,35 +332,68 @@ export default function AddToCartAnimation({
               to={linkTo}
               className={`bg-gradient-to-r from-green-700 via-green-600 to-green-700 text-white rounded-full shadow-xl shadow-green-900/30 px-3 py-2 flex items-center gap-2 hover:from-green-800 hover:via-green-700 hover:to-green-800 transition-all duration-300 pointer-events-auto border border-green-800/30 backdrop-blur-sm ${pillClassName}`}
             >
-              {/* Left: Product thumbnails */}
-              <div className="flex items-center -space-x-4">
-                {thumbnailItems.map((item, idx) => (
-                  <motion.div
-                    key={item.product._id || item.product.id || `item-${idx}`}
-                    initial={{ scale: 0, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{
-                      delay: idx * 0.1,
-                      type: 'spring',
-                      stiffness: 500,
-                      damping: 25,
-                    }}
-                    className="w-7 h-7 rounded-full border-2 border-white/90 overflow-hidden bg-white flex-shrink-0 shadow-md"
+              {/* Left: Cart Icon or Product thumbnails */}
+              {cart.itemCount > 0 ? (
+                <div className="flex items-center -space-x-4">
+                  {thumbnailItems.map((item, idx) => (
+                    <motion.div
+                      key={`${item.product._id || item.product.id || 'item'}-${idx}`}
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{
+                        delay: idx * 0.1,
+                        type: 'spring',
+                        stiffness: 500,
+                        damping: 25,
+                      }}
+                      className="w-7 h-7 rounded-full border-2 border-white/90 overflow-hidden bg-white flex-shrink-0 shadow-md"
+                    >
+                      {item.product.imageUrl || item.product.mainImage ? (
+                        <img
+                          src={item.product.imageUrl || item.product.mainImage}
+                          alt={item.product.name || item.product.productName || 'Product'}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-neutral-200 text-neutral-400 text-xs font-semibold">
+                          {(item.product.name || item.product.productName || 'P').charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                    </motion.div>
+                  ))}
+                </div>
+              ) : (
+                <motion.div
+                  className="w-7 h-7 flex items-center justify-center"
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 500 }}
+                >
+                  <svg
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="text-white"
                   >
-                    {item.product.imageUrl || item.product.mainImage ? (
-                      <img
-                        src={item.product.imageUrl || item.product.mainImage}
-                        alt={item.product.name || item.product.productName || 'Product'}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-neutral-200 text-neutral-400 text-xs font-semibold">
-                        {(item.product.name || item.product.productName || 'P').charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                  </motion.div>
-                ))}
-              </div>
+                    <path
+                      d="M5 8V6C5 4.34315 6.34315 3 8 3H16C17.6569 3 19 4.34315 19 6V8H21C21.5523 8 22 8.44772 22 9V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V9C2 8.44772 2.44772 8 3 8H5Z"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinejoin="round"
+                      fill="none"
+                    />
+                    <path
+                      d="M7 8V6C7 5.44772 7.44772 5 8 5H16C16.5523 5 17 5.44772 17 6V8"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      fill="none"
+                    />
+                  </svg>
+                </motion.div>
+              )}
 
               {/* Middle: Text */}
               <motion.div
@@ -369,9 +402,14 @@ export default function AddToCartAnimation({
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.1, duration: 0.3 }}
               >
-                <span className="text-xs font-bold leading-tight drop-shadow-sm">View cart</span>
+                <span className="text-xs font-bold leading-tight drop-shadow-sm">
+                  {cart.itemCount > 0 ? 'View cart' : 'Cart'}
+                </span>
                 <span className="text-[10px] opacity-95 leading-tight font-medium">
-                  {cart.itemCount} {cart.itemCount === 1 ? 'item' : 'items'}
+                  {cart.itemCount > 0
+                    ? `${cart.itemCount} ${cart.itemCount === 1 ? 'item' : 'items'}`
+                    : 'Empty'
+                  }
                 </span>
               </motion.div>
 

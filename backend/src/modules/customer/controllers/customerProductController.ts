@@ -3,6 +3,7 @@ import Product from "../../../models/Product";
 import Category from "../../../models/Category";
 import SubCategory from "../../../models/SubCategory";
 import mongoose from "mongoose";
+import Seller from "../../../models/Seller"; // Import Seller model
 import { findSellersWithinRange } from "../../../utils/locationHelper";
 
 // Get products with filtering options (public)
@@ -41,14 +42,32 @@ export const getProducts = async (req: Request, res: Response) => {
 
     if (userLat && userLng && !isNaN(userLat) && !isNaN(userLng)) {
       // Find sellers within user's location range
-      const nearbySellerIds = await findSellersWithinRange(userLat, userLng);
+      let allowedSellerIds = await findSellersWithinRange(userLat, userLng);
 
-      if (nearbySellerIds.length === 0) {
+      // ALWAYS add the Admin Seller(s) to the allowed list, as they are considered global
+      try {
+        const adminSellers = await Seller.find({
+          $or: [
+            { email: "admin-store@Geeta Stores.com" }, // legacy check
+            { category: "Admin" }, // Robust check
+            { storeName: { $regex: /Admin/i } } // Fallback
+          ]
+        }).select("_id");
+
+        const adminSellerIds = adminSellers.map(s => s._id);
+
+        // Merge IDs
+        allowedSellerIds = [...allowedSellerIds, ...adminSellerIds];
+      } catch (err) {
+        console.error("Error fetching admin seller for whitelist:", err);
+      }
+
+      if (allowedSellerIds.length === 0) {
         // TEMPORARY: Allow viewing all products even if no seller is nearby
         console.warn("WARNING: No sellers nearby, but showing all products for testing.");
       } else {
-        // Filter products by sellers within range
-        query.seller = { $in: nearbySellerIds };
+        // Filter products by sellers within range (or Admin)
+        query.seller = { $in: allowedSellerIds };
       }
     } else {
        // TEMPORARY: Allow viewing all products even if user location is missing
@@ -222,8 +241,8 @@ export const getProductById = async (req: Request, res: Response) => {
       .populate("brand", "name")
       .populate(
         "seller",
-        "storeName city fssaiLicNo address location serviceRadiusKm"
-      );
+        "storeName city fssaiLicNo address location serviceRadiusKm email"
+      ); // Added email to selection to check if it's admin
 
     if (!product) {
       return res.status(404).json({
@@ -255,8 +274,17 @@ export const getProductById = async (req: Request, res: Response) => {
       }
     }
 
-    // Check location availability if coordinates are provided
-    if (
+    // Check availability
+    // Always available if it's the Admin Store
+    if (seller && (
+      seller.email === "admin-store@Geeta Stores.com" ||
+      seller.category === "Admin" ||
+      /Admin/i.test(seller.storeName || "")
+    )) {
+       isAvailableAtLocation = true;
+    }
+    // Otherwise check location availability if coordinates are provided
+    else if (
       userLat &&
       userLng &&
       !isNaN(userLat) &&
@@ -268,6 +296,15 @@ export const getProductById = async (req: Request, res: Response) => {
       isAvailableAtLocation = nearbySellerIds.some(
         (id) => id.toString() === sellerId!.toString()
       );
+    } else if (!userLat || !userLng) {
+       // If user has no location set, assume available (browsing mode)
+       // Or depends on business logic; here we default to false if location is mandatory,
+       // but typically we allowed it above in getProducts warning.
+       // Let's set it to true if no location is provided to allow adding to cart (user will be prompted later or stopped at checkout)
+       // But wait, the previous code initialized it to false.
+       // If no location provided, we often assume we can't deliver.
+       // However, to match the "WARNING: Location missing, showing all products" logic:
+       isAvailableAtLocation = true;
     }
 
     // Find similar products (by category)
@@ -306,17 +343,38 @@ export const getProductById = async (req: Request, res: Response) => {
       similarProductsQuery.category = categoryId;
     }
 
-    // Filter similar products by location
+    // Filter similar products by location (allow admin store here too?)
     if (userLat && userLng && !isNaN(userLat) && !isNaN(userLng)) {
       const nearbySellerIds = await findSellersWithinRange(userLat, userLng);
-      if (nearbySellerIds.length > 0) {
-        similarProductsQuery.seller = { $in: nearbySellerIds };
-      } else {
-        // No sellers nearby, return empty similar products
-        similarProductsQuery.seller = { $in: [] };
-      }
-    }
 
+      // Allow Admin seller IDs
+      try {
+        const adminSellers = await Seller.find({
+          $or: [
+            { email: "admin-store@Geeta Stores.com" },
+            { category: "Admin" },
+            { storeName: { $regex: /Admin/i } }
+          ]
+        }).select("_id");
+        const adminSellerIds = adminSellers.map(s => s._id);
+
+        // Combine
+        const allowedIds = [...nearbySellerIds, ...adminSellerIds];
+
+         if (allowedIds.length > 0) {
+            similarProductsQuery.seller = { $in: allowedIds };
+         } else {
+             // No sellers nearby
+            similarProductsQuery.seller = { $in: [] };
+         }
+      } catch (e) {
+         // fallback
+         if (nearbySellerIds.length > 0) {
+            similarProductsQuery.seller = { $in: nearbySellerIds };
+         }
+      }
+
+    }
     const similarProducts = await Product.find(similarProductsQuery)
       .limit(6)
       .select(

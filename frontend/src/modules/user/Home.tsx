@@ -45,9 +45,9 @@ export default function Home() {
         setLoading(true);
         setError(null);
         const response = await getHomeContent(
-          undefined,
-          location?.latitude,
-          location?.longitude
+          undefined
+          // location?.latitude,
+          // location?.longitude
         );
         if (response.success && response.data) {
           setHomeData(response.data);
@@ -60,10 +60,10 @@ export default function Home() {
         }
       } catch (error: any) {
         console.error("Failed to fetch home content", error);
-        
+
         // Provide more specific error messages
         let errorMessage = "Network error. Please check your connection.";
-        
+
         if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
           errorMessage = "Cannot connect to the server. Please ensure the backend server is running on http://localhost:5000";
         } else if (error.response) {
@@ -73,14 +73,14 @@ export default function Home() {
           // Request was made but no response received
           errorMessage = "No response from server. Please check if the backend is running.";
         }
-        
+
         console.error("Error details:", {
           message: error.message,
           code: error.code,
           config: error.config?.url,
           baseURL: error.config?.baseURL
         });
-        
+
         setError(errorMessage);
       } finally {
         setLoading(false);
@@ -109,8 +109,10 @@ export default function Home() {
             batch.map(slug =>
               getHomeContent(
                 slug,
-                location?.latitude,
-                location?.longitude,
+                // location?.latitude,
+                // location?.longitude,
+                undefined,
+                undefined,
                 true,
                 5 * 60 * 1000,
                 true

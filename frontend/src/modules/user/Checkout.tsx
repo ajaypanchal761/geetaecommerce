@@ -727,8 +727,8 @@ export default function Checkout() {
 
           {/* Cart Items */}
           <div className="space-y-2.5">
-            {displayItems.filter(item => item.product).map((item) => (
-              <div key={item.product?.id || Math.random()} className="flex gap-2">
+            {displayItems.filter(item => item.product).map((item, index) => (
+              <div key={`${item.product?.id || 'product'}-${item.variant || ''}-${index}`} className="flex gap-2">
                 {/* Product Image */}
                 <div className="w-12 h-12 bg-neutral-100 rounded-lg flex-shrink-0 overflow-hidden">
                   {item.product?.imageUrl ? (
@@ -764,7 +764,11 @@ export default function Checkout() {
                   <div className="flex items-center justify-between mt-1.5">
                     <div className="flex items-center gap-1.5 bg-white border-2 border-green-600 rounded-full px-1.5 py-0.5">
                       <button
-                        onClick={() => updateQuantity(item.product?.id, item.quantity - 1)}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateQuantity(item.product?.id, item.quantity - 1, item.variant);
+                        }}
                         className="w-5 h-5 flex items-center justify-center text-green-600 font-bold hover:bg-green-50 rounded-full transition-colors text-xs"
                       >
                         −
@@ -773,7 +777,11 @@ export default function Checkout() {
                         {item.quantity}
                       </span>
                       <button
-                        onClick={() => updateQuantity(item.product?.id, item.quantity + 1)}
+                        type="button"
+                         onClick={(e) => {
+                          e.stopPropagation();
+                          updateQuantity(item.product?.id, item.quantity + 1, item.variant);
+                        }}
                         className="w-5 h-5 flex items-center justify-center text-green-600 font-bold hover:bg-green-50 rounded-full transition-colors text-xs"
                       >
                         +
@@ -808,7 +816,7 @@ export default function Checkout() {
       <div className="px-4 md:px-6 lg:px-8 py-2.5 md:py-3 border-b border-neutral-200">
         <h2 className="text-sm font-semibold text-neutral-900 mb-2">You might also like</h2>
         <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-3" style={{ scrollSnapType: 'x mandatory' }}>
-          {similarProducts.map((product) => {
+          {similarProducts.map((product, index) => {
             // Get price details
             const { displayPrice, mrp, discount, hasDiscount } = calculateProductPrice(product);
 
@@ -822,7 +830,7 @@ export default function Checkout() {
 
             return (
               <div
-                key={product.id}
+                key={`${product.id || product._id}-${index}`}
                 className="flex-shrink-0 w-[140px]"
                 style={{ scrollSnapAlign: 'start' }}
               >

@@ -34,10 +34,10 @@ export const getHomeContent = async (
 
   const fetchFn = async () => {
     const params: any = headerCategorySlug ? { headerCategorySlug } : {};
-    if (latitude !== undefined && longitude !== undefined) {
-      params.latitude = latitude;
-      params.longitude = longitude;
-    }
+    // if (latitude !== undefined && longitude !== undefined) {
+    //   params.latitude = latitude;
+    //   params.longitude = longitude;
+    // }
     const response = await api.get<HomeContentResponse>("/customer/home", {
       params,
       skipLoader

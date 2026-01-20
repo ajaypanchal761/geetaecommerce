@@ -87,42 +87,38 @@ export function CartProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
   }, [items]);
 
-  // Helper to sync cart from API
+  // Helper to sync cart from API - DISABLED for Frontend Only Mode
   const fetchCart = async () => {
-    if (!isAuthenticated || user?.userType !== 'Customer') {
-      // If we cleared it above but had things in localStorage, we keep them for guests?
-      // For now, if logged out, we clear if it was an authenticated session.
-      // But if guest, we might want to keep it.
-      // Let's only clear if we are transition from logged in to logged out.
-      setLoading(false);
-      return;
-    }
+    // if (!isAuthenticated || user?.userType !== 'Customer') {
+    //   setLoading(false);
+    //   return;
+    // }
 
-    try {
-      const response = await getCart({
-        latitude: location?.latitude,
-        longitude: location?.longitude
-      });
-      if (response && response.data && response.data.items) {
-        setItems(mapApiItemsToState(response.data.items));
-      } else {
-        setItems([]);
-      }
-    } catch (error) {
-      console.error("Failed to fetch cart:", error);
-    } finally {
-      setLoading(false);
-    }
+    // try {
+    //   const response = await getCart({
+    //     latitude: location?.latitude,
+    //     longitude: location?.longitude
+    //   });
+    //   if (response && response.data && response.data.items) {
+    //     setItems(mapApiItemsToState(response.data.items));
+    //   } else {
+    //     setItems([]);
+    //   }
+    // } catch (error) {
+    //   console.error("Failed to fetch cart:", error);
+    // } finally {
+    //   setLoading(false);
+    // }
+    setLoading(false); // Just finish loading
   };
 
   // Load cart on auth change
   useEffect(() => {
-    if (isAuthenticated) {
-      fetchCart();
-    } else {
-      // Guest cart is already in 'items' from localStorage if it existed
+    // if (isAuthenticated) {
+    //   fetchCart();
+    // } else {
       setLoading(false);
-    }
+    // }
   }, [isAuthenticated, user?.userType, location?.latitude, location?.longitude]);
 
   const cart: Cart = useMemo(() => {
@@ -211,35 +207,31 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return [...validItems, { product: normalizedProduct, quantity: 1 }];
     });
 
-    // Only sync to API if user is authenticated
-    if (isAuthenticated && user?.userType === 'Customer') {
-      try {
-        // Pass variation info to API if available
-        const variation = (product as any).variantId || (product as any).selectedVariant?._id || (product as any).variantTitle || (product as any).pack;
-        const response = await apiAddToCart(
-          productId,
-          1,
-          variation,
-          location?.latitude,
-          location?.longitude
-        );
-        if (response && response.data && response.data.items) {
-          // Atomic update from server response
-          setItems(mapApiItemsToState(response.data.items));
-        }
-      } catch (error) {
-        console.error("Add to cart failed", error);
-        // Revert on error
-        setItems(previousItems);
-      } finally {
-        // Remove from pending operations
-        pendingOperationsRef.current.delete(productId);
-      }
-    } else {
-      // For unregistered users, the optimistic update is already saved to localStorage
-      // Remove from pending operations immediately
-      pendingOperationsRef.current.delete(productId);
-    }
+    // API SYNC DISABLED FOR FRONTEND ONLY MODE
+    pendingOperationsRef.current.delete(productId);
+
+    // if (isAuthenticated && user?.userType === 'Customer') {
+    //   try {
+    //     const variation = (product as any).variantId || (product as any).selectedVariant?._id || (product as any).variantTitle || (product as any).pack;
+    //     const response = await apiAddToCart(
+    //       productId,
+    //       1,
+    //       variation,
+    //       location?.latitude,
+    //       location?.longitude
+    //     );
+    //     if (response && response.data && response.data.items) {
+    //       setItems(mapApiItemsToState(response.data.items));
+    //     }
+    //   } catch (error) {
+    //     console.error("Add to cart failed", error);
+    //     setItems(previousItems);
+    //   } finally {
+    //     pendingOperationsRef.current.delete(productId);
+    //   }
+    // } else {
+    //   pendingOperationsRef.current.delete(productId);
+    // }
   };
 
   const removeFromCart = async (productId: string) => {
@@ -255,28 +247,28 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const previousItems = [...items];
     setItems((prevItems) => prevItems.filter((item) => item?.product && item.product.id !== productId && item.product._id !== productId));
 
-    // Only sync to API if user is authenticated and item has CartItemID
-    if (isAuthenticated && user?.userType === 'Customer' && itemToRemove?.id) {
-      try {
-        const response = await apiRemoveFromCart(
-          itemToRemove.id,
-          location?.latitude,
-          location?.longitude
-        );
-        if (response && response.data && response.data.items) {
-          setItems(mapApiItemsToState(response.data.items));
-        }
-      } catch (error) {
-        console.error("Remove from cart failed", error);
-        setItems(previousItems);
-      } finally {
-        // Remove from pending operations
-        pendingOperationsRef.current.delete(productId);
-      }
-    } else {
-      // For unregistered users, remove from pending operations immediately
-      pendingOperationsRef.current.delete(productId);
-    }
+    // API SYNC DISABLED FOR FRONTEND ONLY MODE
+    pendingOperationsRef.current.delete(productId);
+
+    // if (isAuthenticated && user?.userType === 'Customer' && itemToRemove?.id) {
+    //   try {
+    //     const response = await apiRemoveFromCart(
+    //       itemToRemove.id,
+    //       location?.latitude,
+    //       location?.longitude
+    //     );
+    //     if (response && response.data && response.data.items) {
+    //       setItems(mapApiItemsToState(response.data.items));
+    //     }
+    //   } catch (error) {
+    //     console.error("Remove from cart failed", error);
+    //     setItems(previousItems);
+    //   } finally {
+    //     pendingOperationsRef.current.delete(productId);
+    //   }
+    // } else {
+    //   pendingOperationsRef.current.delete(productId);
+    // }
   };
 
   const updateQuantity = async (productId: string, quantity: number, variantId?: string, variantTitle?: string) => {
@@ -338,40 +330,40 @@ export function CartProvider({ children }: { children: ReactNode }) {
       })
     );
 
-    // Only sync to API if user is authenticated and item has CartItemID
-    if (isAuthenticated && user?.userType === 'Customer' && itemToUpdate?.id) {
-      try {
-        const response = await apiUpdateCartItem(
-          itemToUpdate.id,
-          quantity,
-          location?.latitude,
-          location?.longitude
-        );
-        if (response && response.data && response.data.items) {
-          setItems(mapApiItemsToState(response.data.items));
-        }
-      } catch (error) {
-        console.error("Update quantity failed", error);
-        setItems(previousItems);
-      } finally {
-        // Remove from pending operations
-        pendingOperationsRef.current.delete(operationKey);
-      }
-    } else {
-      // For unregistered users, remove from pending operations immediately
-      pendingOperationsRef.current.delete(operationKey);
-    }
+    // API SYNC DISABLED FOR FRONTEND ONLY MODE
+    pendingOperationsRef.current.delete(operationKey);
+
+    // if (isAuthenticated && user?.userType === 'Customer' && itemToUpdate?.id) {
+    //   try {
+    //     const response = await apiUpdateCartItem(
+    //       itemToUpdate.id,
+    //       quantity,
+    //       location?.latitude,
+    //       location?.longitude
+    //     );
+    //     if (response && response.data && response.data.items) {
+    //       setItems(mapApiItemsToState(response.data.items));
+    //     }
+    //   } catch (error) {
+    //     console.error("Update quantity failed", error);
+    //     setItems(previousItems);
+    //   } finally {
+    //     pendingOperationsRef.current.delete(operationKey);
+    //   }
+    // } else {
+    //   pendingOperationsRef.current.delete(operationKey);
+    // }
   };
 
 
   const clearCart = async () => {
     setItems([]);
-    try {
-      await apiClearCart();
-    } catch (error) {
-      console.error("Clear cart failed", error);
-      await fetchCart();
-    }
+    // try {
+    //   await apiClearCart();
+    // } catch (error) {
+    //   console.error("Clear cart failed", error);
+    //   await fetchCart();
+    // }
   };
 
   return (
