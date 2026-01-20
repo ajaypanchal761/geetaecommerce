@@ -593,7 +593,8 @@ export const exportOrders = asyncHandler(
  */
 export const createPOSOrder = asyncHandler(
   async (req: Request, res: Response) => {
-    const { customerId, items, paymentMethod, paymentStatus } = req.body;
+    const { items, paymentMethod, paymentStatus } = req.body;
+    let { customerId } = req.body;
 
     // Validate request
     if (!customerId || !items || !items.length || !paymentMethod) {
@@ -601,6 +602,26 @@ export const createPOSOrder = asyncHandler(
         success: false,
         message: "Missing required fields: customerId, items, paymentMethod",
       });
+    }
+
+    // Handle Walk-in Customer
+    if (customerId === "walk-in-customer") {
+      let walkIn = await Customer.findOne({ email: "walkin@pos.com" });
+      if (!walkIn) {
+        try {
+          walkIn = await Customer.create({
+            name: "Walk-in Customer",
+            email: "walkin@pos.com",
+            phone: "0000000000",
+            status: "Active",
+          });
+        } catch (err) {
+             // Fallback if 0000000000 taken or validation fails, try another
+             console.error("Error creating walk-in customer", err);
+             // Try fetching by phone if email failed? No, assume uniqueness specific to this dummy
+        }
+      }
+      if (walkIn) customerId = walkIn._id;
     }
 
     // Fetch customer
@@ -724,13 +745,32 @@ export const createPOSOrder = asyncHandler(
  */
 export const initiatePOSOnlineOrder = asyncHandler(
   async (req: Request, res: Response) => {
-    const { customerId, items, gateway } = req.body;
+    const { items, gateway } = req.body;
+    let { customerId } = req.body;
 
     if (!customerId || !items || !items.length || !gateway) {
       return res.status(400).json({
         success: false,
         message: "Missing required fields",
       });
+    }
+
+    // Handle Walk-in Customer
+    if (customerId === "walk-in-customer") {
+      let walkIn = await Customer.findOne({ email: "walkin@pos.com" });
+      if (!walkIn) {
+         try {
+            walkIn = await Customer.create({
+                name: "Walk-in Customer",
+                email: "walkin@pos.com",
+                phone: "0000000000",
+                status: "Active",
+            });
+         } catch (err) {
+            console.error("Error creating walk-in customer", err);
+         }
+      }
+      if (walkIn) customerId = walkIn._id;
     }
 
     const customer = await Customer.findById(customerId);

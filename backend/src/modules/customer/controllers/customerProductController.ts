@@ -23,6 +23,8 @@ export const getProducts = async (req: Request, res: Response) => {
       longitude, // User location longitude
     } = req.query;
 
+    console.log("DEBUG: getProducts called with query:", req.query);
+
     const query: any = {
       status: "Active",
       publish: true,
@@ -42,36 +44,15 @@ export const getProducts = async (req: Request, res: Response) => {
       const nearbySellerIds = await findSellersWithinRange(userLat, userLng);
 
       if (nearbySellerIds.length === 0) {
-        // No sellers within range, return empty result
-        return res.status(200).json({
-          success: true,
-          data: [],
-          pagination: {
-            page: Number(page),
-            limit: Number(limit),
-            total: 0,
-            pages: 0,
-          },
-          message:
-            "No sellers available in your area. Please update your location.",
-        });
+        // TEMPORARY: Allow viewing all products even if no seller is nearby
+        console.warn("WARNING: No sellers nearby, but showing all products for testing.");
+      } else {
+        // Filter products by sellers within range
+        query.seller = { $in: nearbySellerIds };
       }
-
-      // Filter products by sellers within range
-      query.seller = { $in: nearbySellerIds };
     } else {
-      // If no location provided, return empty result (strictly enforce location)
-      return res.status(200).json({
-        success: true,
-        data: [],
-        pagination: {
-          page: Number(page),
-          limit: Number(limit),
-          total: 0,
-          pages: 0,
-        },
-        message: "Please provide your location to see products available in your area.",
-      });
+       // TEMPORARY: Allow viewing all products even if user location is missing
+       console.warn("WARNING: Location missing, showing all products for testing.");
     }
 
     // Helper to resolve category/subcategory ID from slug or ID

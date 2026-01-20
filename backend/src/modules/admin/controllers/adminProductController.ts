@@ -860,9 +860,11 @@ export const createProduct = asyncHandler(
         });
       }
 
-      // All products are published automatically without approval
-      productData.status = "Active";
-      productData.publish = true;
+      // Use provided status/publish or default to Active/true
+      productData.status = productData.status || "Active";
+      if (productData.publish === undefined) {
+        productData.publish = true;
+      }
       productData.requiresApproval = false;
 
       const product = await Product.create(productData);
@@ -941,6 +943,9 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
     query.$or = [
       { productName: { $regex: search as string, $options: "i" } },
       { sku: { $regex: search as string, $options: "i" } },
+      { barcode: { $regex: search as string, $options: "i" } },
+      { rackNumber: { $regex: search as string, $options: "i" } },
+      { hsnCode: { $regex: search as string, $options: "i" } },
     ];
   }
   if (category) query.category = category;
@@ -964,6 +969,7 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
       .populate("subcategory", "name")
       .populate("brand", "name")
       .populate("seller", "sellerName storeName")
+      .populate("tax", "name percentage")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit as string)),

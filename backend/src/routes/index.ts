@@ -36,6 +36,8 @@ import {
   getOrderById,
   cancelOrder,
   updateOrderNotes,
+  initiateOnlineOrder,
+  verifyOnlinePayment
 } from "../modules/customer/controllers/customerOrderController";
 
 const router = Router();
@@ -89,6 +91,8 @@ router.post(
   requireUserType("Customer"),
   createOrder
 );
+router.post("/customer/orders/initiate", authenticate, requireUserType("Customer"), initiateOnlineOrder);
+router.post("/customer/orders/verify-payment", authenticate, requireUserType("Customer"), verifyOnlinePayment);
 router.get("/customer/orders", authenticate, requireUserType("Customer"), getMyOrders);
 router.get("/customer/orders/:id", authenticate, requireUserType("Customer"), getOrderById);
 router.post("/customer/orders/:id/cancel", authenticate, requireUserType("Customer"), cancelOrder);
@@ -101,7 +105,17 @@ router.use("/customer/cart", customerCartRoutes);
 router.use("/customer/wishlist", wishlistRoutes);
 router.use("/customer/reviews", productReviewRoutes);
 // General customer route (must be last to avoid intercepting specific routes)
+// ... other imports
+import customerVideoRoutes from "./customerVideoRoutes";
+
+// ... existing code ...
+
+// General customer route (must be last to avoid intercepting specific routes)
+router.use("/customer/video-finds", customerVideoRoutes);
 router.use("/customer", customerRoutes);
+
+// ... existing code ...
+
 
 // Seller dashboard routes
 router.use("/seller/dashboard", dashboardRoutes);

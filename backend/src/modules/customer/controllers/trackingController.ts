@@ -281,7 +281,11 @@ export const getSellerLocationsForOrder = asyncHandler(
 
     // Get all unique seller IDs from order items
     const orderItems = await OrderItem.find({ order: orderId });
-    const sellerIds = [...new Set(orderItems.map((item) => item.seller.toString()))];
+    const sellerIds = [...new Set(
+        orderItems
+            .filter(item => item.seller) // Ensure seller exists
+            .map((item) => item.seller.toString())
+    )];
 
     // Get seller details including locations
     const sellers = await Seller.find({ _id: { $in: sellerIds } }).select(

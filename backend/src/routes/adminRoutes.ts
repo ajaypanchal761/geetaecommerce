@@ -351,4 +351,12 @@ router.post("/promo-strips", promoStripController.createPromoStrip);
 router.put("/promo-strips/:id", promoStripController.updatePromoStrip);
 router.delete("/promo-strips/:id", promoStripController.deletePromoStrip);
 
+// ==================== Video Finds Routes ====================
+import * as videoFindController from "../modules/admin/controllers/adminVideoFindController";
+
+router.get("/video-finds", videoFindController.getVideoFinds);
+router.post("/video-finds", videoFindController.createVideoFind);
+router.put("/video-finds/:id", videoFindController.updateVideoFind);
+router.delete("/video-finds/:id", videoFindController.deleteVideoFind);
+
 export default router;

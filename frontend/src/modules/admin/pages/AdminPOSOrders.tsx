@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getProducts, Product } from '../../../services/api/admin/adminProductService';
-import { createPOSOrder } from '../../../services/api/admin/adminOrderService';
+import { createPOSOrder, initiatePOSOnlineOrder, verifyPOSPayment } from '../../../services/api/admin/adminOrderService';
+import { getAllCustomers, Customer } from '../../../services/api/admin/adminCustomerService';
 import { useToast } from '../../../context/ToastContext';
 
 // Interface for Cart Item extending Product
@@ -14,20 +15,77 @@ const AdminPOSOrders = () => {
   const [selectedSeller, setSelectedSeller] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('Cash');
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<CartItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('pos_cart');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error("Failed to load cart from local storage", e);
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('pos_cart', JSON.stringify(cart));
+  }, [cart]);
 
   // Data State
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 12;
 
   // Modals
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [editingItem, setEditingItem] = useState<CartItem | null>(null);
 
   // Quick Add Form
   const [quickForm, setQuickForm] = useState({ name: '', price: '', qty: '1' });
-  // Edit Price Form
-  const [editPriceForm, setEditPriceForm] = useState({ sellingPrice: '' });
+  // Edit Item Form
+  const [editForm, setEditForm] = useState({ name: '', price: '', qty: '' });
+
+  // Customer Search State
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+
+  // Search Customers
+  useEffect(() => {
+    // If we have a selected customer and the search matches their name, don't search again
+    if (selectedCustomer && customerSearch.includes(selectedCustomer.name)) return;
+
+    if (!customerSearch || customerSearch.length < 2) {
+        setCustomers([]);
+        setShowCustomerDropdown(false);
+        return;
+    }
+    const timer = setTimeout(async () => {
+        try {
+            const res = await getAllCustomers({ search: customerSearch, limit: 5 });
+            if (res.success && res.data) {
+                setCustomers(res.data);
+                setShowCustomerDropdown(true);
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [customerSearch, selectedCustomer]);
+
+  const selectCustomer = (c: Customer) => {
+      setSelectedCustomer(c);
+      setCustomerSearch(`${c.name} (${c.phone})`);
+      setShowCustomerDropdown(false);
+  };
+
+  const clearCustomer = () => {
+      setSelectedCustomer(null);
+      setCustomerSearch('');
+      setCustomers([]);
+  };
 
   // Fetch Products
   useEffect(() => {
@@ -36,11 +94,32 @@ const AdminPOSOrders = () => {
       try {
         const response = await getProducts({
           search: searchQuery,
-          status: 'Active',
-          limit: 20 // Reasonable limit for POS
+          limit: 1000 // Fetch all for client-side pagination
         });
         if (response.success && response.data) {
-          setProducts(response.data);
+          // Expand Variations
+          const expandedProducts: Product[] = [];
+
+          response.data.forEach((product: any) => {
+             if (product.variations && product.variations.length > 0) {
+                 product.variations.forEach((variation: any) => {
+                     expandedProducts.push({
+                         ...product,
+                         _id: `${product._id}-${variation.sku || Math.random().toString(36).substr(2, 5)}`,
+                         productName: `${product.productName} - ${variation.variationName}`,
+                         price: variation.price,
+                         stock: variation.stock,
+                         sku: variation.sku || product.sku, // Use variation SKU
+                         isVariation: true,
+                         variationId: variation._id
+                     });
+                 });
+             } else {
+                 expandedProducts.push(product);
+             }
+          });
+
+          setProducts(expandedProducts);
         }
       } catch (error) {
         console.error("Error fetching products:", error);
@@ -56,6 +135,26 @@ const AdminPOSOrders = () => {
 
     return () => clearTimeout(debounceTimer);
   }, [searchQuery]);
+
+  // Barcode Scanner Handler
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && searchQuery.trim()) {
+        const query = searchQuery.trim().toLowerCase();
+        // Exact match check for Barcode/SKU/ItemCode
+        const exactMatch = products.find(p =>
+            (p.barcode && p.barcode.toLowerCase() === query) ||
+            (p.sku && p.sku.toLowerCase() === query) ||
+            ((p as any).itemCode && (p as any).itemCode.toLowerCase() === query)
+        );
+
+        if (exactMatch) {
+            e.preventDefault();
+            addToCart(exactMatch);
+            setSearchQuery(''); // Clear for next scan
+            // showToast("Item added!", "success");
+        }
+    }
+  };
 
   // --- Cart Logic ---
   const addToCart = (product: Product) => {
@@ -109,41 +208,168 @@ const AdminPOSOrders = () => {
 
   const openEditModal = (item: CartItem) => {
     setEditingItem(item);
-    // Use customPrice if set, otherwise default price
     const currentPrice = item.customPrice !== undefined ? item.customPrice : item.price;
-    setEditPriceForm({ sellingPrice: currentPrice.toString() });
+    setEditForm({
+      name: item.productName,
+      price: currentPrice.toString(),
+      qty: item.qty.toString()
+    });
   };
 
-  const handleEditPriceSubmit = (e: React.FormEvent) => {
+  const handleEditItemSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingItem) return;
 
     setCart(prev => prev.map(item => {
       if (item._id === editingItem._id) {
-        return { ...item, customPrice: parseFloat(editPriceForm.sellingPrice) };
+        return {
+          ...item,
+          productName: editForm.name,
+          customPrice: parseFloat(editForm.price),
+          qty: parseInt(editForm.qty) || 1
+        };
       }
       return item;
     }));
     setEditingItem(null);
   };
 
-  const handlePlaceOrder = async () => {
+  const handleAccessPayment = () => {
     if (cart.length === 0) {
         showToast("Cart is empty", "error");
         return;
     }
+    setShowPaymentModal(true);
+  };
 
+  const loadScript = (src: string) => {
+    return new Promise((resolve) => {
+      const script = document.createElement("script");
+      script.src = src;
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  const handlePaymentSelection = async (method: string) => {
+    setShowPaymentModal(false);
+
+    if (method === 'Cash') {
+       await performCashCheckout();
+       return;
+    }
+
+    setLoading(true);
     try {
         const orderData = {
-            customerId: "walk-in-customer", // Default or handle customer selection
+            customerId: selectedCustomer ? selectedCustomer._id : "walk-in-customer",
             items: cart.map(item => ({
-                productId: item._id.startsWith('quick-') ? '' : item._id, // Handle quick add items appropriately
-                name: item._id.startsWith('quick-') ? item.productName : undefined,
+                productId: item._id.startsWith('quick-') ? 'custom_item' : item._id, // Use valid ID or custom tag
+                name: item.productName,
                 quantity: item.qty,
                 price: item.customPrice !== undefined ? item.customPrice : item.price
             })),
-            paymentMethod: paymentMethod,
-            paymentStatus: "Paid" as "Paid" // Assuming immediate payment in POS
+            gateway: method
+        };
+
+        const response = await initiatePOSOnlineOrder(orderData);
+
+        if (response.success) {
+            const { gateway, orderId, amount, key, razorpayOrderId, paymentSessionId, isSandbox } = response.data;
+
+            if (gateway === 'Razorpay') {
+                const res = await loadScript("https://checkout.razorpay.com/v1/checkout.js");
+                if (!res) {
+                    showToast("Razorpay SDK failed to load", "error");
+                    setLoading(false);
+                    return;
+                }
+
+                const options = {
+                    key: key,
+                    amount: amount * 100,
+                    currency: "INR",
+                    name: "Geeta Stores",
+                    description: "POS Payment",
+                    order_id: razorpayOrderId,
+                    handler: async function (response: any) {
+                        await handleVerifyPayment(orderId, response.razorpay_payment_id);
+                    },
+                    prefill: {
+                        name: "Walk-in Customer",
+                        contact: ""
+                    },
+                    theme: {
+                        color: "#3399cc"
+                    }
+                };
+                const rzp1 = new (window as any).Razorpay(options);
+                rzp1.open();
+                setLoading(false); // Modal is open, we can stop spinner
+            } else if (gateway === 'Cashfree') {
+                const res = await loadScript("https://sdk.cashfree.com/js/v3/cashfree.js");
+                if (!res) {
+                    showToast("Cashfree SDK failed to load", "error");
+                    setLoading(false);
+                    return;
+                }
+                const cashfree = new (window as any).Cashfree({
+                    mode: isSandbox ? "sandbox" : "production"
+                });
+                cashfree.checkout({
+                    paymentSessionId: paymentSessionId,
+                    redirectTarget: "_modal",
+                }).then((result: any) => {
+                     // Optimistic verification or rely on backend webhook.
+                     // For POS, we'll try to verify if we get a cue, but Cashfree JS promise resolves on close/completion.
+                     // We'll Trigger verify
+                     handleVerifyPayment(orderId, "CF_References_Checked_Backend");
+                });
+                setLoading(false);
+            }
+        } else {
+             showToast(response.message || "Failed to initiate payment", "error");
+             setLoading(false);
+        }
+    } catch (error) {
+        console.error("Payment Init Error", error);
+        showToast("Error initiating payment", "error");
+        setLoading(false);
+    }
+  };
+
+  const handleVerifyPayment = async (orderId: string, paymentId: string) => {
+      setLoading(true);
+      try {
+          const response = await verifyPOSPayment({ orderId, paymentId, status: 'success' });
+          if (response.success) {
+              showToast("Payment Successful & Order Placed!", "success");
+              setCart([]);
+          } else {
+              showToast("Payment Verification Failed", "error");
+          }
+      } catch (error) {
+          console.error("Verify Error", error);
+          showToast("Error verifying payment", "error");
+      } finally {
+          setLoading(false);
+      }
+  };
+
+  const performCashCheckout = async () => {
+    setLoading(true);
+    try {
+        const orderData = {
+            customerId: selectedCustomer ? selectedCustomer._id : "walk-in-customer",
+            items: cart.map(item => ({
+                productId: item._id.startsWith('quick-') ? '' : item._id,
+                name: item.productName,
+                quantity: item.qty,
+                price: item.customPrice !== undefined ? item.customPrice : item.price
+            })),
+            paymentMethod: 'Cash',
+            paymentStatus: "Paid" as "Paid"
         };
 
         const response = await createPOSOrder(orderData);
@@ -156,6 +382,8 @@ const AdminPOSOrders = () => {
     } catch (error) {
         console.error("Order error:", error);
         showToast("Error processing order", "error");
+    } finally {
+        setLoading(false);
     }
   };
 
@@ -190,12 +418,13 @@ const AdminPOSOrders = () => {
                </select>
 
                <div className="flex w-full">
-                 <input
+                   <input
                    type="text"
-                   placeholder="Search products..."
+                   placeholder="Scan Barcode or Search products..."
                    className="border border-gray-300 border-r-0 rounded-l px-3 py-2 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-500"
                    value={searchQuery}
                    onChange={(e) => setSearchQuery(e.target.value)}
+                   onKeyDown={handleSearchKeyDown}
                  />
                  <button className="bg-[#e65100] text-white px-4 rounded-r flex items-center justify-center">
                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -213,28 +442,51 @@ const AdminPOSOrders = () => {
                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                    </div>
                ) : (
-                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                      {products.map(product => (
-                          <div key={product._id} onClick={() => addToCart(product)} className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm hover:shadow-md cursor-pointer transition-all flex flex-col items-center text-center group">
-                               <div className="w-16 h-16 bg-gray-100 rounded mb-2 flex items-center justify-center overflow-hidden">
-                                   {product.mainImage ? (
-                                       <img src={product.mainImage} alt={product.productName} className="w-full h-full object-cover" />
-                                   ) : (
-                                       <span className="text-xs text-gray-400">IMG</span>
-                                   )}
-                               </div>
-                               <h3 className="text-sm font-medium text-gray-800 line-clamp-2">{product.productName}</h3>
-                               <div className="mt-2 text-green-600 font-bold">₹{product.price}</div>
-                          </div>
-                      ))}
-                      {products.length === 0 && (
-                          <div className="col-span-full py-10 text-center text-gray-400 text-sm">
-                              No products found
-                          </div>
-                      )}
-                   </div>
-               )}
-            </div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                       {products.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(product => (
+                           <div key={product._id} onClick={() => addToCart(product)} className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm hover:shadow-md cursor-pointer transition-all flex flex-col items-center text-center group">
+                                <div className="w-16 h-16 bg-gray-100 rounded mb-2 flex items-center justify-center overflow-hidden">
+                                    {product.mainImage ? (
+                                        <img src={product.mainImage} alt={product.productName} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <span className="text-xs text-gray-400">IMG</span>
+                                    )}
+                                </div>
+                                <h3 className="text-sm font-medium text-gray-800 line-clamp-2">{product.productName}</h3>
+                                <div className="mt-2 text-green-600 font-bold">₹{product.price}</div>
+                           </div>
+                       ))}
+                       {products.length === 0 && (
+                           <div className="col-span-full py-10 text-center text-gray-400 text-sm">
+                               No products found
+                           </div>
+                       )}
+                    </div>
+                )}
+             </div>
+
+             {/* Pagination */}
+             {products.length > itemsPerPage && (
+                <div className="p-4 border-t border-gray-100 flex justify-center items-center gap-3 bg-white rounded-b-lg">
+                    <button
+                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                        disabled={currentPage === 1}
+                        className="w-10 h-10 flex items-center justify-center border border-teal-600 rounded text-teal-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-teal-50 transition-colors"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
+                    </button>
+                    <button className="w-10 h-10 flex items-center justify-center bg-teal-600 text-white rounded font-bold shadow-sm">
+                        {currentPage}
+                    </button>
+                     <button
+                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(products.length / itemsPerPage)))}
+                        disabled={currentPage === Math.ceil(products.length / itemsPerPage)}
+                        className="w-10 h-10 flex items-center justify-center border border-teal-600 rounded text-teal-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-teal-50 transition-colors"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
+                    </button>
+                </div>
+             )}
           </div>
         </div>
 
@@ -255,12 +507,46 @@ const AdminPOSOrders = () => {
               {/* Customer Selection */}
               <div className="p-4 border-b border-gray-100">
                 <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Search Customer / Mobile..."
-                    className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-gray-50 focus:bg-white transition-colors"
-                  />
-                  <button className="bg-blue-600 text-white px-3 rounded hover:bg-blue-700 transition-colors">
+                  <div className="relative flex-1">
+                      <input
+                        type="text"
+                        placeholder="Search Customer / Mobile..."
+                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-gray-50 focus:bg-white transition-colors"
+                        value={customerSearch}
+                        onChange={(e) => {
+                            setCustomerSearch(e.target.value);
+                            if (selectedCustomer && e.target.value !== `${selectedCustomer.name} (${selectedCustomer.phone})`) {
+                                setSelectedCustomer(null); // Reset selection if typing
+                            }
+                        }}
+                        onFocus={() => {
+                            if (customerSearch.length >= 2) setShowCustomerDropdown(true);
+                        }}
+                        onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 200)}
+                      />
+                      {selectedCustomer && (
+                          <button onClick={clearCustomer} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500">
+                              ✕
+                          </button>
+                      )}
+
+                      {/* Search Results Dropdown */}
+                      {showCustomerDropdown && customers.length > 0 && (
+                          <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                              {customers.map(c => (
+                                  <div
+                                     key={c._id}
+                                     onClick={() => selectCustomer(c)}
+                                     className="p-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0"
+                                  >
+                                      <div className="font-medium text-sm text-gray-800">{c.name}</div>
+                                      <div className="text-xs text-gray-500">{c.phone} | {c.email}</div>
+                                  </div>
+                              ))}
+                          </div>
+                      )}
+                  </div>
+                  <button onClick={() => {/* Add New Customer logic if needed */}} className="bg-blue-600 text-white px-3 rounded hover:bg-blue-700 transition-colors">
                      +
                   </button>
                 </div>
@@ -318,27 +604,23 @@ const AdminPOSOrders = () => {
                   </div>
 
                   <div className="space-y-3">
-                      <div>
-                          <label className="block text-xs font-semibold text-gray-500 mb-1">Payment Method</label>
-                          <div className="grid grid-cols-4 gap-2">
-                              {['Cash', 'Card', 'UPI', 'Credit'].map(method => (
-                                  <button
-                                     key={method}
-                                     onClick={() => setPaymentMethod(method)}
-                                     className={`py-2 text-xs font-medium rounded border ${paymentMethod === method ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
-                                  >
-                                      {method}
-                                  </button>
-                              ))}
-                          </div>
-                      </div>
 
                       <button
-                        onClick={handlePlaceOrder}
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2"
+                        onClick={handleAccessPayment}
+                        disabled={loading}
+                        className={`w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
                       >
-                          <span>Place Order</span>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                         {loading ? (
+                            <>
+                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>
+                                <span>Processing...</span>
+                            </>
+                         ) : (
+                            <>
+                                <span>Access Payment</span>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                            </>
+                         )}
                       </button>
                   </div>
               </div>
@@ -393,37 +675,91 @@ const AdminPOSOrders = () => {
         </div>
       )}
 
-      {/* --- EDIT PRICE MODAL --- */}
+      {/* --- EDIT ITEM MODAL --- */}
       {editingItem && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
                 <div className="bg-blue-600 px-6 py-4 text-white flex justify-between items-center">
-                    <h3 className="font-semibold text-lg">Edit Price</h3>
+                    <h3 className="font-semibold text-lg">Edit Item</h3>
                     <button onClick={() => setEditingItem(null)} className="text-white/80 hover:text-white">✕</button>
                 </div>
-                <div className="p-6 space-y-4">
-                    <div className="bg-blue-50 border border-blue-100 rounded p-3 mb-2">
-                        <p className="text-xs text-blue-600 font-semibold uppercase tracking-wider">Purchase Price</p>
-                        {/* Note: 'purchasePrice' is typically Cost Price. If backend doesn't provide it, we show 0 or N/A.
-                            If 'compareAtPrice' is closer to MRP/Original, we might show that depending on need,
-                            but user specifically asked for purchase price. */}
-                        <p className="text-lg font-bold text-blue-800">₹{(editingItem as any).purchasePrice || 0}</p>
+                <form onSubmit={handleEditItemSubmit} className="p-6 space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Item Name</label>
+                        <input
+                           type="text" required
+                           value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})}
+                           className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                           placeholder="Enter item name"
+                           autoFocus
+                        />
                     </div>
-
-                    <form onSubmit={handleEditPriceSubmit} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Selling Price (₹)</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Price (₹)</label>
                             <input
                                type="number" required min="0" step="0.01"
-                               value={editPriceForm.sellingPrice} onChange={e => setEditPriceForm({ sellingPrice: e.target.value })}
+                               value={editForm.price} onChange={e => setEditForm({...editForm, price: e.target.value})}
                                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                               autoFocus
+                               placeholder="0.00"
                             />
                         </div>
-                        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg transition-colors">
-                            Update Price
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                            <input
+                               type="number" required min="1"
+                               value={editForm.qty} onChange={e => setEditForm({...editForm, qty: e.target.value})}
+                               className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                            />
+                        </div>
+                    </div>
+                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg transition-colors mt-2">
+                        Update Item
+                    </button>
+                </form>
+            </div>
+        </div>
+      )}
+
+      {/* --- PAYMENT MODAL --- */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden">
+                <div className="bg-gray-800 px-6 py-4 text-white flex justify-between items-center">
+                    <h3 className="font-semibold text-lg">Select Payment Method</h3>
+                    <button onClick={() => setShowPaymentModal(false)} className="text-white/80 hover:text-white">✕</button>
+                </div>
+                <div className="p-6 space-y-4">
+                     <div className="text-center mb-6">
+                         <p className="text-gray-500 text-sm mb-1">Total Amount</p>
+                         <p className="text-3xl font-bold text-gray-900">₹{calculateTotal()}</p>
+                     </div>
+
+                     <div className="space-y-3">
+                        <button
+                          onClick={() => handlePaymentSelection('Razorpay')}
+                          className="w-full group flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all"
+                        >
+                            <span className="font-semibold text-gray-700 group-hover:text-blue-700">Razorpay</span>
+                            <span className="text-gray-300 group-hover:text-blue-500">→</span>
                         </button>
-                    </form>
+
+                        <button
+                          onClick={() => handlePaymentSelection('Cashfree')}
+                          className="w-full group flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all"
+                        >
+                            <span className="font-semibold text-gray-700 group-hover:text-purple-700">Cashfree</span>
+                            <span className="text-gray-300 group-hover:text-purple-500">→</span>
+                        </button>
+
+                         <button
+                          onClick={() => handlePaymentSelection('Cash')}
+                          className="w-full group flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:border-green-500 hover:bg-green-50 transition-all"
+                        >
+                            <span className="font-semibold text-gray-700 group-hover:text-green-700">Cash</span>
+                            <span className="text-gray-300 group-hover:text-green-500">→</span>
+                        </button>
+                     </div>
                 </div>
             </div>
         </div>

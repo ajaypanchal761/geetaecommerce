@@ -103,3 +103,19 @@ export const updateOrderNotes = async (id: string, data: { deliveryInstructions?
     const response = await api.patch<OrderResponse>(`/customer/orders/${id}/notes`, data);
     return response.data;
 };
+
+/**
+ * Initiate Online Order
+ */
+export const initiateOnlineOrder = async (data: CreateOrderData & { gateway: string }): Promise<OrderResponse> => {
+    const response = await api.post<OrderResponse>('/customer/orders/initiate', data);
+    return response.data;
+};
+
+/**
+ * Verify Online Payment
+ */
+export const verifyOnlinePayment = async (data: { orderId: string; paymentId: string; status: string }): Promise<OrderResponse> => {
+    const response = await api.post<OrderResponse>('/customer/orders/verify-payment', data);
+    return response.data;
+};

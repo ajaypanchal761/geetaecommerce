@@ -287,24 +287,11 @@ export default function SellerStockManagement() {
                                     </div>
                                     <input
                                         type="text"
-                                        className="block w-full pl-10 pr-10 py-2.5 border border-neutral-300 rounded-lg text-sm placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all shadow-sm"
+                                        className="block w-full pl-10 pr-3 py-2.5 border border-neutral-300 rounded-lg text-sm placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all shadow-sm"
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                         placeholder="Name, Seller, SKU..."
                                     />
-                                    <button
-                                        onClick={() => setShowScanner(true)}
-                                        className="absolute inset-y-0 right-0 px-3 flex items-center text-teal-600 bg-teal-50 hover:bg-teal-100 hover:text-teal-700 transition-colors border-l border-neutral-200 rounded-r-lg"
-                                        title="Scan Barcode"
-                                    >
-                                         <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                            <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
-                                            <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
-                                            <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
-                                            <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
-                                            <line x1="12" y1="3" x2="12" y2="21"></line>
-                                         </svg>
-                                    </button>
                                 </div>
                             </div>
 

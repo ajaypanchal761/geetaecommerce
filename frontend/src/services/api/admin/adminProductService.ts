@@ -115,7 +115,13 @@ export interface Product {
   compareAtPrice?: number;
   stock: number;
   sku?: string;
+  itemCode?: string; // mapped to sku
   barcode?: string;
+  rackNumber?: string;
+  hsnCode?: string;
+  purchasePrice?: number;
+  lowStockQuantity?: number;
+  deliveryTime?: string;
   variationType?: string;
   variations?: Array<{
     name: string;
@@ -146,6 +152,7 @@ export interface Product {
   commission?: number;
   createdAt?: string;
   updatedAt?: string;
+  discPrice?: number;
 }
 
 export interface CreateProductData {
@@ -154,7 +161,9 @@ export interface CreateProductData {
   description?: string;
   category: string;
   subcategory?: string;
+  subSubCategory?: string; // string or objectId
   brand?: string;
+  pack?: string;
   seller?: string;
   mainImage?: string;
   galleryImages?: string[];
@@ -162,7 +171,13 @@ export interface CreateProductData {
   compareAtPrice?: number;
   stock: number;
   sku?: string;
+  itemCode?: string; // Alias for sku input
   barcode?: string;
+  rackNumber?: string;
+  hsnCode?: string;
+  purchasePrice?: number;
+  lowStockQuantity?: number;
+  deliveryTime?: string;
   variationType?: string;
   variations?: Array<{
     name: string;
@@ -187,6 +202,7 @@ export interface CreateProductData {
   seoImageAlt?: string;
   tags?: string[];
   commission?: number;
+  discPrice?: number;
 }
 
 export interface GetProductsParams {
@@ -550,3 +566,18 @@ export const bulkUpdateProducts = async (
   >("/admin/products/bulk-update", data);
   return response.data;
 };
+
+/**
+ * Upload single image
+ */
+export const uploadImage = async (file: File): Promise<ApiResponse<{ url: string; public_id: string }>> => {
+  const formData = new FormData();
+  formData.append("image", file);
+  const response = await api.post<ApiResponse<{ url: string; public_id: string }>>("/upload/image", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+  return response.data;
+};
+

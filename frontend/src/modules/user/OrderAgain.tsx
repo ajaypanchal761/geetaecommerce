@@ -123,11 +123,13 @@ export default function OrderAgain() {
               return (
                 <div
                   key={order.id}
-                  onClick={() => navigate(`/orders/${order.id}`)}
-                  className="bg-white rounded-lg border border-neutral-200 p-2 hover:shadow-sm transition-shadow cursor-pointer"
+                  className="bg-white rounded-lg border border-neutral-200 p-2 hover:shadow-sm transition-shadow"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <div className="flex-1 min-w-0">
+                    <div
+                      className="flex-1 min-w-0 cursor-pointer"
+                      onClick={() => navigate(`/orders/${order.id}`)}
+                    >
                       <div className="flex items-center gap-2 mb-0.5">
                         <div className="text-xs font-semibold text-neutral-900">
                           Order #{shortId}
@@ -181,16 +183,18 @@ export default function OrderAgain() {
                         {order.totalItems} {order.totalItems === 1 ? 'item' : 'items'}
                       </div>
                       {/* Order Again Button */}
-                      <button
-                        onClick={(e) => handleOrderAgain(order, e)}
-                        disabled={addedOrders.has(order.id)}
-                        className={`mt-1 text-[10px] font-semibold px-3 py-1 rounded-md transition-colors shadow-sm ${addedOrders.has(order.id)
-                          ? 'bg-orange-200 text-neutral-600 cursor-not-allowed'
-                          : 'bg-green-600 text-white hover:bg-green-700 cursor-pointer'
-                          }`}
-                      >
-                        {addedOrders.has(order.id) ? 'Added to Cart!' : 'Order Again'}
-                      </button>
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={(e) => handleOrderAgain(order, e)}
+                          disabled={addedOrders.has(order.id)}
+                          className={`mt-1 text-[10px] font-semibold px-3 py-1 rounded-md transition-colors shadow-sm ${addedOrders.has(order.id)
+                            ? 'bg-orange-200 text-neutral-600 cursor-not-allowed'
+                            : 'bg-green-600 text-white hover:bg-green-700 cursor-pointer'
+                            }`}
+                        >
+                          {addedOrders.has(order.id) ? 'Added to Cart!' : 'Order Again'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>

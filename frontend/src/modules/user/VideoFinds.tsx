@@ -2,47 +2,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useThemeContext } from '../../context/ThemeContext';
 import { motion, AnimatePresence, useInView } from 'framer-motion';
-
-// Mock Data
-interface VideoProduct {
-  id: string;
-  title: string;
-  price: number;
-  originalPrice: number;
-  videoUrl: string;
-  views: string;
-}
-
-const MOCK_VIDEOS: VideoProduct[] = [
-  {
-    id: '1',
-    title: 'Spatula And Brush Set',
-    price: 33,
-    originalPrice: 149,
-    videoUrl: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-    views: '1.2L'
-  },
-  {
-    id: '2',
-    title: 'Power Free Hand Blender',
-    price: 51,
-    originalPrice: 199,
-    videoUrl: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
-    views: '85K'
-  },
-  {
-    id: '3',
-    title: 'Cartoon Vacuum Flask',
-    price: 96,
-    originalPrice: 299,
-    videoUrl: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
-    views: '2.5L'
-  }
-];
+import { getVideoFinds, VideoFind } from '../../services/api/user/videoFindService';
+import { useToast } from '../../context/ToastContext'; // Assuming ToastContext exists
 
 // --- Sub-components ---
 
-const GridVideoCard = ({ product, onClick }: { product: VideoProduct; onClick: () => void }) => {
+const GridVideoCard = ({ product, onClick }: { product: VideoFind; onClick: () => void }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -62,7 +27,7 @@ const GridVideoCard = ({ product, onClick }: { product: VideoProduct; onClick: (
 
   return (
     <motion.div
-      layoutId={`card-${product.id}`}
+      layoutId={`card-${product._id}`}
       onClick={onClick}
       className="bg-white rounded-xl overflow-hidden shadow-sm border border-neutral-200 cursor-pointer relative"
     >
@@ -104,7 +69,7 @@ const ReelItem = ({
   setIsMuted, // New prop
   isSidePreview = false // New prop
 }: {
-  product: VideoProduct;
+  product: VideoFind;
   isActive: boolean;
   isMuted: boolean;
   toggleMute: () => void;
@@ -126,7 +91,7 @@ const ReelItem = ({
         setIsPlaying(false);
       }
     }
-  }, [isActive, product.id, setIsMuted]);
+  }, [isActive, product._id, setIsMuted]);
 
   useEffect(() => {
     if (videoRef.current) videoRef.current.muted = isMuted;
@@ -322,36 +287,27 @@ export default function VideoFinds() {
   const [isMuted, setIsMuted] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDesktop, setIsDesktop] = useState(window.matchMedia("(min-width: 768px)").matches);
-  const [videoList, setVideoList] = useState<VideoProduct[]>([]);
+  const [videoList, setVideoList] = useState<VideoFind[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadVideos = () => {
-        const savedVideos = localStorage.getItem('admin_video_finds');
-        if (savedVideos) {
-            setVideoList(JSON.parse(savedVideos));
-        } else {
-            setVideoList(MOCK_VIDEOS);
+    const fetchVideos = async () => {
+      try {
+        setLoading(true);
+        const response = await getVideoFinds();
+        if (response.success && response.data) {
+           setVideoList(response.data);
         }
+      } catch (error) {
+        console.error("Failed to fetch videos", error);
+      } finally {
+        setLoading(false);
+      }
     };
 
-    loadVideos();
-
-    const handleStorageChange = (e: StorageEvent) => {
-        if (e.key === 'admin_video_finds') {
-            loadVideos();
-        }
-    };
-
-    const handleCustomUpdate = () => loadVideos();
-
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('local-storage-update', handleCustomUpdate);
-
-    return () => {
-        window.removeEventListener('storage', handleStorageChange);
-        window.removeEventListener('local-storage-update', handleCustomUpdate);
-    };
+    fetchVideos();
   }, []);
+
 
   // Validate active index when list changes
   useEffect(() => {

@@ -9,10 +9,10 @@ import {
   createProduct,
   updateProduct,
   getProductById,
-  getShops,
-  ProductVariation,
-  Shop,
-} from "../../../services/api/productService";
+  getSellers,
+  Product,
+} from "../../../services/api/admin/adminProductService";
+import { ProductVariation, Shop } from "../../../services/api/productService";
 import {
   getCategories,
   getSubcategories,
@@ -31,7 +31,7 @@ import {
 import ThemedDropdown from "../components/ThemedDropdown";
 import { Html5Qrcode } from "html5-qrcode";
 
-export default function SellerAddProduct() {
+export default function AdminAddProduct() {
   const navigate = useNavigate();
   const { id } = useParams();
   const [formData, setFormData] = useState({
@@ -62,6 +62,7 @@ export default function SellerAddProduct() {
     galleryImageUrls: [] as string[],
     isShopByStoreOnly: "No",
     shopId: "",
+    pack: "",
     pack: "",
     barcode: "",
     itemCode: "", // sku alias
@@ -115,7 +116,7 @@ export default function SellerAddProduct() {
           getActiveTaxes(),
           getBrands(),
           getHeaderCategoriesPublic(),
-          getShops(),
+          getSellers(),
         ]);
 
         // Handle categories
@@ -146,8 +147,16 @@ export default function SellerAddProduct() {
         }
 
         // Handle shops (optional - for Shop By Store feature)
+        // For Admin, we use getSellers to populate shops list
         if (results[4].status === "fulfilled" && results[4].value.success) {
-          setShops(results[4].value.data);
+          // Map sellers to shops format
+          const sellers = results[4].value.data;
+          const mappedShops: Shop[] = sellers.map((s: any) => ({
+            _id: s._id,
+            name: s.storeName || s.sellerName,
+            storeId: s._id, // Using _id as storeId for compatibility
+          }));
+          setShops(mappedShops);
         } else if (results[4].status === "rejected") {
           // Shops API failed - this is non-critical, log and continue
           console.warn("Failed to fetch shops (Shop By Store feature may be unavailable):", results[4].reason?.message || "Unknown error");
@@ -566,11 +575,11 @@ export default function SellerAddProduct() {
 
       const productData = {
         productName: formData.productName,
-        headerCategoryId: formData.headerCategory || undefined,
-        categoryId: formData.category || undefined,
-        subcategoryId: formData.subcategory || undefined,
-        subSubCategoryId: formData.subSubCategory || undefined,
-        brandId: formData.brand || undefined,
+        headerCategoryId: formData.headerCategory || undefined, // Schema has headerCategoryId
+        category: formData.category || undefined, // Schema has category
+        subcategory: formData.subcategory || undefined, // Schema has subcategory
+        subSubCategory: formData.subSubCategory || undefined, // Schema has subSubCategory
+        brand: formData.brand || undefined, // Schema has brand
         publish: formData.publish === "Yes",
         popular: formData.popular === "Yes",
         dealOfDay: formData.dealOfDay === "Yes",
@@ -651,12 +660,6 @@ export default function SellerAddProduct() {
               shopId: "",
               pack: "",
               barcode: "",
-              itemCode: "",
-              rackNumber: "",
-              hsnCode: "",
-              purchasePrice: "",
-              lowStockQuantity: "5",
-              deliveryTime: "",
             });
             setVariations([]);
             setMainImageFile(null);
@@ -666,7 +669,7 @@ export default function SellerAddProduct() {
           }
           setSuccessMessage("");
           // Navigate to product list
-          navigate("/seller/product/list");
+          navigate("/admin/product/list");
         }, 1500);
       } else {
         setUploadError(response.message || "Failed to create product");

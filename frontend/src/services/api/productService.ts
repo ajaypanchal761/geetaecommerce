@@ -55,6 +55,12 @@ export interface Product {
   galleryImageUrls: string[];
   variations: ProductVariation[];
   variationType?: string;
+  itemCode?: string; // mapped to sku
+  rackNumber?: string;
+  hsnCode?: string;
+  purchasePrice?: number;
+  lowStockQuantity?: number;
+  deliveryTime?: string;
   createdAt?: string;
   updatedAt?: string;
   // Fallback for old fields if any legacy code uses them
@@ -95,6 +101,12 @@ export interface CreateProductData {
   galleryImageUrls?: string[];
   variations: ProductVariation[];
   variationType?: string;
+  itemCode?: string; // Alias for sku
+  rackNumber?: string;
+  hsnCode?: string;
+  purchasePrice?: number;
+  lowStockQuantity?: number;
+  deliveryTime?: string;
   isShopByStoreOnly?: boolean;
   shopId?: string;
 }

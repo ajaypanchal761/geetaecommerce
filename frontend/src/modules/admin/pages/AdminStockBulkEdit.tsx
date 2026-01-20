@@ -3,6 +3,7 @@ import {
   Product,
   Category,
   updateProduct,
+  uploadImage,
 } from "../../../services/api/admin/adminProductService";
 
 interface AdminStockBulkEditProps {
@@ -21,7 +22,22 @@ interface EditableProduct {
   price: number;
   stock: number;
   publish: boolean;
+  mainImage: string;
+  newImageFile?: File;
   isChanged: boolean;
+  // New fields
+  itemCode: string; // SKU
+  rackNumber: string;
+  description: string;
+  barcode: string;
+  hsnCode: string;
+  pack: string; // Unit
+  purchasePrice: number;
+  deliveryTime: string;
+  lowStockQuantity: number;
+  // Read-only/Display fields (not editable in bulk edit for now or just text)
+  subSubCategory: string;
+  brand: string;
 }
 
 export default function AdminStockBulkEdit({
@@ -55,6 +71,19 @@ export default function AdminStockBulkEdit({
         price: p.price,
         stock: p.stock,
         publish: p.publish,
+        // New fields initialization
+        itemCode: (p as any).itemCode || p.sku || "",
+        rackNumber: (p as any).rackNumber || "",
+        description: p.smallDescription || p.description || "",
+        barcode: (p as any).barcode || "",
+        hsnCode: (p as any).hsnCode || "",
+        pack: (p as any).pack || "",
+        purchasePrice: (p as any).purchasePrice || 0,
+        deliveryTime: (p as any).deliveryTime || "",
+        lowStockQuantity: (p as any).lowStockQuantity || 5,
+        subSubCategory: (p as any).subSubCategory || "-",
+        brand: typeof p.brand === "object" ? (p.brand as any).name : "-",
+        mainImage: p.mainImage || "",
         isChanged: false,
       };
     });
@@ -73,6 +102,21 @@ export default function AdminStockBulkEdit({
     });
   };
 
+  const handleImageChange = (index: number, file: File) => {
+      if (!file) return;
+      const previewUrl = URL.createObjectURL(file);
+      setEditableProducts((prev) => {
+          const updated = [...prev];
+          updated[index] = {
+              ...updated[index],
+              newImageFile: file,
+              mainImage: previewUrl,
+              isChanged: true
+          };
+          return updated;
+      });
+  };
+
   const handleSave = async () => {
     const changedProducts = editableProducts.filter((p) => p.isChanged);
     if (changedProducts.length === 0) {
@@ -82,16 +126,43 @@ export default function AdminStockBulkEdit({
 
     setSaving(true);
     try {
-      const updatePromises = changedProducts.map((p) =>
-        updateProduct(p.id, {
+      const updatePromises = changedProducts.map(async (p) => {
+        let imageUrl = p.mainImage;
+        // Upload new image if present
+        if (p.newImageFile) {
+            try {
+                const uploadRes = await uploadImage(p.newImageFile);
+                if (uploadRes.success) {
+                    imageUrl = uploadRes.data.url;
+                }
+            } catch (err) {
+                console.error("Failed to upload image for product", p.productName, err);
+                // Fallback to original image if upload fails or handle error
+            }
+        }
+
+        return updateProduct(p.id, {
           productName: p.productName,
           category: p.categoryId,
           compareAtPrice: p.compareAtPrice,
           price: p.price,
           stock: p.stock,
           publish: p.publish,
-        })
-      );
+          mainImage: imageUrl,
+          // New fields update
+          sku: p.itemCode, // mapped to sku
+          itemCode: p.itemCode,
+          rackNumber: p.rackNumber,
+          smallDescription: p.description, // using smallDescription as primary desc
+          description: p.description,
+          barcode: p.barcode,
+          hsnCode: p.hsnCode,
+          pack: p.pack,
+          purchasePrice: p.purchasePrice,
+          deliveryTime: p.deliveryTime,
+          lowStockQuantity: p.lowStockQuantity,
+        } as any);
+      });
 
       await Promise.all(updatePromises);
       onSave(); // Trigger refresh in parent
@@ -151,24 +222,35 @@ export default function AdminStockBulkEdit({
                 <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-12 text-center">
                   #
                 </th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 min-w-[200px]">
-                  Product Name
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-20 text-center">
+                  Image
                 </th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 min-w-[150px]">
-                  Category
-                </th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24">
-                  MRP
-                </th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24">
-                  Selling Price
-                </th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24">
-                  Stock
-                </th>
-                <th className="p-3 border-b border-neutral-300 text-xs font-bold text-neutral-700 w-32 text-center">
-                  Status
-                </th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 min-w-[200px] whitespace-nowrap">4. Product Name</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 min-w-[150px] whitespace-nowrap">1. Category</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-32 whitespace-nowrap">2. Sub Cat</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-32 whitespace-nowrap">3. Sub Sub Cat</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-32 whitespace-nowrap">5. SKU</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">6. Rack</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-32 whitespace-nowrap">7. Desc</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-32 whitespace-nowrap">8. Barcode</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">9. HSN</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">10. Unit</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">11. Size</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">12. Color</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">13. Attr</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">14. Tax Cat</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">15. GST</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">16. Pur. Price</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">17. MRP</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">18. Sell Price</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-32 whitespace-nowrap">19. Del. Time</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">20. Stock</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">21. Offer Price</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">22. Low Stock</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">23. Brand</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">24. Val (MRP)</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">25. Val (Pur)</th>
+                <th className="p-3 border-b border-neutral-300 text-xs font-bold text-neutral-700 w-32 text-center whitespace-nowrap">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -188,6 +270,33 @@ export default function AdminStockBulkEdit({
                   <td className="p-2 border-r border-neutral-200 text-center text-xs text-neutral-500">
                     {index + 1}
                   </td>
+                  {/* Image (Already there) */ }
+                  <td className="p-2 border-r border-neutral-200 text-center">
+                      <div className="relative group w-10 h-10 mx-auto">
+                          {product.mainImage ? (
+                              <img src={product.mainImage} alt="" className="w-10 h-10 object-cover rounded border border-gray-200" />
+                          ) : (
+                              <div className="w-10 h-10 bg-gray-100 rounded border border-gray-200 flex items-center justify-center text-[10px] text-gray-400">No Img</div>
+                          )}
+
+                          {/* Edit Overlay */}
+                          <label htmlFor={`file-input-${originalIndex}`} className="absolute inset-0 bg-black/50 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                              <input
+                                id={`file-input-${originalIndex}`}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                    if (e.target.files?.[0]) {
+                                        handleImageChange(originalIndex, e.target.files[0]);
+                                    }
+                                }}
+                              />
+                          </label>
+                      </div>
+                  </td>
+                  {/* 4. Product Name */}
                   <td className="p-0 border-r border-neutral-200">
                     <input
                       type="text"
@@ -198,6 +307,7 @@ export default function AdminStockBulkEdit({
                       }
                     />
                   </td>
+                  {/* 1. Category */}
                   <td className="p-0 border-r border-neutral-200">
                     <select
                       className="w-full h-full px-3 py-2 bg-transparent border-none focus:ring-2 focus:ring-teal-500 focus:bg-white text-sm cursor-pointer"
@@ -206,7 +316,7 @@ export default function AdminStockBulkEdit({
                         handleFieldChange(originalIndex, "categoryId", e.target.value)
                       }
                     >
-                      <option value="">Select Category</option>
+                      <option value="">Category</option>
                       {categories.map((cat) => (
                         <option key={cat._id} value={cat._id}>
                           {cat.name}
@@ -214,6 +324,49 @@ export default function AdminStockBulkEdit({
                       ))}
                     </select>
                   </td>
+                  {/* 2. Sub Cat (Read-only) */}
+                   <td className="p-2 border-r border-neutral-200 text-sm text-neutral-600">-</td>
+                  {/* 3. Sub Sub Cat (Read-only) */}
+                   <td className="p-2 border-r border-neutral-200 text-sm text-neutral-600">{product.subSubCategory}</td>
+                  {/* 5. SKU */}
+                  <td className="p-0 border-r border-neutral-200">
+                     <input type="text" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm" value={product.itemCode} onChange={(e) => handleFieldChange(originalIndex, 'itemCode', e.target.value)} />
+                  </td>
+                  {/* 6. Rack */}
+                  <td className="p-0 border-r border-neutral-200">
+                     <input type="text" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm" value={product.rackNumber} onChange={(e) => handleFieldChange(originalIndex, 'rackNumber', e.target.value)} />
+                  </td>
+                  {/* 7. Desc */}
+                   <td className="p-0 border-r border-neutral-200">
+                     <input type="text" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm" value={product.description} onChange={(e) => handleFieldChange(originalIndex, 'description', e.target.value)} />
+                  </td>
+                   {/* 8. Barcode */}
+                   <td className="p-0 border-r border-neutral-200">
+                     <input type="text" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm" value={product.barcode} onChange={(e) => handleFieldChange(originalIndex, 'barcode', e.target.value)} />
+                  </td>
+                   {/* 9. HSN */}
+                   <td className="p-0 border-r border-neutral-200">
+                     <input type="text" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm" value={product.hsnCode} onChange={(e) => handleFieldChange(originalIndex, 'hsnCode', e.target.value)} />
+                  </td>
+                   {/* 10. Unit */}
+                   <td className="p-0 border-r border-neutral-200">
+                     <input type="text" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm" value={product.pack} onChange={(e) => handleFieldChange(originalIndex, 'pack', e.target.value)} />
+                  </td>
+                   {/* 11. Size (Read-only placeholder) */}
+                   <td className="p-2 border-r border-neutral-200 text-sm text-neutral-600">-</td>
+                   {/* 12. Color (Read-only placeholder) */}
+                   <td className="p-2 border-r border-neutral-200 text-sm text-neutral-600">-</td>
+                   {/* 13. Attr (Read-only placeholder) */}
+                   <td className="p-2 border-r border-neutral-200 text-sm text-neutral-600">-</td>
+                   {/* 14. Tax Cat (Read-only placeholder) */}
+                   <td className="p-2 border-r border-neutral-200 text-sm text-neutral-600">-</td>
+                   {/* 15. GST (Read-only placeholder) */}
+                   <td className="p-2 border-r border-neutral-200 text-sm text-neutral-600">-</td>
+                  {/* 16. Purchase Price */}
+                    <td className="p-0 border-r border-neutral-200">
+                     <input type="number" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm text-right" value={product.purchasePrice} onChange={(e) => handleFieldChange(originalIndex, 'purchasePrice', parseFloat(e.target.value))} />
+                  </td>
+                  {/* 17. MRP */}
                   <td className="p-0 border-r border-neutral-200">
                     <input
                       type="number"
@@ -228,6 +381,7 @@ export default function AdminStockBulkEdit({
                       }
                     />
                   </td>
+                  {/* 18. Selling Price */}
                   <td className="p-0 border-r border-neutral-200">
                     <input
                       type="number"
@@ -242,6 +396,11 @@ export default function AdminStockBulkEdit({
                       }
                     />
                   </td>
+                  {/* 19. Delivery Time */}
+                   <td className="p-0 border-r border-neutral-200">
+                     <input type="text" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm" value={product.deliveryTime} onChange={(e) => handleFieldChange(originalIndex, 'deliveryTime', e.target.value)} />
+                  </td>
+                  {/* 20. Stock */}
                   <td className="p-0 border-r border-neutral-200">
                     <input
                       type="number"
@@ -256,6 +415,18 @@ export default function AdminStockBulkEdit({
                       }
                     />
                   </td>
+                   {/* 21. Offer Price (Read-only) */}
+                   <td className="p-2 border-r border-neutral-200 text-sm text-neutral-600">-</td>
+                   {/* 22. Low Stock */}
+                    <td className="p-0 border-r border-neutral-200">
+                     <input type="number" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm text-right" value={product.lowStockQuantity} onChange={(e) => handleFieldChange(originalIndex, 'lowStockQuantity', parseInt(e.target.value))} />
+                  </td>
+                   {/* 23. Brand (Read-only) */}
+                   <td className="p-2 border-r border-neutral-200 text-sm text-neutral-600">{product.brand}</td>
+                   {/* 24. Val (MRP) (Calculated/Read-only) */}
+                   <td className="p-2 border-r border-neutral-200 text-sm text-neutral-600 text-right">{(product.compareAtPrice * product.stock).toLocaleString()}</td>
+                   {/* 25. Val (Pur) (Calculated/Read-only) */}
+                   <td className="p-2 border-r border-neutral-200 text-sm text-neutral-600 text-right">{(product.purchasePrice * product.stock).toLocaleString()}</td>
                   <td className="p-2 text-center">
                     <label className="inline-flex items-center cursor-pointer">
                       <input

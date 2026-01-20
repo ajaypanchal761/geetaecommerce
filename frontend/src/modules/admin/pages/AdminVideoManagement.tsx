@@ -1,55 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '../../../context/ToastContext';
-
-interface VideoProduct {
-  id: string;
-  title: string;
-  price: number;
-  originalPrice: number;
-  videoUrl: string;
-  views: string;
-}
-
-const DEFAULT_MOCK_VIDEOS = [
-  {
-    id: '1',
-    title: 'Spatula And Brush Set',
-    price: 33,
-    originalPrice: 149,
-    videoUrl: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-    views: '1.2L'
-  },
-  {
-    id: '2',
-    title: 'Power Free Hand Blender',
-    price: 51,
-    originalPrice: 199,
-    videoUrl: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
-    views: '85K'
-  },
-  {
-    id: '3',
-    title: 'Cartoon Vacuum Flask',
-    price: 96,
-    originalPrice: 299,
-    videoUrl: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
-    views: '2.5L'
-  }
-];
+import {
+  getVideoFinds,
+  createVideoFind,
+  updateVideoFind,
+  deleteVideoFind,
+  VideoFind
+} from '../../../services/api/admin/adminVideoService';
 
 export default function AdminVideoManagement() {
   const { showToast } = useToast();
-
-  // Lazy initialization to prevent overwriting local storage on mount
-  const [videos, setVideos] = useState<VideoProduct[]>(() => {
-    const savedVideos = localStorage.getItem('admin_video_finds');
-    if (savedVideos) {
-      return JSON.parse(savedVideos);
-    }
-    // Initialize with defaults if empty
-    localStorage.setItem('admin_video_finds', JSON.stringify(DEFAULT_MOCK_VIDEOS));
-    return DEFAULT_MOCK_VIDEOS;
-  });
+  const [videos, setVideos] = useState<VideoFind[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -60,46 +22,73 @@ export default function AdminVideoManagement() {
   });
   const [isEditing, setIsEditing] = useState<string | null>(null);
 
-  // Save to localStorage whenever videos change
+  // Fetch videos from backend
+  const fetchVideos = async () => {
+    try {
+      setLoading(true);
+      const response = await getVideoFinds();
+      if (response.success && response.data) {
+        setVideos(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching videos:', error);
+      showToast('Failed to load videos', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    localStorage.setItem('admin_video_finds', JSON.stringify(videos));
-    // Dispatch custom event for same-tab updates
-    window.dispatchEvent(new Event('local-storage-update'));
-  }, [videos]);
+    fetchVideos();
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isEditing) {
-      setVideos(prev => prev.map(v => v.id === isEditing ? {
-        ...v,
-        title: formData.title,
-        price: Number(formData.price),
-        originalPrice: Number(formData.originalPrice),
-        videoUrl: formData.videoUrl,
-        views: formData.views
-      } : v));
-      setIsEditing(null);
-      showToast('Video updated successfully', 'success');
-    } else {
-      const newVideo: VideoProduct = {
-        id: Date.now().toString(),
-        title: formData.title,
-        price: Number(formData.price),
-        originalPrice: Number(formData.originalPrice),
-        videoUrl: formData.videoUrl,
-        views: formData.views || '0'
-      };
-      setVideos([...videos, newVideo]);
-      showToast('Video added successfully', 'success');
+    try {
+      if (isEditing) {
+        const response = await updateVideoFind(isEditing, {
+          title: formData.title,
+          price: Number(formData.price),
+          originalPrice: Number(formData.originalPrice),
+          videoUrl: formData.videoUrl,
+          views: formData.views
+        });
+
+        if (response.success) {
+          showToast('Video updated successfully', 'success');
+          setIsEditing(null);
+          fetchVideos();
+        } else {
+             showToast('Failed to update video', 'error');
+        }
+      } else {
+        const response = await createVideoFind({
+          title: formData.title,
+          price: Number(formData.price),
+          originalPrice: Number(formData.originalPrice),
+          videoUrl: formData.videoUrl,
+          views: formData.views || '0'
+        });
+
+        if (response.success) {
+            showToast('Video added successfully', 'success');
+            fetchVideos();
+        } else {
+            showToast('Failed to add video', 'error');
+        }
+      }
+      setFormData({ title: '', price: '', originalPrice: '', videoUrl: '', views: '' });
+    } catch (error) {
+      console.error('Error saving video:', error);
+      showToast('An error occurred', 'error');
     }
-    setFormData({ title: '', price: '', originalPrice: '', videoUrl: '', views: '' });
   };
 
-  const handleEdit = (video: VideoProduct) => {
+  const handleEdit = (video: VideoFind) => {
     setFormData({
       title: video.title,
       price: video.price.toString(),
@@ -107,14 +96,22 @@ export default function AdminVideoManagement() {
       videoUrl: video.videoUrl,
       views: video.views
     });
-    setIsEditing(video.id);
+    setIsEditing(video._id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (window.confirm('Are you sure you want to delete this video?')) {
-      setVideos(videos.filter(v => v.id !== id));
-      showToast('Video deleted successfully', 'success');
+      try {
+        const response = await deleteVideoFind(id);
+        if (response.success || response.data) { // Check handling might vary based on void return
+           showToast('Video deleted successfully', 'success');
+           fetchVideos();
+        }
+      } catch (error) {
+        console.error('Error deleting video:', error);
+        showToast('Failed to delete video', 'error');
+      }
     }
   };
 
@@ -196,7 +193,8 @@ export default function AdminVideoManagement() {
               <div className="flex gap-2 mt-6">
                 <button
                   type="submit"
-                  className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
+                  disabled={loading}
+                  className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition disabled:bg-blue-300"
                 >
                   {isEditing ? 'Update Video' : 'Add Video'}
                 </button>
@@ -222,24 +220,15 @@ export default function AdminVideoManagement() {
           <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
             <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
                 <h3 className="font-semibold text-gray-700">Existing Videos ({videos.length})</h3>
-                <button
-                    onClick={() => {
-                        if(window.confirm("Reset to default mock data?")) {
-                            setVideos(DEFAULT_MOCK_VIDEOS);
-                            showToast('Reset to defaults', 'info');
-                        }
-                    }}
-                    className="text-xs text-blue-600 hover:underline"
-                >
-                    Reset Defaults
-                </button>
             </div>
-            <div className="divide-y">
-              {videos.length === 0 ? (
+            <div className="divide-y max-h-[600px] overflow-y-auto">
+              {loading ? (
+                  <div className="p-8 text-center text-gray-500">Loading videos...</div>
+              ) : videos.length === 0 ? (
                   <div className="p-8 text-center text-gray-500">No videos added yet.</div>
               ) : (
                   videos.map((video) => (
-                    <div key={video.id} className="p-4 flex gap-4 hover:bg-gray-50 transition">
+                    <div key={video._id} className="p-4 flex gap-4 hover:bg-gray-50 transition">
                       <div className="w-24 h-32 bg-gray-200 rounded-lg overflow-hidden shrink-0 relative group">
                         <video src={video.videoUrl} className="w-full h-full object-cover" muted />
                         <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors" />
@@ -262,7 +251,7 @@ export default function AdminVideoManagement() {
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                         </button>
                         <button
-                          onClick={() => handleDelete(video.id)}
+                          onClick={() => handleDelete(video._id)}
                           className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
                           title="Delete"
                         >

@@ -10,6 +10,7 @@ import {
 } from "../../../services/api/admin/adminProductService";
 import { useAuth } from "../../../context/AuthContext";
 import AdminStockBulkEdit from "./AdminStockBulkEdit";
+import AdminStockBulkImport from "./AdminStockBulkImport";
 
 interface ProductVariation {
   id: string;
@@ -26,6 +27,31 @@ interface ProductVariation {
   category: string;
   categoryId: string;
   publish: boolean;
+  // New fields mapping to user request 1-25
+  subCategory: string; // 2
+  subSubCategory: string; // 3
+  // name is 4
+  sku: string; // 5
+  rackNumber: string; // 6
+  description: string; // 7
+  barcode: string; // 8
+  hsnCode: string; // 9
+  unit: string; // 10 (Pack)
+  sizeName: string; // 11
+  colorName: string; // 12
+  attributeName: string; // 13
+  taxCategory: string; // 14
+  gst: string; // 15
+  purchasePrice: number; // 16
+  // compareAtPrice is 17 (MRP)
+  // price is 18 (Selling Price)
+  deliveryTime: string; // 19
+  // stock is 20
+  offerPrice: number; // 21 (Online Offer Price)
+  lowStockQuantity: number; // 22
+  brand: string; // 23
+  valueMrp: number; // 24
+  valuePurchase: number; // 25
 }
 
 const STATUS_OPTIONS = ["All Products", "Published", "Unpublished"];
@@ -44,6 +70,8 @@ export default function AdminStockManagement() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showBulkEdit, setShowBulkEdit] = useState(false);
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [savingChanges, setSavingChanges] = useState(false);
   const [changedProductIds, setChangedProductIds] = useState<Set<string>>(new Set());
@@ -213,64 +241,101 @@ export default function AdminStockManagement() {
     const variations: ProductVariation[] = [];
 
     products.forEach((product) => {
-      // Handle null/undefined category
+      // Helper to safely get properties
+      const p: any = product;
+
+      // Category
       let categoryName = "Unknown";
       let categoryId = "";
-
-      if (product.category) {
-        if (typeof product.category === "object" && product.category !== null) {
-          categoryName = product.category.name || "Unknown";
-          categoryId = product.category._id || "";
-        } else if (typeof product.category === "string") {
-          categoryId = product.category;
-          categoryName = categories.find((c) => c._id === product.category)?.name || "Unknown";
-        }
+      if (typeof product.category === "object" && product.category) {
+        categoryName = product.category.name || "Unknown";
+        categoryId = product.category._id || "";
+      } else if (typeof product.category === "string") {
+         const catObj = categories.find((c) => c._id === product.category);
+         categoryName = catObj?.name || "Unknown";
+         categoryId = product.category;
       }
 
-      const sellerName =
-        typeof product.seller === "object" && product.seller !== null
-          ? product.seller.storeName || product.seller.sellerName
-          : "Unknown Seller";
+      // SubCategory
+      const subCategoryName = typeof p.subcategory === "object" ? p.subcategory?.name || "-" : "-";
+      // SubSubCategory
+      const subSubCategoryName = p.subSubCategory || "-";
+      // Brand
+      const brandName = typeof p.brand === "object" ? p.brand?.name || "-" : "-";
+      // Tax
+      const taxName = typeof p.tax === "object" ? p.tax?.name || "-" : "-";
+      const gstVal = typeof p.tax === "object" ? p.tax?.percentage + "%" || "-" : "-";
+
+      const sellerName = typeof product.seller === "object" && product.seller ? (product.seller as any).storeName || (product.seller as any).sellerName : "Unknown";
       const sellerId = typeof product.seller === "object" ? "" : product.seller || "";
 
-      // If product has variations, create a row for each variation
+      // Base fields
+      const baseVariation = {
+        productId: product._id,
+        name: product.productName,
+        seller: sellerName,
+        sellerId: sellerId,
+        image: product.mainImage || product.galleryImages[0] || "",
+        category: categoryName,
+        categoryId: categoryId,
+        subCategory: subCategoryName,
+        subSubCategory: subSubCategoryName,
+        sku: p.itemCode || p.sku || "", // Item Code (5) (Note: variation might allow specific SKU)
+        rackNumber: p.rackNumber || "-",
+        description: p.smallDescription || p.description || "-",
+        barcode: p.barcode || "-",
+        hsnCode: p.hsnCode || "-",
+        unit: p.pack || "-", // Unit (10)
+        taxCategory: taxName,
+        gst: gstVal,
+        purchasePrice: Number(p.purchasePrice) || 0,
+        compareAtPrice: Number(p.compareAtPrice) || 0, // MRP (17)
+        price: Number(p.price) || 0, // Selling Price (18),
+        deliveryTime: p.deliveryTime || "-",
+        lowStockQuantity: Number(p.lowStockQuantity) || 5,
+        brand: brandName,
+        publish: product.publish,
+      };
+
       if (product.variations && product.variations.length > 0) {
-        product.variations.forEach((variation, index) => {
+        product.variations.forEach((v: any, index) => {
+          const currentStock = Number(v.stock) || 0;
+           // Detect Size/Color
+          const isSize = v.name.toLowerCase().includes("size");
+          const isColor = v.name.toLowerCase().includes("color");
+
           variations.push({
+            ...baseVariation,
             id: `${product._id}-${index}`,
-            productId: product._id,
-            name: product.productName,
-            seller: sellerName,
-            sellerId: sellerId,
-            image: product.mainImage || product.galleryImages[0] || "",
-            variation: `${variation.name}: ${variation.value}`,
-            stock: variation.stock !== undefined ? variation.stock : product.stock || 0,
-            price: product.price, // Using product price as bulk edit does
-            compareAtPrice: product.compareAtPrice || 0,
+            variation: `${v.name}: ${v.value}`,
+            stock: currentStock,
+            price: Number(v.price) || baseVariation.price,
+            offerPrice: Number(v.discPrice) || 0,
             status: product.publish ? "Published" : "Unpublished",
-            publish: product.publish,
-            category: categoryName,
-            categoryId: categoryId,
+            // Variation specific overrides
+            sku: v.sku || baseVariation.sku,
+            sizeName: isSize ? v.value : "-",
+            colorName: isColor ? v.value : "-",
+            attributeName: v.name, // 13
+            valueMrp: (Number(baseVariation.compareAtPrice) || 0) * currentStock,
+            valuePurchase: (Number(baseVariation.purchasePrice) || 0) * currentStock,
           });
         });
       } else {
-        // If no variations, create a single row for the product
-        variations.push({
-          id: product._id,
-          productId: product._id,
-          name: product.productName,
-          seller: sellerName,
-          sellerId: sellerId,
-          image: product.mainImage || product.galleryImages[0] || "",
-          variation: "Default",
-          stock: product.stock || 0,
-          price: product.price,
-          compareAtPrice: product.compareAtPrice || 0,
-          status: product.publish ? "Published" : "Unpublished",
-          publish: product.publish,
-          category: categoryName,
-          categoryId: categoryId,
-        });
+         const currentStock = Number(product.stock) || 0;
+         variations.push({
+            ...baseVariation,
+             id: product._id,
+             variation: "Default",
+             stock: currentStock,
+             offerPrice: Number(p.discPrice) || 0,
+             status: product.publish ? "Published" : "Unpublished",
+             sizeName: "-",
+             colorName: "-",
+             attributeName: "-",
+             valueMrp: (Number(baseVariation.compareAtPrice) || 0) * currentStock,
+             valuePurchase: (Number(baseVariation.purchasePrice) || 0) * currentStock,
+         });
       }
     });
 
@@ -564,6 +629,13 @@ export default function AdminStockManagement() {
                   Bulk Edit
                 </button>
                 <button
+                  onClick={() => setShowBulkImport(true)}
+                  className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded text-sm font-medium flex items-center gap-1 transition-colors"
+                >
+                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                  Bulk Import
+                </button>
+                <button
                   onClick={handleExport}
                   className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded text-sm font-medium flex items-center gap-1 transition-colors">
                   Export
@@ -603,45 +675,34 @@ export default function AdminStockManagement() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-neutral-50 text-xs font-bold text-neutral-800 border-b border-neutral-200">
-                  <th className="p-4">
-                    Variation Id
-                  </th>
-                  <th className="p-4">
-                    Image
-                  </th>
-                  <th
-                    className="p-4 cursor-pointer hover:bg-neutral-100 transition-colors"
-                    onClick={() => handleSort("name")}>
-                    <div className="flex items-center">
-                      Name <SortIcon column="name" />
-                    </div>
-                  </th>
-                  <th className="p-4 w-32">
-                     Category
-                  </th>
-                  <th className="p-4 w-24">
-                     MRP (₹)
-                  </th>
-                  <th className="p-4 w-24">
-                     Price (₹)
-                  </th>
-                  <th
-                    className="p-4 cursor-pointer hover:bg-neutral-100 transition-colors w-24"
-                    onClick={() => handleSort("stock")}>
-                    <div className="flex items-center">
-                      Stock <SortIcon column="stock" />
-                    </div>
-                  </th>
-                  <th
-                    className="p-4 cursor-pointer hover:bg-neutral-100 transition-colors text-center"
-                    onClick={() => handleSort("status")}>
-                    <div className="flex items-center justify-center">
-                      Status <SortIcon column="status" />
-                    </div>
-                  </th>
-                  <th className="p-4 text-center">
-                    Action
-                  </th>
+                  <th className="p-4 whitespace-nowrap">Image</th>
+                  <th className="p-4 whitespace-nowrap">1. Category</th>
+                  <th className="p-4 whitespace-nowrap">2. Sub Cat</th>
+                  <th className="p-4 whitespace-nowrap">3. Sub Sub Cat</th>
+                  <th className="p-4 whitespace-nowrap">4. Product Name</th>
+                  <th className="p-4 whitespace-nowrap">5. SKU</th>
+                  <th className="p-4 whitespace-nowrap">6. Rack</th>
+                  <th className="p-4 whitespace-nowrap">7. Desc</th>
+                  <th className="p-4 whitespace-nowrap">8. Barcode</th>
+                  <th className="p-4 whitespace-nowrap">9. HSN</th>
+                  <th className="p-4 whitespace-nowrap">10. Unit</th>
+                  <th className="p-4 whitespace-nowrap">11. Size</th>
+                  <th className="p-4 whitespace-nowrap">12. Color</th>
+                  <th className="p-4 whitespace-nowrap">13. Attr</th>
+                  <th className="p-4 whitespace-nowrap">14. Tax Cat</th>
+                  <th className="p-4 whitespace-nowrap">15. GST</th>
+                  <th className="p-4 whitespace-nowrap">16. Pur. Price</th>
+                  <th className="p-4 whitespace-nowrap">17. MRP</th>
+                  <th className="p-4 whitespace-nowrap">18. Sell Price</th>
+                  <th className="p-4 whitespace-nowrap">19. Del. Time</th>
+                  <th className="p-4 whitespace-nowrap">20. Stock</th>
+                  <th className="p-4 whitespace-nowrap">21. Offer Price</th>
+                  <th className="p-4 whitespace-nowrap">22. Low Stock</th>
+                  <th className="p-4 whitespace-nowrap">23. Brand</th>
+                  <th className="p-4 whitespace-nowrap">24. Val (MRP)</th>
+                  <th className="p-4 whitespace-nowrap">25. Val (Pur)</th>
+                  <th className="p-4 whitespace-nowrap">Status</th>
+                  <th className="p-4 whitespace-nowrap">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -672,10 +733,7 @@ export default function AdminStockManagement() {
                     <tr
                       key={product.id}
                       className="hover:bg-neutral-50 transition-colors text-sm text-neutral-700 border-b border-neutral-200">
-                      <td className="p-4 align-middle text-xs text-neutral-500">
-                        {product.id.slice(-6)}
-                      </td>
-                       <td className="p-4 align-middle">
+                      <td className="p-4 align-middle">
                         {product.image ? (
                           <img
                             src={product.image}
@@ -688,65 +746,40 @@ export default function AdminStockManagement() {
                           />
                         ) : (
                           <div className="w-10 h-10 bg-neutral-100 rounded flex items-center justify-center text-xs text-neutral-400">
-                            No Image
+                            No Img
                           </div>
                         )}
                       </td>
-                      <td className="p-2 align-middle">
-                          <input
-                            type="text"
-                            className="w-full px-2 py-1 border border-neutral-200 rounded focus:ring-1 focus:ring-teal-500 focus:border-teal-500 text-sm"
-                            value={product.name}
-                            onChange={(e) => handleInlineChange(product.productId, 'productName', e.target.value)}
-                          />
-                           <div className="text-xs text-neutral-400 mt-1">{product.variation !== "Default" ? product.variation : ""}</div>
-                      </td>
-                      <td className="p-2 align-middle">
-                        <select
-                           className="w-full px-2 py-1 border border-neutral-200 rounded focus:ring-1 focus:ring-teal-500 focus:border-teal-500 text-sm"
-                           value={product.categoryId}
-                           onChange={(e) => handleInlineChange(product.productId, 'category', e.target.value)}
-                        >
-                            <option value="">Select</option>
-                            {categories.map(c => (
-                                <option key={c._id} value={c._id}>{c.name}</option>
-                            ))}
-                        </select>
-                      </td>
-                      <td className="p-2 align-middle">
-                          <input
-                            type="number"
-                            className="w-full px-2 py-1 border border-neutral-200 rounded focus:ring-1 focus:ring-teal-500 focus:border-teal-500 text-sm text-right"
-                            value={product.compareAtPrice}
-                            onChange={(e) => handleInlineChange(product.productId, 'compareAtPrice', parseFloat(e.target.value) || 0)}
-                          />
-                      </td>
-                      <td className="p-2 align-middle">
-                          <input
-                            type="number"
-                            className="w-full px-2 py-1 border border-neutral-200 rounded focus:ring-1 focus:ring-teal-500 focus:border-teal-500 text-sm text-right font-medium"
-                            value={product.price}
-                            onChange={(e) => handleInlineChange(product.productId, 'price', parseFloat(e.target.value) || 0)}
-                          />
-                      </td>
-                      <td className="p-2 align-middle">
-                          <input
-                            type="number"
-                            className="w-full px-2 py-1 border border-neutral-200 rounded focus:ring-1 focus:ring-teal-500 focus:border-teal-500 text-sm text-right"
-                            value={product.stock === "Unlimited" ? 0 : product.stock}
-                            onChange={(e) => handleInlineChange(product.productId, 'stock', parseInt(e.target.value) || 0)}
-                          />
-                      </td>
+                      <td className="p-4 align-middle text-sm text-neutral-600">{product.category}</td>
+                      <td className="p-4 align-middle text-sm text-neutral-600">{product.subCategory}</td>
+                      <td className="p-4 align-middle text-sm text-neutral-600">{product.subSubCategory}</td>
+                      <td className="p-4 align-middle text-sm font-medium text-neutral-800">{product.name}</td>
+                      <td className="p-4 align-middle text-sm text-neutral-600">{product.sku}</td>
+                      <td className="p-4 align-middle text-sm text-neutral-600">{product.rackNumber}</td>
+                      <td className="p-4 align-middle text-sm text-neutral-600 max-w-xs truncate" title={product.description}>{product.description}</td>
+                      <td className="p-4 align-middle text-sm text-neutral-600">{product.barcode}</td>
+                      <td className="p-4 align-middle text-sm text-neutral-600">{product.hsnCode}</td>
+                      <td className="p-4 align-middle text-sm text-neutral-600">{product.unit}</td>
+                      <td className="p-4 align-middle text-sm text-neutral-600">{product.sizeName}</td>
+                      <td className="p-4 align-middle text-sm text-neutral-600">{product.colorName}</td>
+                      <td className="p-4 align-middle text-sm text-neutral-600">{product.attributeName}</td>
+                      <td className="p-4 align-middle text-sm text-neutral-600">{product.taxCategory}</td>
+                      <td className="p-4 align-middle text-sm text-neutral-600">{product.gst}</td>
+                      <td className="p-4 align-middle text-sm text-neutral-800 text-right">{product.purchasePrice}</td>
+                      <td className="p-4 align-middle text-sm text-neutral-600 text-right">{product.compareAtPrice}</td>
+                      <td className="p-4 align-middle text-sm font-medium text-neutral-800 text-right">{product.price}</td>
+                      <td className="p-4 align-middle text-sm text-neutral-600">{product.deliveryTime}</td>
+                      <td className="p-4 align-middle text-sm font-bold text-neutral-800 text-right">{product.stock}</td>
+                      <td className="p-4 align-middle text-sm text-green-600 text-right">{product.offerPrice > 0 ? product.offerPrice : "-"}</td>
+                      <td className="p-4 align-middle text-sm text-neutral-600 text-center">{product.lowStockQuantity}</td>
+                      <td className="p-4 align-middle text-sm text-neutral-600">{product.brand}</td>
+                      <td className="p-4 align-middle text-sm text-neutral-600 text-right">{product.valueMrp.toLocaleString()}</td>
+                      <td className="p-4 align-middle text-sm text-neutral-600 text-right">{product.valuePurchase.toLocaleString()}</td>
+
                       <td className="p-4 align-middle text-center">
-                        <label className="inline-flex items-center cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={product.publish}
-                                className="sr-only peer"
-                                onChange={(e) => handleInlineChange(product.productId, 'publish', e.target.checked)}
-                            />
-                            <div className="relative w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-teal-300 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-teal-600"></div>
-                        </label>
+                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${product.publish ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
+                             {product.publish ? 'Active' : 'Inactive'}
+                          </span>
                       </td>
                       <td className="p-4 align-middle">
                         <div className="flex items-center justify-center gap-2">
@@ -858,6 +891,16 @@ export default function AdminStockManagement() {
           categories={categories}
           onClose={() => setShowBulkEdit(false)}
           onSave={fetchData}
+        />
+      )}
+
+      {showBulkImport && (
+        <AdminStockBulkImport
+           categories={categories}
+           onClose={() => setShowBulkImport(false)}
+           onSuccess={() => {
+              fetchData();
+           }}
         />
       )}
     </div>

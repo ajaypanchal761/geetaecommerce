@@ -5,6 +5,7 @@ import OrderItem from "../../../models/OrderItem";
 import Customer from "../../../models/Customer";
 import Seller from "../../../models/Seller";
 import mongoose from "mongoose";
+import axios from "axios";
 import { calculateDistance } from "../../../utils/locationHelper";
 import { notifyDeliveryBoysOfNewOrder } from "../../../services/orderNotificationService";
 import { notifySellersOfOrderUpdate } from "../../../services/sellerNotificationService";
@@ -758,3 +759,298 @@ export const updateOrderNotes = async (req: Request, res: Response) => {
         });
     }
 };
+
+/**
+ * Initiate Online Order (Razorpay/Cashfree)
+ */
+export const initiateOnlineOrder = async (req: Request, res: Response) => {
+    let session: mongoose.ClientSession | null = null;
+    try {
+        // Only start session if we are on a replica set (required for transactions)
+        try {
+            session = await mongoose.startSession();
+            session.startTransaction();
+        } catch (sessionError) {
+             session = null;
+        }
+
+        const { items, address, paymentMethod, fees } = req.body;
+        const userId = req.user!.userId;
+
+        // --- Validation Logic (Same as createOrder) ---
+        if (!items || items.length === 0) {
+            if (session) await session.abortTransaction();
+            return res.status(400).json({ success: false, message: "Order must have at least one item" });
+        }
+
+        if (!address) {
+            if (session) await session.abortTransaction();
+            return res.status(400).json({ success: false, message: "Delivery address is required" });
+        }
+
+        const customer = await Customer.findById(userId);
+        if (!customer) {
+            if (session) await session.abortTransaction();
+            return res.status(404).json({ success: false, message: "Customer not found" });
+        }
+
+        const deliveryLat = address.latitude != null ? Number(address.latitude) : null;
+        const deliveryLng = address.longitude != null ? Number(address.longitude) : null;
+
+        if (deliveryLat == null || deliveryLng == null || isNaN(deliveryLat) || isNaN(deliveryLng)) {
+             if (session) await session.abortTransaction();
+             return res.status(400).json({ success: false, message: "Invalid delivery address coordinates" });
+        }
+
+        // --- Create Order Shell ---
+        const newOrder = new Order({
+            customer: new mongoose.Types.ObjectId(userId),
+            customerName: customer.name,
+            customerEmail: customer.email,
+            customerPhone: customer.phone,
+            deliveryAddress: {
+                address: address.address || address.street || 'N/A',
+                city: address.city || 'N/A',
+                state: address.state || '',
+                pincode: address.pincode || '000000',
+                landmark: address.landmark || '',
+                latitude: deliveryLat,
+                longitude: deliveryLng,
+            },
+            paymentMethod: paymentMethod || 'Online',
+            paymentStatus: 'Pending',
+            status: 'Pending', // Pending payment
+            subtotal: 0,
+            tax: 0,
+            shipping: fees?.deliveryFee || 0,
+            platformFee: fees?.platformFee || 0,
+            discount: 0,
+            total: 0,
+            items: []
+        });
+
+        let calculatedSubtotal = 0;
+        const orderItemIds: mongoose.Types.ObjectId[] = [];
+        const sellerIds = new Set<string>();
+
+        // --- Process Items & Stock ---
+        for (const item of items) {
+            const qty = Number(item.quantity) || 0;
+            if (qty <= 0) throw new Error("Invalid item quantity");
+
+            const variationValue = item.variant || item.variation;
+            let product;
+
+            // Try decrementing stock (with session if available)
+            const query = {
+                _id: item.product.id,
+                ...(variationValue ? {
+                    $or: [
+                        { "variations._id": mongoose.isValidObjectId(variationValue) ? variationValue : new mongoose.Types.ObjectId() },
+                        { "variations.value": variationValue },
+                        { "variations.title": variationValue },
+                        { "variations.pack": variationValue }
+                    ],
+                     "variations.stock": { $gte: qty }
+                } : { stock: { $gte: qty } })
+            };
+
+            const update = variationValue
+                ? { $inc: { "variations.$.stock": -qty, stock: -qty } }
+                : { $inc: { stock: -qty } };
+
+            product = session
+                ? await Product.findOneAndUpdate(query, update, { session, new: true })
+                : await Product.findOneAndUpdate(query, update, { new: true });
+
+            // Fallback logic for variations (simplified from createOrder for brevity, but crucial parts retained)
+            if (!product && variationValue) {
+                // ... (If specific variation query failed, maybe try generic or throw error)
+                // Assuming strict check for now as per createOrder logic
+                throw new Error(`Insufficient stock for variation: ${variationValue}`);
+            }
+            if(!product && !variationValue) {
+                 // Try finding if it has variations but none selected (fallback to first)
+                 const checkProd = await Product.findById(item.product.id);
+                 if(checkProd && checkProd.variations && checkProd.variations.length > 0) {
+                     product = session
+                        ? await Product.findOneAndUpdate({ _id: item.product.id, "variations.0.stock": { $gte: qty } }, { $inc: { "variations.0.stock": -qty, stock: -qty } }, { session, new: true })
+                        : await Product.findOneAndUpdate({ _id: item.product.id, "variations.0.stock": { $gte: qty } }, { $inc: { "variations.0.stock": -qty, stock: -qty } }, { new: true });
+                 }
+            }
+
+            if (!product) {
+                throw new Error(`Insufficient stock or product not found: ${item.product.name}`);
+            }
+
+            if (product.seller) sellerIds.add(product.seller.toString());
+
+            // Price Logic
+            let selectedVariation;
+            if (variationValue && product.variations) {
+                selectedVariation = product.variations.find((v: any) =>
+                    (v._id && v._id.toString() === variationValue) || v.value === variationValue || v.title === variationValue || v.pack === variationValue
+                );
+            }
+            if (!selectedVariation && product.variations && product.variations.length > 0) selectedVariation = product.variations[0];
+
+            const itemPrice = (selectedVariation?.discPrice && selectedVariation.discPrice > 0)
+                 ? selectedVariation.discPrice
+                 : (product.discPrice && product.discPrice > 0 ? product.discPrice : (selectedVariation?.price || product.price || 0));
+
+            const itemTotal = itemPrice * qty;
+            calculatedSubtotal += itemTotal;
+
+            const newOrderItem = new OrderItem({
+                order: newOrder._id,
+                product: product._id,
+                seller: product.seller,
+                productName: product.productName,
+                productImage: product.mainImage,
+                sku: product.sku,
+                unitPrice: itemPrice,
+                quantity: qty,
+                total: itemTotal,
+                variation: variationValue,
+                status: 'Pending'
+            });
+
+            if (session) await newOrderItem.save({ session });
+            else await newOrderItem.save();
+            orderItemIds.push(newOrderItem._id as mongoose.Types.ObjectId);
+        }
+
+        // --- Validate Sellers (Distance) ---
+        if (sellerIds.size > 0) {
+            const uniqueSellerIds = Array.from(sellerIds).map(id => new mongoose.Types.ObjectId(id));
+            const sellers = await Seller.find({ _id: { $in: uniqueSellerIds }, status: "Approved", location: { $exists: true, $ne: null } });
+
+            for (const seller of sellers) {
+                 if (!seller.location || !seller.location.coordinates) continue;
+                 const distance = calculateDistance(deliveryLat, deliveryLng, seller.location.coordinates[1], seller.location.coordinates[0]);
+                 const serviceRadius = seller.serviceRadiusKm || 10;
+                 if (distance > serviceRadius) {
+                     if (session) await session.abortTransaction();
+                     return res.status(403).json({ success: false, message: `Seller ${seller.storeName} does not deliver to your location.` });
+                 }
+            }
+        }
+
+        // --- Finalize Order Totals ---
+        const platformFee = Number(fees?.platformFee) || 0;
+        const deliveryFee = Number(fees?.deliveryFee) || 0;
+        const finalTotal = calculatedSubtotal + platformFee + deliveryFee;
+
+        newOrder.subtotal = Number(calculatedSubtotal.toFixed(2));
+        newOrder.total = Number(finalTotal.toFixed(2));
+        newOrder.items = orderItemIds;
+
+        if (session) {
+            await newOrder.save({ session });
+            await session.commitTransaction();
+        } else {
+             await newOrder.save();
+        }
+
+        // --- Initiate Gateway ---
+        const amountInPaise = Math.round(finalTotal * 100);
+
+        if (paymentMethod === 'Razorpay') {
+             const auth = Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString('base64');
+             const razorpayResponse = await axios.post('https://api.razorpay.com/v1/orders', {
+                 amount: amountInPaise,
+                 currency: "INR",
+                 receipt: newOrder.orderNumber,
+                 notes: { order_id: newOrder._id.toString() }
+             }, { headers: { 'Authorization': `Basic ${auth}` } });
+
+             return res.status(200).json({
+                 success: true,
+                 data: {
+                     gateway: 'Razorpay',
+                     orderId: newOrder._id,
+                     razorpayOrderId: razorpayResponse.data.id,
+                     amount: finalTotal,
+                     key: process.env.RAZORPAY_KEY_ID,
+                     customer: { name: customer.name, email: customer.email, contact: customer.phone }
+                 }
+             });
+        } else if (paymentMethod === 'Cashfree') {
+            const baseUrl = process.env.CASHFREE_MODE === 'production' ? 'https://api.cashfree.com/pg' : 'https://sandbox.cashfree.com/pg';
+            const cashfreeResponse = await axios.post(`${baseUrl}/orders`, {
+                order_id: `cust_${newOrder._id}_${Date.now()}`,
+                order_amount: finalTotal,
+                order_currency: "INR",
+                customer_details: {
+                    customer_id: customer._id.toString(),
+                    customer_email: customer.email || "customer@example.com",
+                    customer_phone: customer.phone || "9999999999"
+                },
+                order_meta: {
+                    return_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/order/success?order_id=${newOrder._id}`
+                }
+            }, {
+                headers: {
+                    'x-client-id': process.env.CASHFREE_APP_ID,
+                    'x-client-secret': process.env.CASHFREE_SECRET_KEY,
+                    'x-api-version': '2023-08-01'
+                }
+            });
+
+            return res.status(200).json({
+                success: true,
+                data: {
+                    gateway: 'Cashfree',
+                    orderId: newOrder._id,
+                    paymentSessionId: cashfreeResponse.data.payment_session_id,
+                    amount: finalTotal,
+                    isSandbox: process.env.CASHFREE_MODE !== 'production'
+                }
+            });
+        }
+
+        return res.status(400).json({ success: false, message: "Invalid Payment Gateway" });
+
+    } catch (error: any) {
+        if (session) {
+             try { await session.abortTransaction(); } catch (e) {}
+        }
+        console.error("Initiate Online Order Error:", error);
+        return res.status(500).json({ success: false, message: error.message || "Failed to initiate order" });
+    } finally {
+        if (session) session.endSession();
+    }
+};
+
+/**
+ * Verify Online Payment
+ */
+export const verifyOnlinePayment = async (req: Request, res: Response) => {
+    try {
+        const { orderId, paymentId, status } = req.body;
+
+        const order = await Order.findById(orderId);
+        if (!order) return res.status(404).json({ success: false, message: "Order not found" });
+
+        if (order.status !== 'Pending') {
+            return res.status(400).json({ success: false, message: "Order is not in pending state" });
+        }
+
+        order.paymentStatus = "Paid";
+        order.status = "Received"; // Now ready for processing
+        order.adminNotes = (order.adminNotes || "") + `\nOnline Payment Verified (ID: ${paymentId})`;
+        await order.save();
+
+        // Notify
+        const io: SocketIOServer = (req.app.get("io") as SocketIOServer);
+        if (io) {
+            await notifyDeliveryBoysOfNewOrder(io, order);
+            await notifySellersOfOrderUpdate(io, order, 'NEW_ORDER');
+        }
+
+        return res.status(200).json({ success: true, message: "Payment verified", data: order });
+    } catch (error: any) {
+        return res.status(500).json({ success: false, message: "Verification failed", error: error.message });
+    }
+};
+

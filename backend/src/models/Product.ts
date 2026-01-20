@@ -27,6 +27,11 @@ export interface IProduct extends Document {
   stock: number;
   sku?: string;
   barcode?: string;
+  rackNumber?: string;
+  hsnCode?: string;
+  purchasePrice?: number;
+  lowStockQuantity?: number;
+  deliveryTime?: string;
 
   // Variations
   variationType?: string; // e.g., 'Size', 'Color', 'Weight'
@@ -184,6 +189,27 @@ const ProductSchema = new Schema<IProduct>(
       sparse: true,
     },
     barcode: {
+      type: String,
+      trim: true,
+    },
+    rackNumber: {
+      type: String,
+      trim: true,
+    },
+    hsnCode: {
+      type: String,
+      trim: true,
+    },
+    purchasePrice: {
+      type: Number,
+      min: [0, "Purchase price cannot be negative"],
+    },
+    lowStockQuantity: {
+      type: Number,
+      min: [0, "Low stock quantity cannot be negative"],
+      default: 5,
+    },
+    deliveryTime: {
       type: String,
       trim: true,
     },
