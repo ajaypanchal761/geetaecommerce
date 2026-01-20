@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { useLocation as useLocationContext } from '../../hooks/useLocation';
 import { OrderAddress } from '../../types/order';
 import { getAddresses, addAddress, updateAddress, Address } from '../../services/api/customerAddressService';
 import { appConfig } from '../../services/configService';
@@ -12,6 +13,7 @@ export default function CheckoutAddress() {
   const { cart } = useCart();
   const { isAuthenticated } = useAuth();
   const { showToast } = useToast();
+  const { location: userLocation } = useLocationContext();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -28,6 +30,8 @@ export default function CheckoutAddress() {
     pincode: editAddress?.pincode || '',
     state: editAddress?.state || '',
     landmark: editAddress?.landmark || '',
+    latitude: editAddress?.latitude,
+    longitude: editAddress?.longitude,
   });
 
   const [errors, setErrors] = useState<Partial<Record<keyof OrderAddress, string>>>({});
@@ -58,6 +62,8 @@ export default function CheckoutAddress() {
                   state: homeAddr.state || '',
                   pincode: homeAddr.pincode,
                   landmark: homeAddr.landmark || '',
+                  latitude: homeAddr.latitude,
+                  longitude: homeAddr.longitude,
                   id: homeAddr._id,
                 });
               }
@@ -88,6 +94,8 @@ export default function CheckoutAddress() {
           state: existingAddr.state || '',
           pincode: existingAddr.pincode,
           landmark: existingAddr.landmark || '',
+          latitude: existingAddr.latitude,
+          longitude: existingAddr.longitude,
           id: existingAddr._id,
         });
       } else {
@@ -98,6 +106,8 @@ export default function CheckoutAddress() {
           street: '',
           id: undefined,
           _id: undefined,
+          latitude: undefined,
+          longitude: undefined,
         }));
       }
     }
@@ -115,6 +125,8 @@ export default function CheckoutAddress() {
         pincode: editAddress.pincode || '',
         state: editAddress.state || '',
         landmark: editAddress.landmark || '',
+        latitude: editAddress.latitude,
+        longitude: editAddress.longitude,
       });
 
       // Try to set address type based on editAddress if it has one
@@ -182,6 +194,9 @@ export default function CheckoutAddress() {
     setIsSaving(true);
 
     try {
+      const finalLatitude = address.latitude || userLocation?.latitude;
+      const finalLongitude = address.longitude || userLocation?.longitude;
+
       const payload = {
         fullName: address.name,
         phone: address.phone,
@@ -193,7 +208,9 @@ export default function CheckoutAddress() {
         landmark: address.landmark,
         type: addressType.charAt(0).toUpperCase() + addressType.slice(1) as 'Home' | 'Work' | 'Hotel' | 'Other', // Capitalize
         isDefault: true, // Auto set as default for now
-        address: `${address.flat}, ${address.street}` // Fallback combined string
+        address: `${address.flat}, ${address.street}`, // Fallback combined string
+        latitude: finalLatitude,
+        longitude: finalLongitude,
       };
 
       // If editing an existing address, use updateAddress instead

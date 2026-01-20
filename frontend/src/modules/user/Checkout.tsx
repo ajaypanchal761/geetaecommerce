@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation as useRouterLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCart } from '../../context/CartContext';
 import { useOrders } from '../../hooks/useOrders';
@@ -31,6 +31,7 @@ export default function Checkout() {
   const { location: userLocation } = useLocationContext();
   const { showToast: showGlobalToast } = useToast();
   const navigate = useNavigate();
+  const location = useRouterLocation();
   const [tipAmount, setTipAmount] = useState<number | null>(null);
   const [customTipAmount, setCustomTipAmount] = useState<number>(0);
   const [showCustomTipInput, setShowCustomTipInput] = useState(false);
@@ -98,7 +99,7 @@ export default function Checkout() {
       }
     };
     fetchInitialData();
-  }, []);
+  }, [location.key]);
 
   // Fetch similar products dynamically
   useEffect(() => {
@@ -413,7 +414,7 @@ export default function Checkout() {
         }
     } catch (error: any) {
         console.error("Payment Init Error", error);
-        alert(error.message || "Error initiating payment");
+        alert(error.response?.data?.message || error.message || "Error initiating payment");
         setIsProcessingPayment(false);
     }
   };
@@ -795,11 +796,11 @@ export default function Checkout() {
                           <div className="flex items-center gap-1.5">
                             {hasDiscount && (
                               <span className="text-[10px] text-neutral-500 line-through">
-                                ₹{mrp}
+                                ₹{(mrp * item.quantity).toLocaleString()}
                               </span>
                             )}
                             <span className="text-sm font-bold text-neutral-900">
-                              ₹{displayPrice}
+                              ₹{(displayPrice * item.quantity).toLocaleString()}
                             </span>
                           </div>
                         );
