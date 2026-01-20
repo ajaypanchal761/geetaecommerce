@@ -101,6 +101,21 @@ export interface IAppSettings extends Document {
   maintenanceMode: boolean;
   maintenanceMessage?: string;
 
+  // Product Display Settings
+  productDisplaySettings?: Array<{
+    id: string;
+    title: string;
+    description?: string;
+    fields: Array<{
+      id: string;
+      label: string;
+      description?: string;
+      isEnabled: boolean;
+      type?: string;
+      canDelete?: boolean;
+    }>;
+  }>;
+
   // Updated By
   updatedBy?: mongoose.Types.ObjectId;
 
@@ -364,6 +379,34 @@ const AppSettingsSchema = new Schema<IAppSettings>(
       type: String,
       trim: true,
     },
+
+    // Product Display Settings
+    productDisplaySettings: [
+      {
+        id: String,
+        title: String,
+        description: String,
+        fields: [
+          {
+            id: String,
+            label: String,
+            description: String,
+            isEnabled: {
+              type: Boolean,
+              default: true,
+            },
+            type: {
+              type: String,
+              default: "toggle",
+            },
+            canDelete: {
+              type: Boolean,
+              default: false,
+            },
+          },
+        ],
+      },
+    ],
 
     // Updated By
     updatedBy: {

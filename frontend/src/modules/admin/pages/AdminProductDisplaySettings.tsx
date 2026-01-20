@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { getAppSettings, updateAppSettings } from '../../../services/api/admin/adminSettingsService';
+import { useToast } from '../../../context/ToastContext';
 
 interface SettingField {
   id: string;
   label: string;
   description?: string;
   isEnabled: boolean;
-  type?: 'toggle' | 'text';
+  type?: string;
   canDelete?: boolean;
 }
 
@@ -16,92 +18,156 @@ interface SettingSection {
   fields: SettingField[];
 }
 
+const DEFAULT_SECTIONS: SettingSection[] = [
+  {
+    id: 'basic',
+    title: 'Basic Details',
+    description: 'Control what appears on your product page.',
+    fields: [
+      {
+        id: 'category',
+        label: 'Category',
+        description: 'Product Category Information',
+        isEnabled: true,
+      },
+      {
+        id: 'brand',
+        label: 'Brand',
+        description: 'Product Brand Information',
+        isEnabled: true,
+      },
+      {
+        id: 'summary',
+        label: 'Summary',
+        description: '2-3 key points, e.g. 4 star frost free refrigerator',
+        isEnabled: true,
+      },
+      {
+        id: 'description',
+        label: 'Description',
+        description: 'Detailed product description',
+        isEnabled: true,
+      },
+      {
+        id: 'video',
+        label: 'Product Video',
+        description: 'Specify product youtube video link',
+        isEnabled: false,
+      },
+    ],
+  },
+  {
+    id: 'pricing',
+    title: 'Pricing & Tax',
+    fields: [
+      {
+        id: 'tax',
+        label: 'Tax',
+        description: 'Tax related info',
+        isEnabled: true,
+      },
+      {
+        id: 'purchase_price',
+        label: 'Purchase Price',
+        description: 'Purchase price of goods (visible only to you)',
+        isEnabled: true,
+      },
+    ],
+  },
+  {
+    id: 'variants',
+    title: 'Variant Fields',
+    description: 'Add variants for products having more than one option',
+    fields: [
+      {
+        id: 'size',
+        label: 'Size',
+        description: 'Product variant',
+        isEnabled: true,
+        canDelete: true,
+      },
+      {
+        id: 'color',
+        label: 'Color',
+        description: 'Product variant',
+        isEnabled: true,
+        canDelete: true,
+      },
+      {
+        id: 'online_offer_price',
+        label: 'Online Offer Price',
+        description: 'Product variant',
+        isEnabled: false,
+        canDelete: true,
+      },
+    ],
+  },
+];
+
 export default function AdminProductDisplaySettings() {
-  const [sections, setSections] = useState<SettingSection[]>([
-    {
-      id: 'basic',
-      title: 'Basic Details',
-      description: 'Control what appears on your product page.',
-      fields: [
-        {
-          id: 'category',
-          label: 'Category',
-          description: 'Product Category Information',
-          isEnabled: true,
-        },
-        {
-          id: 'brand',
-          label: 'Brand',
-          description: 'Product Brand Information',
-          isEnabled: true,
-        },
-        {
-          id: 'summary',
-          label: 'Summary',
-          description: '2-3 key points, e.g. 4 star frost free refrigerator',
-          isEnabled: true,
-        },
-        {
-          id: 'description',
-          label: 'Description',
-          description: 'Detailed product description',
-          isEnabled: true,
-        },
-        {
-          id: 'video',
-          label: 'Product Video',
-          description: 'Specify product youtube video link',
-          isEnabled: false,
-        },
-      ],
-    },
-    {
-      id: 'pricing',
-      title: 'Pricing & Tax',
-      fields: [
-        {
-          id: 'tax',
-          label: 'Tax',
-          description: 'Tax related info',
-          isEnabled: true,
-        },
-        {
-          id: 'purchase_price',
-          label: 'Purchase Price',
-          description: 'Purchase price of goods (visible only to you)',
-          isEnabled: true,
-        },
-      ],
-    },
-    {
-      id: 'variants',
-      title: 'Variant Fields',
-      description: 'Add variants for products having more than one option',
-      fields: [
-        {
-          id: 'size',
-          label: 'Size',
-          description: 'Product variant',
-          isEnabled: true,
-          canDelete: true,
-        },
-        {
-          id: 'color',
-          label: 'Color',
-          description: 'Product variant',
-          isEnabled: true,
-          canDelete: true,
-        },
-        {
-          id: 'online_offer_price',
-          label: 'Online Offer Price',
-          description: 'Product variant',
-          isEnabled: false,
-          canDelete: true,
-        },
-      ],
-    },
-  ]);
+  const [sections, setSections] = useState<SettingSection[]>(DEFAULT_SECTIONS);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const { showToast } = useToast();
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newVariantName, setNewVariantName] = useState("");
+  const [targetSectionId, setTargetSectionId] = useState("");
+
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [fieldToDelete, setFieldToDelete] = useState<{sectionId: string, fieldId: string} | null>(null);
+
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  const fetchSettings = async () => {
+    try {
+      setLoading(true);
+      const response = await getAppSettings();
+      if (response.success && response.data.productDisplaySettings && response.data.productDisplaySettings.length > 0) {
+        // Map backend response to ensure types match (handling optional fields)
+        const mappedSettings = response.data.productDisplaySettings.map((section: any) => ({
+          ...section,
+          fields: section.fields.map((field: any) => ({
+             ...field,
+             // Ensure defaults if backend misses them
+             type: field.type || 'toggle',
+             canDelete: field.canDelete || false
+          }))
+        }));
+        setSections(mappedSettings);
+      } else {
+        // If no settings exist on backend, use defaults
+         setSections(DEFAULT_SECTIONS);
+      }
+    } catch (error) {
+      console.error('Error fetching settings:', error);
+      showToast('Failed to load settings', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveSettings = async () => {
+    try {
+      setSaving(true);
+      const response = await updateAppSettings({
+        productDisplaySettings: sections,
+      });
+
+      if (response.success) {
+        showToast('Settings saved successfully', 'success');
+      } else {
+         showToast(response.message || 'Failed to save settings', 'error');
+      }
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      showToast('Failed to save settings', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const toggleField = (sectionId: string, fieldId: string) => {
     setSections((prev) =>
@@ -119,19 +185,85 @@ export default function AdminProductDisplaySettings() {
   };
 
   const deleteField = (sectionId: string, fieldId: string) => {
-    if (window.confirm('Are you sure you want to remove this variant field?')) {
-      setSections((prev) =>
-        prev.map((section) =>
-          section.id === sectionId
-            ? {
-                ...section,
-                fields: section.fields.filter((field) => field.id !== fieldId),
-              }
-            : section
-        )
-      );
-    }
+    setFieldToDelete({ sectionId, fieldId });
+    setIsDeleteModalOpen(true);
   };
+
+  const handleConfirmDelete = () => {
+    if (!fieldToDelete) return;
+
+    const { sectionId, fieldId } = fieldToDelete;
+
+    setSections((prev) =>
+      prev.map((section) =>
+        section.id === sectionId
+          ? {
+              ...section,
+              fields: section.fields.filter((field) => field.id !== fieldId),
+            }
+          : section
+      )
+    );
+
+    setIsDeleteModalOpen(false);
+    setFieldToDelete(null);
+  };
+
+  const addField = (sectionId: string) => {
+    setTargetSectionId(sectionId);
+    setNewVariantName("");
+    setIsModalOpen(true);
+  };
+
+  const handleConfirmAdd = () => {
+    if (!newVariantName.trim()) {
+      showToast('Please enter a name', 'error');
+      return;
+    }
+
+    const label = newVariantName.trim();
+    const id = label.toLowerCase().replace(/[^a-z0-9]/g, '_');
+
+    // Check if duplicate
+    const section = sections.find(s => s.id === targetSectionId);
+    if (section && section.fields.some(f => f.id === id)) {
+       showToast('Field with this name already exists', 'error');
+       return;
+    }
+
+    setSections((prev) =>
+      prev.map((section) =>
+        section.id === targetSectionId
+          ? {
+              ...section,
+              fields: [
+                ...section.fields,
+                {
+                  id,
+                  label,
+                  description: 'Product variant',
+                  isEnabled: true,
+                  canDelete: true,
+                  type: 'toggle'
+                }
+              ],
+            }
+          : section
+      )
+    );
+
+    setIsModalOpen(false);
+    setNewVariantName("");
+    setTargetSectionId("");
+  };
+
+  if (loading) {
+     return (
+        <div className="flex items-center justify-center h-full">
+           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
+        </div>
+     )
+  }
 
   return (
     <div className="flex flex-col h-full bg-neutral-50 relative">
@@ -152,10 +284,20 @@ export default function AdminProductDisplaySettings() {
         <div className="grid grid-cols-1 gap-6 max-w-3xl mx-auto">
           {sections.map((section) => (
             <div key={section.id} className="bg-white rounded-lg shadow-sm border border-neutral-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-neutral-100">
-                <h2 className="text-lg font-bold text-neutral-800">{section.title}</h2>
-                {section.description && (
-                  <p className="text-sm text-neutral-500 mt-1">{section.description}</p>
+              <div className="px-6 py-4 border-b border-neutral-100 flex justify-between items-center">
+                <div>
+                  <h2 className="text-lg font-bold text-neutral-800">{section.title}</h2>
+                  {section.description && (
+                    <p className="text-sm text-neutral-500 mt-1">{section.description}</p>
+                  )}
+                </div>
+                {section.id === 'variants' && (
+                  <button
+                    onClick={() => addField(section.id)}
+                    className="text-sm text-teal-600 hover:text-teal-700 font-medium px-3 py-1.5 rounded-md hover:bg-teal-50 transition-colors"
+                  >
+                    + Add Field
+                  </button>
                 )}
               </div>
 
@@ -236,10 +378,77 @@ export default function AdminProductDisplaySettings() {
 
       {/* Footer - Static at bottom of flex column */}
       <div className="bg-white border-t border-neutral-200 p-4 flex justify-end z-20 flex-shrink-0">
-        <button className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 px-6 rounded-lg shadow-sm transition-colors text-sm sm:text-base">
-          Save Changes
+        <button
+           onClick={saveSettings}
+           disabled={saving}
+           className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 px-6 rounded-lg shadow-sm transition-colors text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+        >
+          {saving ? 'Saving...' : 'Save Changes'}
         </button>
       </div>
+
+      {/* Custom Modal */}
+      {isModalOpen && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 transform transition-all">
+            <h3 className="text-lg font-bold text-neutral-900 mb-4">Add New Variant Field</h3>
+            <p className="text-sm text-neutral-500 mb-4">Enter the name for the new variant (e.g., "Material", "Fabric").</p>
+
+            <input
+              type="text"
+              value={newVariantName}
+              onChange={(e) => setNewVariantName(e.target.value)}
+              placeholder="Variant Name"
+              className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 mb-6"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleConfirmAdd();
+                if (e.key === 'Escape') setIsModalOpen(false);
+              }}
+            />
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="px-4 py-2 text-neutral-600 hover:bg-neutral-100 rounded-lg transition-colors font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmAdd}
+                 className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors font-medium"
+              >
+                Add Field
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 transform transition-all">
+            <h3 className="text-lg font-bold text-neutral-900 mb-4">Remove Variant Field?</h3>
+            <p className="text-sm text-neutral-500 mb-6">Are you sure you want to remove this variant field? This action cannot be undone.</p>
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="px-4 py-2 text-neutral-600 hover:bg-neutral-100 rounded-lg transition-colors font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                 className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-medium"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

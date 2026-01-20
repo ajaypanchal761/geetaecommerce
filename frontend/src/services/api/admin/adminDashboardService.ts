@@ -156,9 +156,13 @@ export const getOrderAnalytics = async (
 export interface SalesSummaryData {
   summary: {
     totalSales: number;
+    totalSalesChange: number;
     totalOrders: number;
+    totalOrdersChange: number;
     paidAmount: number;
+    paidAmountChange: number;
     creditAmount: number;
+    creditAmountChange: number;
     totalProfit: number;
     totalLoss: number;
     netProfit: number;

@@ -97,6 +97,19 @@ export interface AppSettings {
     wallet: boolean;
     coupons: boolean;
   };
+  productDisplaySettings?: Array<{
+    id: string;
+    title: string;
+    description?: string;
+    fields: Array<{
+      id: string;
+      label: string;
+      description?: string;
+      isEnabled: boolean;
+      type?: string;
+      canDelete?: boolean;
+    }>;
+  }>;
   maintenanceMode: boolean;
   maintenanceMessage?: string;
   updatedBy?: string;

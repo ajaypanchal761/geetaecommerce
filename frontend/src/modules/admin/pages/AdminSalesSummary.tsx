@@ -195,31 +195,31 @@ const AdminSalesSummary = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <SummaryCard
           title="Total Sales"
-          value={`₹${data?.summary.totalSales.toLocaleString()}`}
+          value={`₹${(data?.summary.totalSales || 0).toLocaleString()}`}
           icon={<FiDollarSign className="w-6 h-6" />}
           color="bg-blue-500"
-          trend="+12.5%"
+          trend={data?.summary.totalSalesChange !== undefined ? `${data.summary.totalSalesChange > 0 ? '+' : ''}${data.summary.totalSalesChange}%` : "0%"}
         />
         <SummaryCard
           title="Total Orders"
-          value={data?.summary.totalOrders.toString() || "0"}
+          value={(data?.summary.totalOrders || 0).toString()}
           icon={<FiShoppingBag className="w-6 h-6" />}
           color="bg-purple-500"
-          trend="+8%"
+          trend={data?.summary.totalOrdersChange !== undefined ? `${data.summary.totalOrdersChange > 0 ? '+' : ''}${data.summary.totalOrdersChange}%` : "0%"}
         />
         <SummaryCard
           title="Paid Amount"
-          value={`₹${data?.summary.paidAmount.toLocaleString()}`}
+          value={`₹${(data?.summary.paidAmount || 0).toLocaleString()}`}
           icon={<FiCheckCircle className="w-6 h-6" />}
           color="bg-green-500"
-          trend="+15%"
+          trend={data?.summary.paidAmountChange !== undefined ? `${data.summary.paidAmountChange > 0 ? '+' : ''}${data.summary.paidAmountChange}%` : "0%"}
         />
         <SummaryCard
           title="Credit Amount"
-          value={`₹${data?.summary.creditAmount.toLocaleString()}`}
+          value={`₹${(data?.summary.creditAmount || 0).toLocaleString()}`}
           icon={<FiCreditCard className="w-6 h-6" />}
           color="bg-orange-500"
-          trend="-2%"
+          trend={data?.summary.creditAmountChange !== undefined ? `${data.summary.creditAmountChange > 0 ? '+' : ''}${data.summary.creditAmountChange}%` : "0%"}
         />
       </div>
 
@@ -227,21 +227,21 @@ const AdminSalesSummary = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         <SummaryCard
           title="Total Profit"
-          value={`₹${data?.summary.totalProfit.toLocaleString()}`}
+          value={`₹${(data?.summary.totalProfit || 0).toLocaleString()}`}
           icon={<FiTrendingUp className="w-6 h-6" />}
           color="bg-teal-600"
           trend="Est."
         />
         <SummaryCard
           title="Total Loss"
-          value={`₹${data?.summary.totalLoss.toLocaleString()}`}
+          value={`₹${(data?.summary.totalLoss || 0).toLocaleString()}`}
           icon={<FiTrendingDown className="w-6 h-6" />}
           color="bg-red-500"
           trend="Est."
         />
         <SummaryCard
           title="Net Profit"
-          value={`₹${data?.summary.netProfit.toLocaleString()}`}
+          value={`₹${(data?.summary.netProfit || 0).toLocaleString()}`}
           icon={<FiDollarSign className="w-6 h-6" />}
           color="bg-indigo-600"
           trend="Final"
@@ -265,7 +265,6 @@ const AdminSalesSummary = () => {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-6 border-b border-gray-50 flex items-center justify-between">
           <h3 className="font-bold text-gray-800">Day-wise Breakdown</h3>
-          <button className="text-teal-600 text-sm font-semibold hover:underline">Export Report</button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
