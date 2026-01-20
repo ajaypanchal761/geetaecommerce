@@ -36,11 +36,15 @@ const SalesSummaryChart = ({ data }: SalesSummaryChartProps) => {
           stroke="#f1f5f9"
         />
         <XAxis
-          dataKey="day"
+          dataKey="date"
           axisLine={false}
           tickLine={false}
           tick={{ fill: '#64748b', fontSize: 12, fontWeight: 500 }}
           dy={10}
+          tickFormatter={(value) => {
+            const d = new Date(value);
+            return `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })}`;
+          }}
         />
         <YAxis
           axisLine={false}
@@ -69,9 +73,20 @@ const SalesSummaryChart = ({ data }: SalesSummaryChartProps) => {
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
+    // Format the date label for better readability in tooltip
+    const dateObj = new Date(label);
+    const formattedDate = dateObj.toLocaleDateString('en-IN', {
+        weekday: 'short',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+    });
+
     return (
       <div className="bg-white p-4 shadow-2xl rounded-xl border border-gray-100 animate-slideUp">
-        <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2 border-b border-gray-50 pb-2">{label}</p>
+        <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2 border-b border-gray-50 pb-2">
+            {formattedDate}
+        </p>
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-8">
             <span className="text-sm text-gray-500 font-medium">Revenue</span>

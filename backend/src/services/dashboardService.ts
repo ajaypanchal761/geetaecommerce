@@ -563,7 +563,78 @@ export const getSalesByLocation = async () => {
  */
 export const getSalesSummary = async (startDate: Date, endDate: Date): Promise<any> => {
   try {
-    const summaryData = await Order.aggregate([
+    // Calculate previous period
+    const duration = endDate.getTime() - startDate.getTime();
+    const prevEndDate = new Date(startDate.getTime());
+    const prevStartDate = new Date(prevEndDate.getTime() - duration);
+
+    // Helper function to get summary stats for a date range
+    const getStats = async (start: Date, end: Date) => {
+      const data = await Order.aggregate([
+        {
+          $match: {
+            orderDate: { $gte: start, $lte: end },
+            status: { $nin: ["Cancelled", "Rejected", "Returned"] }, // Exclude cancelled orders from sales stats
+          },
+        },
+        {
+          $facet: {
+            summary: [
+              {
+                $group: {
+                  _id: null,
+                  totalSales: { $sum: { $ifNull: ["$total", 0] } },
+                  totalOrders: { $sum: 1 },
+                  paidAmount: {
+                    $sum: {
+                      $cond: [
+                        {
+                          $and: [
+                            { $eq: ["$paymentStatus", "Paid"] },
+                            { $in: ["$paymentMethod", ["PAID", "COD", "Cash", "Razorpay", "Cashfree"]] }
+                          ]
+                        },
+                        { $ifNull: ["$total", 0] },
+                        0,
+                      ],
+                    },
+                  },
+                  creditAmount: {
+                    $sum: {
+                      $cond: [
+                        { $eq: ["$paymentMethod", "CREDIT"] },
+                        { $ifNull: ["$total", 0] },
+                        0,
+                      ],
+                    },
+                  },
+                },
+              },
+            ],
+            // Only need accumulation for the main period for daily chart & profit
+            // But we can reuse this function if we only want summary for prev period
+          },
+        },
+      ]);
+      return data[0]?.summary[0] || {
+        totalSales: 0,
+        totalOrders: 0,
+        paidAmount: 0,
+        creditAmount: 0,
+      };
+    };
+
+    const currentStats = await getStats(startDate, endDate);
+    const prevStats = await getStats(prevStartDate, prevEndDate);
+
+    // Calculate percent changes
+    const calculateChange = (current: number, prev: number) => {
+      if (prev === 0) return current > 0 ? 100 : 0;
+      return Math.round(((current - prev) / prev) * 100);
+    };
+
+    // Get Daily Sales and Profit Data (Only for current period)
+    const detailedData = await Order.aggregate([
       {
         $match: {
           orderDate: { $gte: startDate, $lte: endDate },
@@ -572,38 +643,6 @@ export const getSalesSummary = async (startDate: Date, endDate: Date): Promise<a
       },
       {
         $facet: {
-          summary: [
-            {
-              $group: {
-                _id: null,
-                totalSales: { $sum: { $ifNull: ["$total", 0] } },
-                totalOrders: { $sum: 1 },
-                paidAmount: {
-                  $sum: {
-                    $cond: [
-                      {
-                        $and: [
-                          { $eq: ["$paymentStatus", "Paid"] },
-                          { $in: ["$paymentMethod", ["PAID", "COD", "Cash", "Razorpay", "Cashfree"]] }
-                        ]
-                      },
-                      { $ifNull: ["$total", 0] },
-                      0,
-                    ],
-                  },
-                },
-                creditAmount: {
-                  $sum: {
-                    $cond: [
-                      { $eq: ["$paymentMethod", "CREDIT"] },
-                      { $ifNull: ["$total", 0] },
-                      0,
-                    ],
-                  },
-                },
-              },
-            },
-          ],
           dailySales: [
             {
               $group: {
@@ -615,9 +654,7 @@ export const getSalesSummary = async (startDate: Date, endDate: Date): Promise<a
             { $sort: { _id: 1 } },
           ],
           profitData: [
-            {
-              $unwind: "$items"
-            },
+            { $unwind: "$items" },
             {
               $lookup: {
                 from: "orderitems",
@@ -626,9 +663,7 @@ export const getSalesSummary = async (startDate: Date, endDate: Date): Promise<a
                 as: "itemDetails"
               }
             },
-            {
-              $unwind: "$itemDetails"
-            },
+            { $unwind: "$itemDetails" },
             {
               $lookup: {
                 from: "products",
@@ -647,7 +682,18 @@ export const getSalesSummary = async (startDate: Date, endDate: Date): Promise<a
               $group: {
                 _id: null,
                 totalRevenue: { $sum: { $multiply: ["$itemDetails.unitPrice", "$itemDetails.quantity"] } },
-                totalCost: { $sum: { $multiply: [{ $ifNull: ["$productDetails.purchasePrice", "$itemDetails.unitPrice"] }, "$itemDetails.quantity"] } }
+                // Use purchasePrice if available, otherwise fallback to 0 (assuming strictly profit calculation needs cost)
+                // Or user might want: if purchasePrice missing, assume purchasePrice = 0? Or assume purchasePrice = unitPrice (0 profit)?
+                // Let's assume purchasePrice = 0 if missing means 100% profit? No, usually typical ecommerce logic is if cost unknown, profit is accounting issue.
+                // Let's stick to previous logic: fallback to unitPrice means 0 profit for that item.
+                totalCost: {
+                  $sum: {
+                    $multiply: [
+                      { $ifNull: ["$productDetails.purchasePrice", "$itemDetails.unitPrice"] },
+                      "$itemDetails.quantity"
+                    ]
+                  }
+                }
               }
             }
           ]
@@ -655,19 +701,13 @@ export const getSalesSummary = async (startDate: Date, endDate: Date): Promise<a
       },
     ]);
 
-    const summary = summaryData[0]?.summary[0] || {
-      totalSales: 0,
-      totalOrders: 0,
-      paidAmount: 0,
-      creditAmount: 0,
-    };
-
-    const profitInfo = summaryData[0]?.profitData[0] || { totalRevenue: 0, totalCost: 0 };
+    const profitInfo = detailedData[0]?.profitData[0] || { totalRevenue: 0, totalCost: 0 };
     const totalProfit = profitInfo.totalRevenue - profitInfo.totalCost;
 
+    // Daily Data Filling
     const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const dailyMap = new Map();
-    (summaryData[0]?.dailySales || []).forEach((item: any) => {
+    (detailedData[0]?.dailySales || []).forEach((item: any) => {
       dailyMap.set(item._id, item);
     });
 
@@ -688,7 +728,18 @@ export const getSalesSummary = async (startDate: Date, endDate: Date): Promise<a
 
     return {
       summary: {
-        ...summary,
+        totalSales: currentStats.totalSales,
+        totalSalesChange: calculateChange(currentStats.totalSales, prevStats.totalSales),
+
+        totalOrders: currentStats.totalOrders,
+        totalOrdersChange: calculateChange(currentStats.totalOrders, prevStats.totalOrders),
+
+        paidAmount: currentStats.paidAmount,
+        paidAmountChange: calculateChange(currentStats.paidAmount, prevStats.paidAmount),
+
+        creditAmount: currentStats.creditAmount,
+        creditAmountChange: calculateChange(currentStats.creditAmount, prevStats.creditAmount),
+
         totalProfit,
         totalLoss: totalProfit < 0 ? Math.abs(totalProfit) : 0,
         netProfit: totalProfit > 0 ? totalProfit : 0
