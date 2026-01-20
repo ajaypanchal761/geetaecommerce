@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { getPOSReport, getStockLedger } from "../../../services/api/admin/adminOrderService";
+import { getPOSReport, getStockLedger, deletePOSOrder } from "../../../services/api/admin/adminOrderService";
 import { useToast } from "../../../context/ToastContext";
 
 const FiTrendingUp = ({ className }: { className?: string }) => (
@@ -62,6 +62,26 @@ const AdminPOSReport = () => {
     useEffect(() => {
         fetchData();
     }, []);
+
+    const handleDeleteOrder = async (orderId: string) => {
+        if (window.confirm("Are you sure you want to delete this POS order? This will restore the stock.")) {
+            try {
+                setLoading(true);
+                const response = await deletePOSOrder(orderId);
+                if (response.success) {
+                    showToast("Order deleted and stock restored", "success");
+                    fetchData(); // Refresh data
+                } else {
+                    showToast(response.message || "Failed to delete order", "error");
+                }
+            } catch (error) {
+                console.error("Error deleting order:", error);
+                showToast("An error occurred while deleting the order", "error");
+            } finally {
+                setLoading(false);
+            }
+        }
+    };
 
     const filteredOrders = reportData?.orders?.filter((order: any) => {
         if (filter === "all") return true;
@@ -177,15 +197,16 @@ const AdminPOSReport = () => {
                                     <tr>
                                         <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Order No</th>
                                         <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Customer</th>
-                                        <th className="px-6 py-4 text-[10px) font-bold text-gray-400 uppercase tracking-wider">Amount</th>
+                                        <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Amount</th>
                                         <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Method</th>
                                         <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Status</th>
                                         <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Time</th>
+                                        <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
                                     {filteredOrders.length === 0 ? (
-                                        <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-400 italic">No orders found for today</td></tr>
+                                        <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-400 italic">No orders found for today</td></tr>
                                     ) : (
                                         filteredOrders.map((order: any) => (
                                             <tr key={order._id} className="hover:bg-gray-50/80 transition-colors">
@@ -207,6 +228,20 @@ const AdminPOSReport = () => {
                                                 </td>
                                                 <td className="px-6 py-4 text-xs text-gray-500 whitespace-nowrap">
                                                     {new Date(order.orderDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <button
+                                                        onClick={() => handleDeleteOrder(order._id)}
+                                                        className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors"
+                                                        title="Delete Order"
+                                                    >
+                                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                            <polyline points="3 6 5 6 21 6"></polyline>
+                                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                                            <line x1="10" y1="11" x2="10" y2="17"></line>
+                                                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                                                        </svg>
+                                                    </button>
                                                 </td>
                                             </tr>
                                         ))

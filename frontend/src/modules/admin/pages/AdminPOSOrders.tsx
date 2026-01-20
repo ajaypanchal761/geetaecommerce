@@ -78,7 +78,8 @@ const AdminPOSOrders = () => {
 
   const selectCustomer = (c: Customer) => {
       setSelectedCustomer(c);
-      setCustomerSearch(`${c.name} (${c.phone})`);
+      const displayName = c.phone ? `${c.name} (${c.phone})` : c.name;
+      setCustomerSearch(displayName);
       setShowCustomerDropdown(false);
   };
 
@@ -257,6 +258,12 @@ const AdminPOSOrders = () => {
         showToast("Cart is empty", "error");
         return;
     }
+
+    if (!selectedCustomer) {
+        showToast("Please select a customer first", "error");
+        return;
+    }
+
     setShowPaymentModal(true);
   };
 
@@ -555,8 +562,12 @@ const AdminPOSOrders = () => {
                         value={customerSearch}
                         onChange={(e) => {
                             setCustomerSearch(e.target.value);
-                            if (selectedCustomer && e.target.value !== `${selectedCustomer.name} (${selectedCustomer.phone})`) {
-                                setSelectedCustomer(null); // Reset selection if typing
+                            // Reset selection if user modifies the text
+                            if (selectedCustomer) {
+                                const expected = selectedCustomer.phone ? `${selectedCustomer.name} (${selectedCustomer.phone})` : selectedCustomer.name;
+                                if (e.target.value !== expected) {
+                                  setSelectedCustomer(null);
+                                }
                             }
                         }}
                         onFocus={() => {

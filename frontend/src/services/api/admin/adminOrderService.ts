@@ -276,3 +276,11 @@ export const processPOSExchange = async (data: any): Promise<ApiResponse<any>> =
   const response = await api.post<ApiResponse<any>>("/admin/pos/exchange", data);
   return response.data;
 };
+
+/**
+ * Delete POS Order
+ */
+export const deletePOSOrder = async (id: string): Promise<ApiResponse<any>> => {
+  const response = await api.delete<ApiResponse<any>>(`/admin/orders/pos/${id}`);
+  return response.data;
+};

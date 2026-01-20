@@ -31,9 +31,23 @@ import {
 import ThemedDropdown from "../components/ThemedDropdown";
 import { Html5Qrcode } from "html5-qrcode";
 
+import { getAppSettings } from "../../../services/api/admin/adminSettingsService";
+
 export default function AdminAddProduct() {
   const navigate = useNavigate();
   const { id } = useParams();
+
+  // Dynamic Field Settings State
+  const [fieldVisibility, setFieldVisibility] = useState<Record<string, boolean>>({
+    category: true,
+    brand: true,
+    summary: true,
+    description: true,
+    video: true,
+    tax: true,
+    purchase_price: true,
+  });
+
   const [formData, setFormData] = useState({
     productName: "",
     headerCategory: "",
@@ -62,7 +76,6 @@ export default function AdminAddProduct() {
     galleryImageUrls: [] as string[],
     isShopByStoreOnly: "No",
     shopId: "",
-    pack: "",
     pack: "",
     barcode: "",
     itemCode: "", // sku alias
@@ -106,6 +119,91 @@ export default function AdminAddProduct() {
     []
   );
   const [shops, setShops] = useState<Shop[]>([]);
+
+  // Print Barcode State
+  const [printQuantity, setPrintQuantity] = useState("1");
+  const [selectedPrintBarcode, setSelectedPrintBarcode] = useState("");
+
+  useEffect(() => {
+    const fetchFieldSettings = async () => {
+        try {
+            const response = await getAppSettings();
+            if (response.success && response.data?.productDisplaySettings) {
+                const settings = response.data.productDisplaySettings;
+                const newVisibility: Record<string, boolean> = { ...fieldVisibility };
+
+                settings.forEach((section: any) => {
+                    if (section.fields) {
+                        section.fields.forEach((field: any) => {
+                            // Map settings IDs to local visibility keys
+                            if (Object.keys(newVisibility).includes(field.id)) {
+                                newVisibility[field.id] = field.isEnabled;
+                            }
+                        });
+                    }
+                });
+                setFieldVisibility(newVisibility);
+            }
+        } catch (error) {
+            console.error("Failed to fetch product display settings", error);
+        }
+    };
+    fetchFieldSettings();
+  }, []);
+
+  const handlePrintBarcode = (barcodeVal: string, qty: number) => {
+    if(!barcodeVal) return;
+    const printWindow = window.open('', '_blank');
+    if(!printWindow) {
+        alert("Please allow popups to print barcodes");
+        return;
+    }
+
+    const htmlContent = `
+      <html>
+        <head>
+          <title>Print Barcodes</title>
+          <style>
+            body { font-family: sans-serif; padding: 20px; }
+            .barcode-grid { display: flex; flex-wrap: wrap; gap: 15px; }
+            .barcode-container { text-align: center; border: 1px dashed #ccc; padding: 10px; page-break-inside: avoid; display: flex; flex-col; align-items: center; justify-content: center; }
+            @media print {
+              @page { margin: 0; }
+              .barcode-container { break-inside: avoid; border: none; }
+              body { margin: 1cm; }
+            }
+          </style>
+          <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+        </head>
+        <body>
+          <div class="barcode-grid">
+          ${Array(qty).fill(0).map(() => `
+            <div class="barcode-container">
+              <svg class="barcode"
+                jsbarcode-format="CODE128"
+                jsbarcode-value="${barcodeVal}"
+                jsbarcode-width="2"
+                jsbarcode-height="50"
+                jsbarcode-textmargin="0"
+                jsbarcode-fontoptions="bold">
+              </svg>
+            </div>
+          `).join('')}
+          </div>
+          <script>
+            JsBarcode(".barcode").init();
+            // Auto print after a short delay to ensure rendering
+            setTimeout(() => {
+                window.print();
+                // window.close(); // Optional: close after print
+            }, 500);
+          </script>
+        </body>
+      </html>
+    `;
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -490,13 +588,15 @@ export default function AdminAddProduct() {
 
     // Only validate categories if NOT shop by store only
     if (formData.isShopByStoreOnly !== "Yes") {
-      if (!formData.headerCategory) {
-        setUploadError("Please select a header category.");
-        return;
-      }
-      if (!formData.category) {
-        setUploadError("Please select a category.");
-        return;
+      if (fieldVisibility.category) {
+          if (!formData.headerCategory) {
+            setUploadError("Please select a header category.");
+            return;
+          }
+          if (!formData.category) {
+            setUploadError("Please select a category.");
+            return;
+          }
       }
     } else {
       // If shop by store only is Yes, then shopId is required
@@ -753,68 +853,72 @@ export default function AdminAddProduct() {
                    />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
-                    Header Category <span className="text-red-500">*</span>
-                  </label>
-                  <ThemedDropdown
-                    options={headerCategories.map(hc => ({ id: hc._id, label: hc.name, value: hc._id }))}
-                    value={formData.headerCategory}
-                    onChange={(val) => setFormData(prev => ({ ...prev, headerCategory: val }))}
-                    placeholder="Select Header Category"
-                  />
-                </div>
+                {fieldVisibility.category && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                        Header Category <span className="text-red-500">*</span>
+                      </label>
+                      <ThemedDropdown
+                        options={headerCategories.map(hc => ({ id: hc._id, label: hc.name, value: hc._id }))}
+                        value={formData.headerCategory}
+                        onChange={(val) => setFormData(prev => ({ ...prev, headerCategory: val }))}
+                        placeholder="Select Header Category"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
-                    Category
-                  </label>
-                  <ThemedDropdown
-                    options={categories
-                      .filter((cat: any) => {
-                        if (formData.headerCategory) {
-                          const catHeaderId = typeof cat.headerCategoryId === "string"
-                              ? cat.headerCategoryId
-                              : cat.headerCategoryId?._id;
-                          return catHeaderId === formData.headerCategory;
+                    <div>
+                      <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                        Category
+                      </label>
+                      <ThemedDropdown
+                        options={categories
+                          .filter((cat: any) => {
+                            if (formData.headerCategory) {
+                              const catHeaderId = typeof cat.headerCategoryId === "string"
+                                  ? cat.headerCategoryId
+                                  : cat.headerCategoryId?._id;
+                              return catHeaderId === formData.headerCategory;
+                            }
+                            return true;
+                          })
+                          .map((cat: any) => ({ id: cat._id || cat.id, label: cat.name, value: cat._id || cat.id }))
                         }
-                        return true;
-                      })
-                      .map((cat: any) => ({ id: cat._id || cat.id, label: cat.name, value: cat._id || cat.id }))
-                    }
-                    value={formData.category}
-                    onChange={(val) => setFormData(prev => ({ ...prev, category: val }))}
-                    placeholder={formData.headerCategory ? "Select Category" : "Select Header Category First"}
-                    disabled={!formData.headerCategory}
-                  />
-                </div>
+                        value={formData.category}
+                        onChange={(val) => setFormData(prev => ({ ...prev, category: val }))}
+                        placeholder={formData.headerCategory ? "Select Category" : "Select Header Category First"}
+                        disabled={!formData.headerCategory}
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
-                    SubCategory
-                  </label>
-                  <ThemedDropdown
-                    options={subcategories.map(sub => ({ id: sub._id, label: sub.subcategoryName, value: sub._id }))}
-                    value={formData.subcategory}
-                    onChange={(val) => setFormData(prev => ({ ...prev, subcategory: val }))}
-                    placeholder={formData.category ? "Select Subcategory" : "Select Category First"}
-                    disabled={!formData.category}
-                  />
-                </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                        SubCategory
+                      </label>
+                      <ThemedDropdown
+                        options={subcategories.map(sub => ({ id: sub._id, label: sub.subcategoryName, value: sub._id }))}
+                        value={formData.subcategory}
+                        onChange={(val) => setFormData(prev => ({ ...prev, subcategory: val }))}
+                        placeholder={formData.category ? "Select Subcategory" : "Select Category First"}
+                        disabled={!formData.category}
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
-                    Sub-SubCategory
-                  </label>
-                  <input
-                    type="text"
-                    name="subSubCategory"
-                    value={formData.subSubCategory}
-                    onChange={handleChange}
-                    placeholder="Enter Sub-SubCategory"
-                    className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                        Sub-SubCategory
+                      </label>
+                      <input
+                        type="text"
+                        name="subSubCategory"
+                        value={formData.subSubCategory}
+                        onChange={handleChange}
+                        placeholder="Enter Sub-SubCategory"
+                        className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
+                      />
+                    </div>
+                  </>
+                )}
 
                 <div>
                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
@@ -849,17 +953,19 @@ export default function AdminAddProduct() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
-                    Brand
-                  </label>
-                  <ThemedDropdown
-                    options={brands.map(brand => ({ id: brand._id, label: brand.name, value: brand._id }))}
-                    value={formData.brand}
-                    onChange={(val) => setFormData(prev => ({ ...prev, brand: val }))}
-                    placeholder="Select Brand"
-                  />
-                </div>
+                {fieldVisibility.brand && (
+                  <div>
+                    <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                      Brand
+                    </label>
+                    <ThemedDropdown
+                      options={brands.map(brand => ({ id: brand._id, label: brand.name, value: brand._id }))}
+                      value={formData.brand}
+                      onChange={(val) => setFormData(prev => ({ ...prev, brand: val }))}
+                      placeholder="Select Brand"
+                    />
+                  </div>
+                )}
 
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
@@ -876,19 +982,21 @@ export default function AdminAddProduct() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-neutral-700 mb-2">
-                  Short Description
-                </label>
-                <textarea
-                  name="smallDescription"
-                  value={formData.smallDescription}
-                  onChange={handleChange}
-                  placeholder="Enter a brief product description..."
-                  rows={4}
-                  className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 resize-none transition-all"
-                />
-              </div>
+              {fieldVisibility.summary && (
+                <div>
+                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                    Short Description
+                  </label>
+                  <textarea
+                    name="smallDescription"
+                    value={formData.smallDescription}
+                    onChange={handleChange}
+                    placeholder="Enter a brief product description..."
+                    rows={4}
+                    className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 resize-none transition-all"
+                  />
+                </div>
+              )}
             </div>
           </div>
 
@@ -1172,17 +1280,19 @@ export default function AdminAddProduct() {
                     className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
-                    Tax Category
-                  </label>
-                  <ThemedDropdown
-                    options={taxes.map(tax => ({ id: tax._id, label: `${tax.name} (${tax.percentage}%)`, value: tax._id }))}
-                    value={formData.tax}
-                    onChange={(val) => setFormData(prev => ({ ...prev, tax: val }))}
-                    placeholder="Select Tax"
-                  />
-                </div>
+                {fieldVisibility.tax && (
+                  <div>
+                    <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                      Tax Category
+                    </label>
+                    <ThemedDropdown
+                      options={taxes.map(tax => ({ id: tax._id, label: `${tax.name} (${tax.percentage}%)`, value: tax._id }))}
+                      value={formData.tax}
+                      onChange={(val) => setFormData(prev => ({ ...prev, tax: val }))}
+                      placeholder="Select Tax"
+                    />
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     Returnable?
@@ -1250,19 +1360,21 @@ export default function AdminAddProduct() {
                   />
                 </div>
 
-                <div>
-                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
-                    Purchase Price (₹)
-                   </label>
-                   <input
-                     type="number"
-                     name="purchasePrice"
-                     value={(formData as any).purchasePrice}
-                     onChange={handleChange}
-                     placeholder="Enter Purchase Price"
-                     className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
-                   />
-                </div>
+                {fieldVisibility.purchase_price && (
+                  <div>
+                     <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                      Purchase Price (₹)
+                     </label>
+                     <input
+                       type="number"
+                       name="purchasePrice"
+                       value={(formData as any).purchasePrice}
+                       onChange={handleChange}
+                       placeholder="Enter Purchase Price"
+                       className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
+                     />
+                  </div>
+                )}
 
                 <div>
                    <label className="block text-sm font-semibold text-neutral-700 mb-2">
@@ -1313,6 +1425,56 @@ export default function AdminAddProduct() {
                         Scan Code
                     </button>
                   </div>
+                </div>
+
+                {/* Print Barcode Section */}
+                <div className="md:col-span-2 border-t border-neutral-100 pt-4 mt-2">
+                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                    Print Barcodes
+                   </label>
+                   <div className="bg-neutral-50 p-4 rounded-lg border border-neutral-200">
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                       <div>
+                          <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">Quantity</label>
+                          <input
+                             type="number"
+                             min="1"
+                             value={printQuantity}
+                             onChange={(e) => setPrintQuantity(e.target.value)}
+                             className="w-full px-3 py-2.5 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                             placeholder="How many copies?"
+                          />
+                       </div>
+
+                       <div>
+                         <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">Select Barcode</label>
+                         <select
+                           className="w-full px-3 py-2.5 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                           value={selectedPrintBarcode}
+                           onChange={(e) => {
+                             setSelectedPrintBarcode(e.target.value);
+                             // If user selects a barcode, and valid, we could potentially auto-trigger print if requested?
+                             // User said: "jaise hi dropdown se select kare ... print popup khul jana chahiye"
+                             // So I can trigger handlePrintBarcode here directly!
+                             if(e.target.value) {
+                                handlePrintBarcode(e.target.value, parseInt(printQuantity) || 1);
+                             }
+                           }}
+                         >
+                           <option value="">-- Select to Print --</option>
+                           {(formData as any).barcode && (
+                               <option value={(formData as any).barcode}>{(formData as any).barcode} (Main Product)</option>
+                           )}
+                           {variations.map((v, idx) => v.barcode ? (
+                               <option key={idx} value={v.barcode}>{v.barcode} ({v.title})</option>
+                           ) : null)}
+                         </select>
+                       </div>
+                     </div>
+                     <p className="text-xs text-neutral-500 mt-2">
+                       * Select a barcode to immediately open the print preview.
+                     </p>
+                   </div>
                 </div>
               </div>
             </div>

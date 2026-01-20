@@ -10,7 +10,7 @@ import {
 // Base API URL - adjust based on your backend URL
 // In development, use relative URL to leverage Vite proxy
 // In production, use full URL or environment variable
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
   || (import.meta.env.DEV ? "/api/v1" : "http://localhost:5000/api/v1");
 
 // Log API configuration on startup (only in development)

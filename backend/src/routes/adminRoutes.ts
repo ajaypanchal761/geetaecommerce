@@ -9,6 +9,7 @@ import * as productController from "../modules/admin/controllers/adminProductCon
 
 // Order Controllers
 import * as orderController from "../modules/admin/controllers/adminOrderController";
+import * as deletePOSOrderController from "../modules/admin/controllers/deletePOSOrderController";
 
 // Customer Controllers
 import * as customerController from "../modules/admin/controllers/adminCustomerController";
@@ -155,6 +156,7 @@ router.post("/orders/pos/verify", orderController.verifyPOSPayment);
 router.get("/pos/report", orderController.getPOSReport);
 router.get("/pos/stock-ledger", orderController.getPOSStockLedger);
 router.post("/pos/exchange", orderController.processPOSExchange);
+router.delete("/orders/pos/:id", deletePOSOrderController.deletePOSOrder);
 
 // ==================== Order Routes ====================
 router.get("/orders", orderController.getAllOrders);
@@ -289,15 +291,6 @@ router.put("/faqs/:id", faqController.updateFAQ);
 router.patch("/faqs/:id/status", faqController.updateFAQStatus);
 router.delete("/faqs/:id", faqController.deleteFAQ);
 router.put("/faqs/order", faqController.updateFAQOrder);
-
-// ==================== Role Routes ====================
-// Manage Roles functionality removed from admin panel
-// router.get("/roles/permissions", roleController.getPermissions);
-// router.get("/roles", roleController.getRoles);
-// router.get("/roles/:id", roleController.getRoleById);
-// router.post("/roles", roleController.createRole);
-// router.put("/roles/:id", roleController.updateRole);
-// router.delete("/roles/:id", roleController.deleteRole);
 
 // ==================== Policy Routes ====================
 router.post("/policies", policyController.createPolicy);

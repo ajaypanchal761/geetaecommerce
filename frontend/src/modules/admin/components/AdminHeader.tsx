@@ -105,13 +105,7 @@ export default function AdminHeader({ onMenuClick, isSidebarOpen }: AdminHeaderP
           >
             Manage Customer
           </button>
-          <button
-            onClick={() => navigate('/admin/collect-cash')}
-            className={`px-3 lg:px-4 py-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${isActive('/admin/collect-cash') ? 'text-neutral-900' : 'text-neutral-600 hover:text-neutral-900'
-              }`}
-          >
-            Collect Cash
-          </button>
+
         </div>
 
         {/* Action Icons */}

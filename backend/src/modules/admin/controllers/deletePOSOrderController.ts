@@ -1,3 +1,10 @@
+import { Request, Response } from "express";
+import { asyncHandler } from "../../../utils/asyncHandler";
+import Order from "../../../models/Order";
+import OrderItem from "../../../models/OrderItem";
+import Product from "../../../models/Product";
+import StockLedger from "../../../models/StockLedger";
+
 /**
  * Delete POS Order and Restore Stock
  */
@@ -28,7 +35,7 @@ export const deletePOSOrder = asyncHandler(
 
     for (const item of orderItems) {
       if (item.product) {
-        const product = await Product.findById(item.product);
+        const product = await Product.findById(item.product as any);
         if (product) {
           const prevStock = product.stock;
           const returnQty = item.quantity;
