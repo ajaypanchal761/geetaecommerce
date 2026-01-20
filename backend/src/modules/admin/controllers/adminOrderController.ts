@@ -11,6 +11,7 @@ import { notifySellersOfOrderUpdate } from "../../../services/sellerNotification
 import Product from "../../../models/Product";
 import Customer from "../../../models/Customer";
 import { Server as SocketIOServer } from "socket.io";
+import StockLedger from "../../../models/StockLedger";
 
 /**
  * Get all orders with filters
@@ -732,6 +733,62 @@ export const createPOSOrder = asyncHandler(
 
     await order.save();
 
+    // --- STOCK MANAGEMENT ---
+    for (const item of items) {
+       if (mongoose.Types.ObjectId.isValid(item.productId)) {
+           const product = await Product.findById(item.productId);
+           if (product) {
+               const prevStock = product.stock;
+               const soldQty = Number(item.quantity) || 0;
+
+               if (item.variationId && product.variations) {
+                   // Handle Variation Stock
+                   const variationIndex = product.variations.findIndex(v => v._id?.toString() === item.variationId.toString());
+                   if (variationIndex > -1) {
+                       const prevVarStock = product.variations[variationIndex].stock || 0;
+                       product.variations[variationIndex].stock = Math.max(0, prevVarStock - soldQty);
+
+                       // Also update total stock if it's mirrored (mirrored in pre-save, but let's be explicit)
+                       product.stock = Math.max(0, prevStock - soldQty);
+
+                       await product.save();
+
+                       // Create Ledger Entry
+                       await StockLedger.create({
+                           product: product._id,
+                           variationId: item.variationId,
+                           sku: product.variations[variationIndex].sku || product.sku,
+                           quantity: soldQty,
+                           type: "OUT",
+                           source: "POS",
+                           referenceId: order._id,
+                           previousStock: prevVarStock,
+                           newStock: product.variations[variationIndex].stock,
+                           admin: req.user?.userId
+                       });
+                   }
+               } else {
+                   // Handle Main Product Stock
+                   product.stock = Math.max(0, prevStock - soldQty);
+                   await product.save();
+
+                   // Create Ledger Entry
+                   await StockLedger.create({
+                       product: product._id,
+                       sku: product.sku || "N/A",
+                       quantity: soldQty,
+                       type: "OUT",
+                       source: "POS",
+                       referenceId: order._id,
+                       previousStock: prevStock,
+                       newStock: product.stock,
+                       admin: req.user?.userId
+                   });
+               }
+           }
+       }
+    }
+
     return res.status(201).json({
       success: true,
       message: "POS Order created successfully",
@@ -938,7 +995,7 @@ export const initiatePOSOnlineOrder = asyncHandler(
  */
 export const verifyPOSPayment = asyncHandler(
   async (req: Request, res: Response) => {
-    const { orderId, paymentId, status } = req.body; // status = 'success' from frontend
+    const { orderId, paymentId } = req.body;
 
     const order = await Order.findById(orderId);
     if (!order) {
@@ -953,12 +1010,422 @@ export const verifyPOSPayment = asyncHandler(
 
     await order.save();
 
+    // --- STOCK MANAGEMENT for Online POS orders when verified ---
+    const orderItems = await OrderItem.find({ order: order._id });
+    for (const item of orderItems) {
+        if (item.product) {
+            const product = await Product.findById(item.product);
+            if (product) {
+                const prevStock = product.stock;
+                const soldQty = item.quantity;
+
+                // For Online orders, we reduce from main stock or variation if identifiable
+                // Since initiatePOSOnlineOrder doesn't store variationId in orderItem yet,
+                // we'll at least reduce from total stock if SKU matches variation we can try to find it.
+
+                let stockUpdated = false;
+                if (item.sku && product.variations) {
+                    const vIndex = product.variations.findIndex(v => v.sku === item.sku);
+                    if (vIndex > -1) {
+                        const prevVarStock = product.variations[vIndex].stock || 0;
+                        product.variations[vIndex].stock = Math.max(0, prevVarStock - soldQty);
+                        product.stock = Math.max(0, prevStock - soldQty);
+                        await product.save();
+
+                        await StockLedger.create({
+                            product: product._id,
+                            variationId: product.variations[vIndex]._id,
+                            sku: item.sku,
+                            quantity: soldQty,
+                            type: "OUT",
+                            source: "POS",
+                            referenceId: order._id,
+                            previousStock: prevVarStock,
+                            newStock: product.variations[vIndex].stock,
+                            admin: req.user?.userId
+                        });
+                        stockUpdated = true;
+                    }
+                }
+
+                if (!stockUpdated) {
+                    product.stock = Math.max(0, prevStock - soldQty);
+                    await product.save();
+
+                    await StockLedger.create({
+                        product: product._id,
+                        sku: item.sku || product.sku || "N/A",
+                        quantity: soldQty,
+                        type: "OUT",
+                        source: "POS",
+                        referenceId: order._id,
+                        previousStock: prevStock,
+                        newStock: product.stock,
+                        admin: req.user?.userId
+                    });
+                }
+
+                // --- SOCKET EMIT ---
+                const io = req.app.get("io");
+                if (io) {
+                    io.emit("stock-update", {
+                        productId: product._id,
+                        newStock: product.stock
+                    });
+                }
+            }
+        }
+    }
+
     // Update items status
     await OrderItem.updateMany({ order: order._id }, { status: "Delivered" });
 
     return res.status(200).json({
         success: true,
         message: "Payment verified and Order completed"
+    });
+  }
+);
+
+/**
+ * Get POS Report (Summary + Recent Orders)
+ */
+export const getPOSReport = asyncHandler(
+  async (req: Request, res: Response) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    // Filter POS orders for today
+    // POS orders have adminNotes saying "Created via POS System" or "POS Online Order..."
+    // Ideally we should have a 'source' field in Order model, but since we don't,
+    // we'll check adminNotes or if deliveryAddress is 'POS Order' (set in createPOSOrder)
+    const posQuery: any = {
+      orderDate: { $gte: today, $lt: tomorrow },
+      $or: [
+        { adminNotes: { $regex: "POS", $options: "i" } },
+        { "deliveryAddress.address": "POS Order" }
+      ]
+    };
+
+    const summary = await Order.aggregate([
+      { $match: posQuery },
+      {
+        $group: {
+          _id: null,
+          totalSales: { $sum: "$total" },
+          totalOrders: { $count: {} },
+          cashSales: {
+            $sum: { $cond: [{ $eq: ["$paymentMethod", "Cash"] }, "$total", 0] }
+          },
+          onlineSales: {
+            $sum: { $cond: [{ $ne: ["$paymentMethod", "Cash"] }, "$total", 0] }
+          },
+          paidAmount: {
+            $sum: { $cond: [{ $eq: ["$paymentStatus", "Paid"] }, "$total", 0] }
+          },
+          unpaidAmount: {
+            $sum: { $cond: [{ $ne: ["$paymentStatus", "Paid"] }, "$total", 0] }
+          }
+        }
+      }
+    ]);
+
+    const recentOrders = await Order.find(posQuery)
+      .sort({ orderDate: -1 })
+      .limit(50)
+      .populate("customer", "name phone");
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        summary: summary[0] || {
+          totalSales: 0,
+          totalOrders: 0,
+          cashSales: 0,
+          onlineSales: 0,
+          paidAmount: 0,
+          unpaidAmount: 0
+        },
+        orders: recentOrders
+      }
+    });
+  }
+);
+
+/**
+ * Get POS Stock Ledger
+ */
+export const getPOSStockLedger = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { page = 1, limit = 50, productId, sku, type } = req.query;
+    const query: any = {};
+
+    if (productId) query.product = productId;
+    if (sku) query.sku = sku;
+    if (type) query.type = type;
+
+    const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
+
+    const [ledger, total] = await Promise.all([
+      StockLedger.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit as string))
+        .populate("product", "productName mainImage sku"),
+      StockLedger.countDocuments(query)
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: ledger,
+      pagination: {
+        total,
+        page: parseInt(page as string),
+        limit: parseInt(limit as string),
+        pages: Math.ceil(total / parseInt(limit as string))
+      }
+    });
+  }
+);
+
+/**
+ * Process POS Exchange
+ */
+export const processPOSExchange = asyncHandler(
+  async (req: Request, res: Response) => {
+    const {
+      customerId,
+      returnItems, // [{ productId, variationId, quantity, price }]
+      newItems,    // [{ productId, variationId, quantity, price }]
+      paymentMethod,
+      isDifferencePaid // boolean
+    } = req.body;
+
+    if (!customerId || !returnItems || !newItems) {
+       return res.status(400).json({ success: false, message: "Missing required fields" });
+    }
+
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      // 1. Process Returns
+      for (const item of returnItems) {
+        if (mongoose.Types.ObjectId.isValid(item.productId)) {
+          const product = await Product.findById(item.productId).session(session);
+          if (product) {
+            const qty = Number(item.quantity);
+            const prevStock = product.stock;
+
+            if (item.variationId && product.variations) {
+              const vIndex = product.variations.findIndex((v: any) => v._id?.toString() === item.variationId.toString());
+              if (vIndex > -1) {
+                const prevVarStock = product.variations[vIndex].stock || 0;
+                product.variations[vIndex].stock = prevVarStock + qty;
+                product.stock = prevStock + qty;
+                await product.save({ session });
+
+                await StockLedger.create([{
+                  product: product._id,
+                  variationId: item.variationId,
+                  sku: product.variations[vIndex].sku || product.sku,
+                  quantity: qty,
+                  type: "IN",
+                  source: "EXCHANGE",
+                  previousStock: prevVarStock,
+                  newStock: product.variations[vIndex].stock,
+                  admin: req.user?.userId
+                }], { session });
+              }
+            } else {
+              product.stock = prevStock + qty;
+              await product.save({ session });
+
+              await StockLedger.create([{
+                  product: product._id,
+                  sku: product.sku || "N/A",
+                  quantity: qty,
+                  type: "IN",
+                  source: "EXCHANGE",
+                  previousStock: prevStock,
+                  newStock: product.stock,
+                  admin: req.user?.userId
+              }], { session });
+            }
+          }
+        }
+      }
+
+      // 2. Process Sales
+      for (const item of newItems) {
+        if (mongoose.Types.ObjectId.isValid(item.productId)) {
+          const product = await Product.findById(item.productId).session(session);
+          if (product) {
+            const qty = Number(item.quantity);
+            const prevStock = product.stock;
+
+            if (item.variationId && product.variations) {
+              const vIndex = product.variations.findIndex((v: any) => v._id?.toString() === item.variationId.toString());
+              if (vIndex > -1) {
+                const prevVarStock = product.variations[vIndex].stock || 0;
+                product.variations[vIndex].stock = Math.max(0, prevVarStock - qty);
+                product.stock = Math.max(0, prevStock - qty);
+                await product.save({ session });
+
+                await StockLedger.create([{
+                  product: product._id,
+                  variationId: item.variationId,
+                  sku: product.variations[vIndex].sku || product.sku,
+                  quantity: qty,
+                  type: "OUT",
+                  source: "EXCHANGE",
+                  previousStock: prevVarStock,
+                  newStock: product.variations[vIndex].stock,
+                  admin: req.user?.userId
+                }], { session });
+              }
+            } else {
+              product.stock = Math.max(0, prevStock - qty);
+              await product.save({ session });
+
+              await StockLedger.create([{
+                  product: product._id,
+                  sku: product.sku || "N/A",
+                  quantity: qty,
+                  type: "OUT",
+                  source: "EXCHANGE",
+                  previousStock: prevStock,
+                  newStock: product.stock,
+                  admin: req.user?.userId
+              }], { session });
+            }
+          }
+        }
+      }
+
+      // 3. Create a consolidated "Exchange Order" for record keeping if needed
+      // For now, assume this logic is enough as per requirement "One transaction"
+
+      await session.commitTransaction();
+      session.endSession();
+
+      return res.status(200).json({
+        success: true,
+        message: "Exchange processed successfully and stock updated"
+      });
+
+    } catch (error) {
+      await session.abortTransaction();
+      session.endSession();
+      console.error("Exchange Error:", error);
+      return res.status(500).json({ success: false, message: "Error processing exchange" });
+    }
+  }
+);
+
+/**
+ * Delete POS Order and Restore Stock
+ */
+export const deletePOSOrder = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { id } = req.params;
+
+    // Find the order with populated items
+    const order = await Order.findById(id).populate('items');
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found"
+      });
+    }
+
+    // Check if it's a POS order (has adminNotes containing "POS")
+    if (!order.adminNotes?.includes('POS')) {
+      return res.status(400).json({
+        success: false,
+        message: "Only POS orders can be deleted"
+      });
+    }
+
+    // Restore stock for each item
+    const orderItems = await OrderItem.find({ order: order._id }).populate('product');
+
+    for (const item of orderItems) {
+      if (item.product) {
+        const product = await Product.findById(item.product);
+        if (product) {
+          const prevStock = product.stock;
+          const returnQty = item.quantity;
+
+          // Check if item has variation (by SKU match)
+          let stockRestored = false;
+          if (item.sku && product.variations) {
+            const vIndex = product.variations.findIndex(v => v.sku === item.sku);
+            if (vIndex > -1) {
+              const prevVarStock = product.variations[vIndex].stock || 0;
+              product.variations[vIndex].stock = prevVarStock + returnQty;
+              product.stock = prevStock + returnQty;
+              await product.save();
+
+              // Create stock ledger entry
+              await StockLedger.create({
+                product: product._id,
+                variationId: product.variations[vIndex]._id,
+                sku: item.sku,
+                quantity: returnQty,
+                type: "IN",
+                source: "POS_CANCEL",
+                referenceId: order._id,
+                previousStock: prevVarStock,
+                newStock: product.variations[vIndex].stock,
+                admin: req.user?.userId
+              });
+              stockRestored = true;
+            }
+          }
+
+          if (!stockRestored) {
+            product.stock = prevStock + returnQty;
+            await product.save();
+
+            // Create stock ledger entry
+            await StockLedger.create({
+              product: product._id,
+              sku: item.sku || product.sku || "N/A",
+              quantity: returnQty,
+              type: "IN",
+              source: "POS_CANCEL",
+              referenceId: order._id,
+              previousStock: prevStock,
+              newStock: product.stock,
+              admin: req.user?.userId
+            });
+          }
+
+          // Emit socket event for real-time stock update
+          const io = req.app.get("io");
+          if (io) {
+            io.emit("stock-update", {
+              productId: product._id,
+              newStock: product.stock
+            });
+          }
+        }
+      }
+    }
+
+    // Delete order items
+    await OrderItem.deleteMany({ order: order._id });
+
+    // Delete the order
+    await Order.findByIdAndDelete(id);
+
+    return res.status(200).json({
+      success: true,
+      message: "POS Order deleted and stock restored successfully"
     });
   }
 );

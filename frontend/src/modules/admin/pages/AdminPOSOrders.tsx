@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getProducts, Product } from '../../../services/api/admin/adminProductService';
+import { getPOSProducts, Product } from '../../../services/api/admin/adminProductService';
 import { createPOSOrder, initiatePOSOnlineOrder, verifyPOSPayment } from '../../../services/api/admin/adminOrderService';
 import { getAllCustomers, Customer } from '../../../services/api/admin/adminCustomerService';
 import { useToast } from '../../../context/ToastContext';
@@ -93,7 +93,7 @@ const AdminPOSOrders = () => {
     const fetchProducts = async () => {
       setLoading(true);
       try {
-        const response = await getProducts({
+        const response = await getPOSProducts({
           search: searchQuery,
           limit: 1000 // Fetch all for client-side pagination
         });
@@ -159,9 +159,19 @@ const AdminPOSOrders = () => {
 
   // --- Cart Logic ---
   const addToCart = (product: Product) => {
+    // Check Stock
+    if (product.stock <= 0) {
+        showToast(`Item "${product.productName}" is Out of Stock!`, "error");
+        return;
+    }
+
     setCart(prev => {
       const existing = prev.find(item => item._id === product._id);
       if (existing) {
+        if (existing.qty >= product.stock) {
+            showToast("Cannot add more than available stock", "error");
+            return prev;
+        }
         return prev.map(item => item._id === product._id ? { ...item, qty: item.qty + 1 } : item);
       }
       return [...prev, { ...product, qty: 1 }];
@@ -176,6 +186,13 @@ const AdminPOSOrders = () => {
     setCart(prev => prev.map(item => {
       if (item._id === id) {
         const newQty = Math.max(1, item.qty + delta);
+        // Check Stock for non-quick-add items
+        if (!item._id.toString().startsWith('quick-') && delta > 0) {
+            if (newQty > (item.stock || 0)) {
+                showToast("Reached maximum available stock", "error");
+                return item;
+            }
+        }
         return { ...item, qty: newQty };
       }
       return item;
@@ -399,6 +416,15 @@ const AdminPOSOrders = () => {
             <span className="text-blue-600">Dashboard</span> / POS
            </div>
         </div>
+        <button
+          onClick={() => window.location.href='/admin/pos/report'}
+          className="px-4 py-2 bg-white text-orange-600 border border-orange-600 rounded-lg text-sm font-bold hover:bg-orange-50 transition-colors flex items-center gap-2"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+          </svg>
+          View POS Report
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
@@ -445,8 +471,12 @@ const AdminPOSOrders = () => {
                    </div>
                ) : (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                       {products.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(product => (
-                           <div key={product._id} onClick={() => addToCart(product)} className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm hover:shadow-md cursor-pointer transition-all flex flex-col items-center text-center group">
+                        {products.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(product => (
+                           <div
+                             key={product._id}
+                             onClick={() => addToCart(product)}
+                             className={`bg-white p-3 rounded-lg border border-gray-200 shadow-sm hover:shadow-md cursor-pointer transition-all flex flex-col items-center text-center group relative ${product.stock <= 0 ? 'opacity-60 grayscale' : ''}`}
+                           >
                                 <div className="w-16 h-16 bg-gray-100 rounded mb-2 flex items-center justify-center overflow-hidden">
                                     {product.mainImage ? (
                                         <img src={product.mainImage} alt={product.productName} className="w-full h-full object-cover" />
@@ -456,6 +486,14 @@ const AdminPOSOrders = () => {
                                 </div>
                                 <h3 className="text-sm font-medium text-gray-800 line-clamp-2">{product.productName}</h3>
                                 <div className="mt-2 text-green-600 font-bold">₹{product.price}</div>
+                                <div className={`text-[10px] font-bold mt-1 px-2 py-0.5 rounded-full ${product.stock <= 0 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500'}`}>
+                                    Stock: {product.stock}
+                                </div>
+                                {product.stock <= 0 && (
+                                    <div className="absolute inset-0 flex items-center justify-center bg-black/5 rounded-lg pointer-events-none">
+                                        <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded">OUT OF STOCK</span>
+                                    </div>
+                                )}
                            </div>
                        ))}
                        {products.length === 0 && (

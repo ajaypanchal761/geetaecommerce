@@ -136,6 +136,7 @@ router.delete("/brands/:id", productController.deleteBrand);
 // ==================== Product Routes ====================
 // Admin cannot create products - only sellers can add products
 // router.post("/products", productController.createProduct);
+router.get("/products/pos", productController.getPOSProducts);
 router.get("/products", productController.getProducts);
 // Product order functionality removed
 // router.put("/products/order", productController.updateProductOrder);
@@ -147,11 +148,16 @@ router.delete("/products/:id", productController.deleteProduct);
 router.post("/products/bulk-import", productController.bulkImportProducts);
 router.put("/products/bulk-update", productController.bulkUpdateProducts);
 
-// ==================== Order Routes ====================
-router.get("/orders", orderController.getAllOrders);
+// ==================== POS Routes ====================
 router.post("/orders/pos", orderController.createPOSOrder);
 router.post("/orders/pos/online", orderController.initiatePOSOnlineOrder);
 router.post("/orders/pos/verify", orderController.verifyPOSPayment);
+router.get("/pos/report", orderController.getPOSReport);
+router.get("/pos/stock-ledger", orderController.getPOSStockLedger);
+router.post("/pos/exchange", orderController.processPOSExchange);
+
+// ==================== Order Routes ====================
+router.get("/orders", orderController.getAllOrders);
 router.get("/orders/status/:status", orderController.getOrdersByStatus);
 router.get("/orders/:id", orderController.getOrderById);
 router.patch("/orders/:id/status", orderController.updateOrderStatus);

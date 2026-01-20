@@ -36,6 +36,7 @@ export interface IProduct extends Document {
   // Variations
   variationType?: string; // e.g., 'Size', 'Color', 'Weight'
   variations?: Array<{
+    _id?: any;
     name: string;
     value: string;
     price?: number;

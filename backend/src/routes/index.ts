@@ -155,6 +155,10 @@ router.use("/seller/reports", reportRoutes);
 // Wallet routes (protected, seller only)
 router.use("/seller/wallet", walletRoutes);
 
+// POS dedicated routes
+import { getPOSProducts } from "../modules/admin/controllers/adminProductController";
+router.get("/pos/products", authenticate, requireUserType("Admin"), getPOSProducts);
+
 // Tax routes (protected, seller/admin)
 router.use("/seller/taxes", taxRoutes);
 

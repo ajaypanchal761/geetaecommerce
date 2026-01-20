@@ -252,3 +252,27 @@ export const verifyPOSPayment = async (
     const response = await api.post<ApiResponse<any>>("/admin/orders/pos/verify", data);
     return response.data;
   };
+
+/**
+ * Get POS Report Summary
+ */
+export const getPOSReport = async (): Promise<ApiResponse<any>> => {
+  const response = await api.get<ApiResponse<any>>("/admin/pos/report");
+  return response.data;
+};
+
+/**
+ * Get POS Stock Ledger entries
+ */
+export const getStockLedger = async (params?: any): Promise<ApiResponse<any>> => {
+  const response = await api.get<ApiResponse<any>>("/admin/pos/stock-ledger", { params });
+  return response.data;
+};
+
+/**
+ * Process POS Exchange
+ */
+export const processPOSExchange = async (data: any): Promise<ApiResponse<any>> => {
+  const response = await api.post<ApiResponse<any>>("/admin/pos/exchange", data);
+  return response.data;
+};

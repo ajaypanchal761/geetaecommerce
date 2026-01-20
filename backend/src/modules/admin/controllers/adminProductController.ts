@@ -1295,3 +1295,21 @@ export const updateProductOrder = asyncHandler(
     });
   }
 );
+
+/**
+ * Get all products for POS billing (Lightweight with stock)
+ */
+export const getPOSProducts = asyncHandler(
+  async (req: Request, res: Response) => {
+    const products = await Product.find({ status: "Active" })
+      .select("productName mainImage price discPrice stock sku variations category barcode")
+      .populate("category", "name")
+      .sort({ productName: 1 });
+
+    return res.status(200).json({
+      success: true,
+      message: "POS products fetched successfully",
+      data: products
+    });
+  }
+);

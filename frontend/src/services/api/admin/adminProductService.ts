@@ -494,6 +494,14 @@ export const getProducts = async (
 };
 
 /**
+ * Get POS Products (Optimized)
+ */
+export const getPOSProducts = async (params?: GetProductsParams): Promise<ApiResponse<Product[]>> => {
+    const response = await api.get<ApiResponse<Product[]>>("/admin/products/pos", { params });
+    return response.data;
+};
+
+/**
  * Get product by ID
  */
 export const getProductById = async (

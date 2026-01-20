@@ -299,9 +299,9 @@ function App() {
                         <Suspense fallback={<IconLoader forceShow />}>
                           <AdminLayout>
                             <Routes>
-                            <Route path="pos/orders" element={<AdminPOSOrders />} />
-                            <Route path="pos/report" element={<AdminPOSReport />} />
-                            <Route path="" element={<AdminDashboard />} />
+                             <Route path="pos/orders" element={<AdminPOSOrders />} />
+                             <Route path="pos/report" element={<AdminPOSReport />} />
+                             <Route path="" element={<AdminDashboard />} />
                             <Route path="profile" element={<AdminProfile />} />
                             <Route path="category" element={<AdminCategory />} />
                             <Route path="category/header" element={<AdminHeaderCategory />} />
