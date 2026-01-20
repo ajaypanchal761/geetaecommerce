@@ -862,6 +862,44 @@ const menuSections: MenuSection[] = [
     title: "Setting",
     items: [
       {
+        label: "Product Settings",
+        path: "/admin/product-display-settings",
+        icon: (
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round">
+            <path d="M12 20h9"></path>
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+          </svg>
+        ),
+      },
+      {
+        label: "Delivery Settings",
+        path: "/admin/delivery-settings",
+        icon: (
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round">
+            <rect x="1" y="3" width="15" height="13"></rect>
+            <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
+            <circle cx="5.5" cy="18.5" r="2.5"></circle>
+            <circle cx="18.5" cy="18.5" r="2.5"></circle>
+          </svg>
+        ),
+      },
+      {
         label: "Payment List",
         path: "/admin/payment-list",
         icon: (
@@ -1075,7 +1113,7 @@ export default function AdminSidebar({ onClose }: AdminSidebarProps) {
       <div className="px-4 py-2 border-b border-teal-600">
         <button
           onClick={() => handleNavigation("/admin")}
-          className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-colors ${isActive("/admin")
+          className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-colors ${isActive("/admin") && location.pathname === "/admin"
             ? "bg-teal-600 text-white"
             : "text-teal-100 hover:bg-teal-600/50 hover:text-white"
             }`}>
@@ -1096,6 +1134,31 @@ export default function AdminSidebar({ onClose }: AdminSidebarProps) {
             <path d="M12 6V12M12 18V12M6 12H12M18 12H12"></path>
           </svg>
           <span className="text-sm font-medium">Dashboard</span>
+        </button>
+      </div>
+
+      {/* Sales & Summary Link */}
+      <div className="px-4 py-2 border-b border-teal-600">
+        <button
+          onClick={() => handleNavigation("/admin/sales-summary")}
+          className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-colors ${isActive("/admin/sales-summary")
+            ? "bg-teal-600 text-white"
+            : "text-teal-100 hover:bg-teal-600/50 hover:text-white"
+            }`}>
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round">
+            <line x1="18" y1="20" x2="18" y2="10"></line>
+            <line x1="12" y1="20" x2="12" y2="4"></line>
+            <line x1="6" y1="20" x2="6" y2="14"></line>
+          </svg>
+          <span className="text-sm font-medium">Sales & Summary</span>
         </button>
       </div>
 

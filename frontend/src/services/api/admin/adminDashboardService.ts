@@ -152,3 +152,37 @@ export const getOrderAnalytics = async (
   );
   return response.data;
 };
+
+export interface SalesSummaryData {
+  summary: {
+    totalSales: number;
+    totalOrders: number;
+    paidAmount: number;
+    creditAmount: number;
+    totalProfit: number;
+    totalLoss: number;
+    netProfit: number;
+  };
+  dailySales: Array<{
+    day: string;
+    date: string;
+    sales: number;
+    orders: number;
+  }>;
+}
+
+/**
+ * Get sales summary
+ */
+export const getSalesSummary = async (
+  startDate: string,
+  endDate: string
+): Promise<ApiResponse<SalesSummaryData>> => {
+  const response = await api.get<ApiResponse<SalesSummaryData>>(
+    "/admin/dashboard/sales-summary",
+    {
+      params: { startDate, endDate },
+    }
+  );
+  return response.data;
+};

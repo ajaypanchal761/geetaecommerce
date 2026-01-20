@@ -259,7 +259,7 @@ export const getOrderAnalytics = async (
       // Daily data for current month
       const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
       const daysLastMonth = new Date(now.getFullYear(), now.getMonth(), 0).getDate();
-      
+
       const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
       const currentMonthName = monthNames[now.getMonth()];
       const lastMonthName = monthNames[(now.getMonth() - 1 + 12) % 12];
@@ -306,7 +306,7 @@ export const getOrderAnalytics = async (
     } else {
       // Monthly data for current year
       const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-      
+
       // Count orders by month for current year
       const currentYearCounts: { [key: number]: number } = {};
       thisPeriodOrders.forEach((order: any) => {
@@ -356,12 +356,12 @@ export const getTodaySales = async (): Promise<{ salesToday: number; salesLastWe
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    
+
     const lastWeekSameDay = new Date(today);
     lastWeekSameDay.setDate(lastWeekSameDay.getDate() - 7);
     const lastWeekNextDay = new Date(lastWeekSameDay);
     lastWeekNextDay.setDate(lastWeekNextDay.getDate() + 1);
-    
+
     // Get ALL orders booked today (any status)
     const todayOrders = await Order.aggregate([
       {
@@ -376,7 +376,7 @@ export const getTodaySales = async (): Promise<{ salesToday: number; salesLastWe
         }
       }
     ]).catch(() => []);
-    
+
     // Get orders from same day last week
     const lastWeekOrders = await Order.aggregate([
       {
@@ -391,7 +391,7 @@ export const getTodaySales = async (): Promise<{ salesToday: number; salesLastWe
         }
       }
     ]).catch(() => []);
-    
+
     return {
       salesToday: todayOrders[0]?.total || 0,
       salesLastWeekSameDay: lastWeekOrders[0]?.total || 0
@@ -555,5 +555,148 @@ export const getSalesByLocation = async () => {
   } catch (error) {
     console.error("Error fetching sales by location:", error);
     return [];
+  }
+};
+
+/**
+ * Get sales summary for a given date range
+ */
+export const getSalesSummary = async (startDate: Date, endDate: Date): Promise<any> => {
+  try {
+    const summaryData = await Order.aggregate([
+      {
+        $match: {
+          orderDate: { $gte: startDate, $lte: endDate },
+          status: { $nin: ["Cancelled", "Rejected", "Returned"] },
+        },
+      },
+      {
+        $facet: {
+          summary: [
+            {
+              $group: {
+                _id: null,
+                totalSales: { $sum: { $ifNull: ["$total", 0] } },
+                totalOrders: { $sum: 1 },
+                paidAmount: {
+                  $sum: {
+                    $cond: [
+                      {
+                        $and: [
+                          { $eq: ["$paymentStatus", "Paid"] },
+                          { $in: ["$paymentMethod", ["PAID", "COD", "Cash", "Razorpay", "Cashfree"]] }
+                        ]
+                      },
+                      { $ifNull: ["$total", 0] },
+                      0,
+                    ],
+                  },
+                },
+                creditAmount: {
+                  $sum: {
+                    $cond: [
+                      { $eq: ["$paymentMethod", "CREDIT"] },
+                      { $ifNull: ["$total", 0] },
+                      0,
+                    ],
+                  },
+                },
+              },
+            },
+          ],
+          dailySales: [
+            {
+              $group: {
+                _id: { $dateToString: { format: "%Y-%m-%d", date: "$orderDate" } },
+                sales: { $sum: { $ifNull: ["$total", 0] } },
+                orders: { $sum: 1 },
+              },
+            },
+            { $sort: { _id: 1 } },
+          ],
+          profitData: [
+            {
+              $unwind: "$items"
+            },
+            {
+              $lookup: {
+                from: "orderitems",
+                localField: "items",
+                foreignField: "_id",
+                as: "itemDetails"
+              }
+            },
+            {
+              $unwind: "$itemDetails"
+            },
+            {
+              $lookup: {
+                from: "products",
+                localField: "itemDetails.product",
+                foreignField: "_id",
+                as: "productDetails"
+              }
+            },
+            {
+              $unwind: {
+                path: "$productDetails",
+                preserveNullAndEmptyArrays: true
+              }
+            },
+            {
+              $group: {
+                _id: null,
+                totalRevenue: { $sum: { $multiply: ["$itemDetails.unitPrice", "$itemDetails.quantity"] } },
+                totalCost: { $sum: { $multiply: [{ $ifNull: ["$productDetails.purchasePrice", "$itemDetails.unitPrice"] }, "$itemDetails.quantity"] } }
+              }
+            }
+          ]
+        },
+      },
+    ]);
+
+    const summary = summaryData[0]?.summary[0] || {
+      totalSales: 0,
+      totalOrders: 0,
+      paidAmount: 0,
+      creditAmount: 0,
+    };
+
+    const profitInfo = summaryData[0]?.profitData[0] || { totalRevenue: 0, totalCost: 0 };
+    const totalProfit = profitInfo.totalRevenue - profitInfo.totalCost;
+
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const dailyMap = new Map();
+    (summaryData[0]?.dailySales || []).forEach((item: any) => {
+      dailyMap.set(item._id, item);
+    });
+
+    const dailyData = [];
+    const curr = new Date(startDate);
+    const end = new Date(endDate);
+    while (curr <= end) {
+      const dateStr = curr.toISOString().split("T")[0];
+      const existing = dailyMap.get(dateStr);
+      dailyData.push({
+        day: days[curr.getDay()],
+        date: dateStr,
+        sales: existing ? existing.sales : 0,
+        orders: existing ? existing.orders : 0,
+      });
+      curr.setDate(curr.getDate() + 1);
+    }
+
+    return {
+      summary: {
+        ...summary,
+        totalProfit,
+        totalLoss: totalProfit < 0 ? Math.abs(totalProfit) : 0,
+        netProfit: totalProfit > 0 ? totalProfit : 0
+      },
+      dailySales: dailyData,
+    };
+  } catch (error) {
+    console.error("Error fetching sales summary:", error);
+    throw error;
   }
 };

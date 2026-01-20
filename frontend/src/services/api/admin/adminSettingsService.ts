@@ -75,6 +75,8 @@ export interface AppSettings {
   defaultCommission: number;
   deliveryCharges: number;
   freeDeliveryThreshold?: number;
+  deliveryRadius?: number;
+  serviceType?: string;
   gstEnabled: boolean;
   gstRate?: number;
   privacyPolicy?: string;

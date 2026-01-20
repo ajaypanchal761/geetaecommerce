@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+ import { Request, Response } from "express";
 import { asyncHandler } from "../../../utils/asyncHandler";
 import {
   getDashboardStats,
@@ -8,6 +8,7 @@ import {
   getTopSellers,
   getRecentOrders,
   getSalesByLocation,
+  getSalesSummary,
 } from "../../../services/dashboardService";
 
 /**
@@ -124,6 +125,36 @@ export const getOrderAnalyticsController = asyncHandler(
       success: true,
       message: "Order analytics fetched successfully",
       data: analytics,
+    });
+  }
+);
+
+/**
+ * Get sales summary
+ */
+export const getSalesSummaryController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { startDate, endDate } = req.query;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        success: false,
+        message: "startDate and endDate are required",
+      });
+    }
+
+    const start = new Date(startDate as string);
+    const end = new Date(endDate as string);
+
+    // Set end date to end of day
+    end.setHours(23, 59, 59, 999);
+
+    const data = await getSalesSummary(start, end);
+
+    return res.status(200).json({
+      success: true,
+      message: "Sales summary fetched successfully",
+      data,
     });
   }
 );

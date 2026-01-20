@@ -54,6 +54,8 @@ export interface IAppSettings extends Document {
   // Delivery Settings
   deliveryCharges: number;
   freeDeliveryThreshold?: number;
+  deliveryRadius?: number;
+  serviceType?: string;
 
   // Tax Settings
   gstEnabled: boolean;
@@ -240,6 +242,16 @@ const AppSettingsSchema = new Schema<IAppSettings>(
     freeDeliveryThreshold: {
       type: Number,
       min: [0, "Free delivery threshold cannot be negative"],
+    },
+    deliveryRadius: {
+      type: Number,
+      default: 0,
+      min: [0, "Delivery radius cannot be negative"],
+    },
+    serviceType: {
+      type: String,
+      enum: ["Delivery", "Pickup", "Delivery + Pickup"],
+      default: "Delivery + Pickup",
     },
 
     // Tax Settings

@@ -107,6 +107,10 @@ router.get(
   "/dashboard/order-analytics",
   dashboardController.getOrderAnalyticsController
 );
+router.get(
+  "/dashboard/sales-summary",
+  dashboardController.getSalesSummaryController
+);
 
 // ==================== Category Routes ====================
 router.post("/categories", productController.createCategory);

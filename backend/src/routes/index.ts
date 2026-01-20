@@ -112,6 +112,11 @@ import customerVideoRoutes from "./customerVideoRoutes";
 
 // General customer route (must be last to avoid intercepting specific routes)
 router.use("/customer/video-finds", customerVideoRoutes);
+
+// Public Config Route
+import { getPublicConfig } from "../modules/customer/controllers/customerConfigController";
+router.get("/customer/config", getPublicConfig);
+
 router.use("/customer", customerRoutes);
 
 // ... existing code ...

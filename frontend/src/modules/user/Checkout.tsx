@@ -13,7 +13,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from '../../
 import WishlistButton from '../../components/WishlistButton';
 
 import { getCoupons, validateCoupon, Coupon as ApiCoupon } from '../../services/api/customerCouponService';
-import { appConfig } from '../../services/configService';
+import { getAppConfig, AppConfig, appConfig as defaultAppConfig } from '../../services/configService';
 import { getAddresses } from '../../services/api/customerAddressService';
 import { getProducts } from '../../services/api/customerProductService';
 import { addToWishlist } from '../../services/api/customerWishlistService';
@@ -32,6 +32,16 @@ export default function Checkout() {
   const { showToast: showGlobalToast } = useToast();
   const navigate = useNavigate();
   const location = useRouterLocation();
+  const [config, setConfig] = useState<AppConfig>(defaultAppConfig);
+
+  useEffect(() => {
+    const loadConfig = async () => {
+      const cfg = await getAppConfig();
+      setConfig(cfg);
+    };
+    loadConfig();
+  }, []);
+
   const [tipAmount, setTipAmount] = useState<number | null>(null);
   const [customTipAmount, setCustomTipAmount] = useState<number>(0);
   const [showCustomTipInput, setShowCustomTipInput] = useState(false);
@@ -181,7 +191,7 @@ export default function Checkout() {
     }, 0)
   };
 
-  const amountNeededForFreeDelivery = Math.max(0, appConfig.freeDeliveryThreshold - (displayCart.total || 0));
+  const amountNeededForFreeDelivery = Math.max(0, config.freeDeliveryThreshold - (displayCart.total || 0));
   const cartItem = displayItems[0];
 
   const itemsTotal = displayItems.reduce((sum, item) => {
@@ -192,8 +202,8 @@ export default function Checkout() {
 
   const discountedTotal = displayCart.total;
   const savedAmount = itemsTotal - discountedTotal;
-  const handlingCharge = appConfig.platformFee;
-  const deliveryCharge = displayCart.total >= appConfig.freeDeliveryThreshold ? 0 : appConfig.deliveryFee;
+  const handlingCharge = 0;
+  const deliveryCharge = displayCart.total >= config.freeDeliveryThreshold ? 0 : config.deliveryFee;
 
   // Recalculate or use validated discount
   // If we have a selected coupon, we should re-validate if cart total changes,
@@ -721,7 +731,7 @@ export default function Checkout() {
                 <path d="M12 6v6l4 2" stroke="white" strokeWidth="2" strokeLinecap="round" />
               </svg>
             </div>
-            <span className="text-xs font-semibold text-neutral-900">Delivery in {appConfig.estimatedDeliveryTime}</span>
+            <span className="text-xs font-semibold text-neutral-900">Delivery in {config.estimatedDeliveryTime}</span>
           </div>
 
           <p className="text-[10px] text-neutral-600 mb-2.5">Shipment of {displayCart.itemCount || 0} {(displayCart.itemCount || 0) === 1 ? 'item' : 'items'}</p>
@@ -1127,16 +1137,7 @@ export default function Checkout() {
             </div>
           </div>
 
-          {/* Handling charge */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M20 7h-4V4c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v3H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V9c0-1.1-.9-2-2-2z" stroke="currentColor" strokeWidth="2" fill="none" />
-              </svg>
-              <span className="text-xs text-neutral-700">Handling charge</span>
-            </div>
-            <span className="text-xs font-medium text-neutral-900">₹{handlingCharge}</span>
-          </div>
+
 
           {/* Delivery charge */}
           <div className="flex items-center justify-between">
@@ -1154,7 +1155,7 @@ export default function Checkout() {
               </span>
               {deliveryCharge > 0 && (
                 <span className="text-[10px] text-orange-600 mt-0.5">
-                  Shop for ₹{Math.max(0, appConfig.freeDeliveryThreshold - displayCart.total)} more to get FREE delivery
+                  Free delivery on orders above ₹{config.freeDeliveryThreshold}
                 </span>
               )}
             </div>
