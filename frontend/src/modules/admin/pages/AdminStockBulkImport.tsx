@@ -4,6 +4,7 @@ import {
   Category,
   CreateProductData,
   createProduct,
+  getProducts,
 } from "../../../services/api/admin/adminProductService";
 import { useAuth } from "../../../context/AuthContext";
 
@@ -118,8 +119,7 @@ export default function AdminStockBulkImport({
 
       publish: (row['Status'] || row['Status'] || "").toLowerCase() === 'active' || (row['Status'] || "").toLowerCase() === 'published' ? true : false,
 
-      // Defaults
-      mainImage: "",
+      mainImage: row['Image'] || row['Img'] || row['Main Image'] || "", // Map Image Column
       galleryImages: [],
     };
   };
@@ -163,6 +163,20 @@ export default function AdminStockBulkImport({
     }
   };
 
+  const handleDownloadTemplate = () => {
+      const headers = [
+          "1. Category", "2. Sub Cat", "3. Sub Sub Cat", "4. Product Name", "5. SKU", "6. Rack", "7. Desc",
+          "8. Barcode", "9. HSN", "10. Unit", "11. Size", "12. Color", "13. Attr", "14. Tax Cat", "15. GST",
+          "16. Pur. Price", "17. MRP", "18. Sell Price", "19. Del. Time", "20. Stock", "21. Offer Price",
+          "22. Low Stock", "23. Brand", "24. Val (MRP)", "25. Val (Pur)", "Image"
+      ];
+
+      const ws = XLSX.utils.aoa_to_sheet([headers]);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Product Template");
+      XLSX.writeFile(wb, "product_import_template.xlsx");
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl h-[80vh] flex flex-col">
@@ -182,6 +196,12 @@ export default function AdminStockBulkImport({
                 className="bg-teal-600 text-white px-6 py-3 rounded-lg hover:bg-teal-700 transition"
               >
                 Choose File
+              </button>
+              <button
+                onClick={handleDownloadTemplate}
+                 className="mt-2 text-sm text-teal-600 hover:underline"
+              >
+                  Excel Format
               </button>
               <input
                 type="file"
@@ -218,6 +238,7 @@ export default function AdminStockBulkImport({
                    <span>23. Brand</span>
                    <span>24. Val (MRP)</span>
                    <span>25. Val (Pur)</span>
+                   <span>Image</span>
                 </div>
               </div>
             </div>

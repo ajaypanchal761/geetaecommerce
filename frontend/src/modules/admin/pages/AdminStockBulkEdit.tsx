@@ -4,6 +4,10 @@ import {
   Category,
   updateProduct,
   uploadImage,
+  getSubCategories,
+  getBrands,
+  SubCategory,
+  Brand,
 } from "../../../services/api/admin/adminProductService";
 
 interface AdminStockBulkEditProps {
@@ -24,6 +28,8 @@ interface EditableProduct {
   publish: boolean;
   mainImage: string;
   newImageFile?: File;
+  galleryImages: string[];
+  newGalleryFiles?: File[];
   isChanged: boolean;
   // New fields
   itemCode: string; // SKU
@@ -35,9 +41,13 @@ interface EditableProduct {
   purchasePrice: number;
   deliveryTime: string;
   lowStockQuantity: number;
+  subCategoryId?: string; // Add this
   // Read-only/Display fields (not editable in bulk edit for now or just text)
   subSubCategory: string;
-  brand: string;
+  brand: string; // Display name
+  brandId: string; // ID for editing
+  tax: string;
+  offerPrice: number;
 }
 
 export default function AdminStockBulkEdit({
@@ -50,6 +60,25 @@ export default function AdminStockBulkEdit({
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
+  const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+        try {
+            const [subRes, brandRes] = await Promise.all([
+                getSubCategories({ limit: 1000 } as any),
+                getBrands()
+            ]);
+            if(subRes.success && subRes.data) setSubCategories(subRes.data);
+            if(brandRes.success && brandRes.data) setBrands(brandRes.data);
+        } catch (e) {
+            console.error("Failed to load metadata for bulk edit", e);
+        }
+    };
+    fetchData();
+  }, []);
+
   // Initialize editable products
   useEffect(() => {
     const initialized = products.map((p) => {
@@ -60,6 +89,24 @@ export default function AdminStockBulkEdit({
         } else if (typeof p.category === "string") {
           categoryId = p.category;
         }
+      }
+
+      let subCategoryId = "";
+      if (p.subcategory) {
+          if (typeof p.subcategory === 'object' && p.subcategory !== null) {
+              subCategoryId = p.subcategory._id;
+          } else if (typeof p.subcategory === 'string') {
+              subCategoryId = p.subcategory;
+          }
+      }
+
+      let brandId = "";
+      if (p.brand) {
+          if (typeof p.brand === 'object' && p.brand !== null) {
+              brandId = p.brand._id;
+          } else if (typeof p.brand === 'string') {
+              brandId = p.brand;
+          }
       }
 
       return {
@@ -81,9 +128,14 @@ export default function AdminStockBulkEdit({
         purchasePrice: (p as any).purchasePrice || 0,
         deliveryTime: (p as any).deliveryTime || "",
         lowStockQuantity: (p as any).lowStockQuantity || 5,
-        subSubCategory: (p as any).subSubCategory || "-",
+        subSubCategory: (p as any).subSubCategory || "",
+        subCategoryId: subCategoryId, // Add this
         brand: typeof p.brand === "object" ? (p.brand as any).name : "-",
+        brandId: brandId,
+        tax: p.tax || "",
+        offerPrice: p.discPrice || 0,
         mainImage: p.mainImage || "",
+        galleryImages: p.galleryImages || [],
         isChanged: false,
       };
     });
@@ -102,17 +154,35 @@ export default function AdminStockBulkEdit({
     });
   };
 
-  const handleImageChange = (index: number, file: File) => {
-      if (!file) return;
-      const previewUrl = URL.createObjectURL(file);
+  const handleImageChange = (index: number, files: FileList | null) => {
+      if (!files || files.length === 0) return;
+
+      const mainFile = files[0];
+      const galleryFiles = Array.from(files).slice(1);
+
+      const mainPreview = URL.createObjectURL(mainFile);
+      const galleryPreviews = galleryFiles.map(f => URL.createObjectURL(f));
+
       setEditableProducts((prev) => {
           const updated = [...prev];
+          const currentProduct = updated[index];
+
           updated[index] = {
-              ...updated[index],
-              newImageFile: file,
-              mainImage: previewUrl,
+              ...currentProduct,
+              newImageFile: mainFile,
+              mainImage: mainPreview,
+              newGalleryFiles: galleryFiles,
+              galleryImages: [...galleryPreviews, ...(currentProduct.galleryImages || []).slice(0, 3 - galleryFiles.length)], // Maintain up to 3 gallery images logic or just replace
+              // For bulk edit, simply showing the new selection + existing (up to limit) is good UX.
+              // But to keep simple "ek sath 3 images dal sake", we will prioritize the new selection.
               isChanged: true
           };
+
+          // Update gallery previews to show what was selected
+          if (galleryFiles.length > 0) {
+             updated[index].galleryImages = galleryPreviews;
+          }
+
           return updated;
       });
   };
@@ -141,6 +211,19 @@ export default function AdminStockBulkEdit({
             }
         }
 
+        // Upload Gallery Images if present
+        let finalGalleryImages = p.galleryImages;
+
+        if (p.newGalleryFiles && p.newGalleryFiles.length > 0) {
+            try {
+                const galleryUploads = await Promise.all(p.newGalleryFiles.map(f => uploadImage(f)));
+                const newUrls = galleryUploads.filter(res => res.success).map(res => res.data.url);
+                finalGalleryImages = newUrls;
+            } catch (err) {
+                 console.error("Failed to upload gallery images", err);
+            }
+        }
+
         return updateProduct(p.id, {
           productName: p.productName,
           category: p.categoryId,
@@ -149,6 +232,7 @@ export default function AdminStockBulkEdit({
           stock: p.stock,
           publish: p.publish,
           mainImage: imageUrl,
+          galleryImages: finalGalleryImages,
           // New fields update
           sku: p.itemCode, // mapped to sku
           itemCode: p.itemCode,
@@ -161,6 +245,11 @@ export default function AdminStockBulkEdit({
           purchasePrice: p.purchasePrice,
           deliveryTime: p.deliveryTime,
           lowStockQuantity: p.lowStockQuantity,
+          subcategory: p.subCategoryId,
+          subSubCategory: p.subSubCategory,
+          brand: p.brandId,
+          tax: p.tax,
+          discPrice: p.offerPrice,
         } as any);
       });
 
@@ -175,9 +264,19 @@ export default function AdminStockBulkEdit({
     }
   };
 
+  const [categorySearch, setCategorySearch] = useState("");
+
   const filteredProducts = useMemo(() => {
-     return editableProducts.filter(p => p.productName.toLowerCase().includes(searchTerm.toLowerCase()));
-  }, [editableProducts, searchTerm]);
+     return editableProducts.filter(p => {
+        const nameMatch = p.productName.toLowerCase().includes(searchTerm.toLowerCase());
+
+        // Resolve category name for filtering
+        const catName = categories.find(c => c._id === p.categoryId)?.name || "";
+        const catMatch = catName.toLowerCase().includes(categorySearch.toLowerCase());
+
+        return nameMatch && catMatch;
+     });
+  }, [editableProducts, searchTerm, categorySearch, categories]);
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -222,11 +321,23 @@ export default function AdminStockBulkEdit({
                 <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-12 text-center">
                   #
                 </th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-20 text-center">
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 min-w-[140px] text-center">
                   Image
                 </th>
                 <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 min-w-[200px] whitespace-nowrap">4. Product Name</th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 min-w-[150px] whitespace-nowrap">1. Category</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 min-w-[150px] whitespace-nowrap align-top">
+                  <div className="flex flex-col gap-2">
+                    <span>1. Category</span>
+                    <input
+                      type="text"
+                      placeholder="Search..."
+                      className="w-full text-[11px] px-2 py-1 border border-gray-300 rounded font-normal focus:ring-1 focus:ring-teal-500 focus:outline-none"
+                      value={categorySearch}
+                      onChange={(e) => setCategorySearch(e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                </th>
                 <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-32 whitespace-nowrap">2. Sub Cat</th>
                 <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-32 whitespace-nowrap">3. Sub Sub Cat</th>
                 <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-32 whitespace-nowrap">5. SKU</th>
@@ -271,26 +382,36 @@ export default function AdminStockBulkEdit({
                     {index + 1}
                   </td>
                   {/* Image (Already there) */ }
-                  <td className="p-2 border-r border-neutral-200 text-center">
-                      <div className="relative group w-10 h-10 mx-auto">
-                          {product.mainImage ? (
-                              <img src={product.mainImage} alt="" className="w-10 h-10 object-cover rounded border border-gray-200" />
-                          ) : (
-                              <div className="w-10 h-10 bg-gray-100 rounded border border-gray-200 flex items-center justify-center text-[10px] text-gray-400">No Img</div>
-                          )}
+                  <td className="p-1 border-r border-neutral-200 text-center align-middle">
+                      <div className="relative group min-h-[60px] flex flex-wrap justify-center items-center gap-1 p-1">
+                          {/* Main Image */}
+                          <div className="w-10 h-10 border border-gray-200 rounded overflow-hidden bg-white shrink-0">
+                              {product.mainImage ? (
+                                  <img src={product.mainImage} alt="Main" className="w-full h-full object-cover" />
+                              ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-[8px] text-gray-400">No Img</div>
+                              )}
+                          </div>
+
+                          {/* Gallery Images */}
+                          {product.galleryImages?.slice(0, 3).map((img, i) => (
+                             <div key={i} className="w-8 h-8 border border-gray-200 rounded overflow-hidden bg-white shrink-0">
+                                <img src={img} alt={`Gal-${i}`} className="w-full h-full object-cover" />
+                             </div>
+                          ))}
 
                           {/* Edit Overlay */}
-                          <label htmlFor={`file-input-${originalIndex}`} className="absolute inset-0 bg-black/50 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                          <label htmlFor={`file-input-${originalIndex}`} className="absolute inset-0 bg-black/60 rounded flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-20">
+                              <svg className="w-5 h-5 text-white mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                              <span className="text-[9px] text-white">Add/Edit Imgs</span>
                               <input
                                 id={`file-input-${originalIndex}`}
                                 type="file"
                                 accept="image/*"
+                                multiple
                                 className="hidden"
                                 onChange={(e) => {
-                                    if (e.target.files?.[0]) {
-                                        handleImageChange(originalIndex, e.target.files[0]);
-                                    }
+                                    handleImageChange(originalIndex, e.target.files);
                                 }}
                               />
                           </label>
@@ -324,10 +445,31 @@ export default function AdminStockBulkEdit({
                       ))}
                     </select>
                   </td>
-                  {/* 2. Sub Cat (Read-only) */}
-                   <td className="p-2 border-r border-neutral-200 text-sm text-neutral-600">-</td>
-                  {/* 3. Sub Sub Cat (Read-only) */}
-                   <td className="p-2 border-r border-neutral-200 text-sm text-neutral-600">{product.subSubCategory}</td>
+                  {/* 2. Sub Cat */}
+                  <td className="p-0 border-r border-neutral-200">
+                    <select
+                      className="w-full h-full px-2 py-2 bg-transparent border-none text-sm cursor-pointer"
+                      value={product.subCategoryId || ""}
+                      onChange={(e) => handleFieldChange(originalIndex, 'subCategoryId', e.target.value)}
+                    >
+                        <option value="">-</option>
+                        {subCategories
+                            .filter(sub => {
+                                // Filter based on selected category if possible
+                                const subCatObj = sub.category;
+                                const subCatId = (typeof subCatObj === 'string') ? subCatObj : subCatObj._id;
+                                return !product.categoryId || subCatId === product.categoryId;
+                            })
+                            .map(sub => (
+                                <option key={sub._id} value={sub._id}>{sub.name}</option>
+                            ))
+                        }
+                    </select>
+                  </td>
+                  {/* 3. Sub Sub Cat */}
+                   <td className="p-0 border-r border-neutral-200">
+                      <input type="text" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm" value={product.subSubCategory} onChange={(e) => handleFieldChange(originalIndex, 'subSubCategory', e.target.value)} />
+                   </td>
                   {/* 5. SKU */}
                   <td className="p-0 border-r border-neutral-200">
                      <input type="text" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm" value={product.itemCode} onChange={(e) => handleFieldChange(originalIndex, 'itemCode', e.target.value)} />
@@ -358,8 +500,10 @@ export default function AdminStockBulkEdit({
                    <td className="p-2 border-r border-neutral-200 text-sm text-neutral-600">-</td>
                    {/* 13. Attr (Read-only placeholder) */}
                    <td className="p-2 border-r border-neutral-200 text-sm text-neutral-600">-</td>
-                   {/* 14. Tax Cat (Read-only placeholder) */}
-                   <td className="p-2 border-r border-neutral-200 text-sm text-neutral-600">-</td>
+                   {/* 14. Tax Cat */}
+                   <td className="p-0 border-r border-neutral-200">
+                      <input type="text" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm" value={product.tax} onChange={(e) => handleFieldChange(originalIndex, 'tax', e.target.value)} />
+                   </td>
                    {/* 15. GST (Read-only placeholder) */}
                    <td className="p-2 border-r border-neutral-200 text-sm text-neutral-600">-</td>
                   {/* 16. Purchase Price */}
@@ -415,14 +559,27 @@ export default function AdminStockBulkEdit({
                       }
                     />
                   </td>
-                   {/* 21. Offer Price (Read-only) */}
-                   <td className="p-2 border-r border-neutral-200 text-sm text-neutral-600">-</td>
+                   {/* 21. Offer Price */}
+                   <td className="p-0 border-r border-neutral-200">
+                     <input type="number" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm text-right" value={product.offerPrice} onChange={(e) => handleFieldChange(originalIndex, 'offerPrice', parseFloat(e.target.value) || 0)} />
+                   </td>
                    {/* 22. Low Stock */}
                     <td className="p-0 border-r border-neutral-200">
                      <input type="number" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm text-right" value={product.lowStockQuantity} onChange={(e) => handleFieldChange(originalIndex, 'lowStockQuantity', parseInt(e.target.value))} />
                   </td>
-                   {/* 23. Brand (Read-only) */}
-                   <td className="p-2 border-r border-neutral-200 text-sm text-neutral-600">{product.brand}</td>
+                   {/* 23. Brand */}
+                   <td className="p-0 border-r border-neutral-200">
+                       <select
+                          className="w-full h-full px-2 py-2 bg-transparent border-none text-sm cursor-pointer"
+                          value={product.brandId || ""}
+                          onChange={(e) => handleFieldChange(originalIndex, 'brandId', e.target.value)}
+                        >
+                            <option value="">-Select Brand-</option>
+                            {brands.map(brand => (
+                                <option key={brand._id} value={brand._id}>{brand.name}</option>
+                            ))}
+                        </select>
+                   </td>
                    {/* 24. Val (MRP) (Calculated/Read-only) */}
                    <td className="p-2 border-r border-neutral-200 text-sm text-neutral-600 text-right">{(product.compareAtPrice * product.stock).toLocaleString()}</td>
                    {/* 25. Val (Pur) (Calculated/Read-only) */}

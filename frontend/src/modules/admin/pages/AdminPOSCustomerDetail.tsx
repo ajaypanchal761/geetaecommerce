@@ -9,6 +9,7 @@ import {
     verifyCreditPayment,
     CreditTransaction
 } from '../../../services/api/admin/creditService';
+import { jsPDF } from "jspdf";
 
 // Extended type for UI
 interface CustomerData {
@@ -270,6 +271,105 @@ const AdminPOSCustomerDetail = () => {
         }
     };
 
+    const handleExportPDF = () => {
+        if (!customerData) return;
+        const doc = new jsPDF();
+
+        // Header
+        doc.setFillColor(13, 148, 136); // Teal color
+        doc.rect(0, 0, 210, 40, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(22);
+        doc.text("Customer Statement", 105, 25, { align: "center" });
+
+        // Customer Info
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(12);
+        doc.text(`Customer Name: ${customerData.name}`, 20, 50);
+        doc.text(`Phone Number: ${customerData.phone}`, 20, 58);
+        doc.text(`Generated On: ${new Date().toLocaleDateString()}`, 140, 50);
+
+        // Balance Section
+        doc.setFillColor(243, 244, 246);
+        doc.roundedRect(20, 65, 170, 25, 3, 3, 'F');
+        doc.setFontSize(10);
+        doc.text("Current Balance Due", 30, 75);
+        doc.text("Total Paid", 90, 75);
+        doc.text("Total Credit", 150, 75);
+
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        doc.text(`Rs. ${customerData.creditBalance.toLocaleString()}`, 30, 85);
+        doc.setTextColor(22, 163, 74); // Green
+        doc.text(`Rs. ${customerData.totalPaid.toLocaleString()}`, 90, 85);
+        doc.setTextColor(220, 38, 38); // Red
+        doc.text(`Rs. ${customerData.totalCredit.toLocaleString()}`, 150, 85);
+
+        doc.setTextColor(0, 0, 0);
+        doc.setFont("helvetica", "normal");
+
+        let y = 105;
+
+        // Transactions Header
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        doc.text("Transaction History", 20, y);
+        y += 10;
+
+        // Table Header
+        doc.setFillColor(229, 231, 235);
+        doc.rect(20, y, 170, 10, 'F');
+        doc.setFontSize(10);
+        doc.text("Date", 25, y + 7);
+        doc.text("Type", 60, y + 7);
+        doc.text("Description", 90, y + 7);
+        doc.text("Amount", 170, y + 7, { align: 'right' });
+        y += 10;
+
+        doc.setFont("helvetica", "normal");
+
+        customerData.transactions.forEach((txn, index) => {
+            if (y > 270) {
+                doc.addPage();
+                y = 20;
+            }
+
+            doc.text(new Date(txn.date).toLocaleDateString(), 25, y + 7);
+            doc.text(txn.type, 60, y + 7);
+
+            const desc = doc.splitTextToSize(txn.description || '-', 60);
+            doc.text(desc, 90, y + 7);
+
+            const amountStr = `Rs. ${Math.abs(txn.amount).toLocaleString()}`;
+            if (txn.type === 'Payment') {
+                doc.setTextColor(22, 163, 74);
+                doc.text(`- ${amountStr}`, 170, y + 7, { align: 'right' });
+            } else {
+                doc.setTextColor(220, 38, 38);
+                doc.text(`+ ${amountStr}`, 170, y + 7, { align: 'right' });
+            }
+            doc.setTextColor(0, 0, 0);
+
+            // Row line
+            doc.setDrawColor(229, 231, 235);
+            const rowHeight = Math.max(10, desc.length * 5 + 5);
+            doc.line(20, y + rowHeight, 190, y + rowHeight);
+
+            y += rowHeight;
+        });
+
+        // Footer
+        const pageCount = doc.getNumberOfPages();
+        for(let i = 1; i <= pageCount; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.setTextColor(156, 163, 175);
+            doc.text(`Page ${i} of ${pageCount}`, 105, 290, { align: 'center' });
+        }
+
+        doc.save(`${customerData.name.replace(/\s+/g, '_')}_Statement.pdf`);
+    };
+
     if (loading) return <div className="p-10 text-center">Loading...</div>;
     if (!customerData) return <div className="p-10 text-center">Customer not found</div>;
 
@@ -287,6 +387,15 @@ const AdminPOSCustomerDetail = () => {
                     </div>
                  </div>
                  <div className="flex gap-2">
+                 </div>
+                 <div className="flex gap-2">
+                    <button
+                        onClick={handleExportPDF}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg text-sm font-medium transition-colors"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                        PDF
+                    </button>
                  </div>
             </div>
 

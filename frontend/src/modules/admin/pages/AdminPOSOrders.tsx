@@ -4,6 +4,7 @@ import { createPOSOrder, initiatePOSOnlineOrder, verifyPOSPayment } from '../../
 import { getAllCustomers, Customer } from '../../../services/api/admin/adminCustomerService';
 import { useToast } from '../../../context/ToastContext';
 import { useNavigate } from 'react-router-dom';
+import { jsPDF } from "jspdf";
 
 // Interface for Cart Item extending Product
 interface CartItem extends Product {
@@ -48,7 +49,7 @@ const AdminPOSOrders = () => {
   const [editingItem, setEditingItem] = useState<CartItem | null>(null);
 
   // Quick Add Form
-  const [quickForm, setQuickForm] = useState({ name: '', price: '', qty: '1' });
+  const [quickForm, setQuickForm] = useState({ name: '', price: '', qty: '1', mrp: '', purchasePrice: '' });
   // Edit Item Form
   const [editForm, setEditForm] = useState({ name: '', price: '', qty: '' });
 
@@ -224,14 +225,16 @@ const AdminPOSOrders = () => {
     const newItem: any = {
       _id: 'quick-' + Date.now(),
       productName: quickForm.name,
-      price: parseFloat(quickForm.price),
+      price: parseFloat(quickForm.price) || 0,
+      compareAtPrice: parseFloat(quickForm.mrp) || 0,
+      purchasePrice: parseFloat(quickForm.purchasePrice) || 0,
       qty: parseInt(quickForm.qty) || 1,
       mainImage: '', // Placeholder
       originalProductId: null
     };
     setCart(prev => [...prev, newItem]);
     setShowQuickAdd(false);
-    setQuickForm({ name: '', price: '', qty: '1' });
+    setQuickForm({ name: '', price: '', qty: '1', mrp: '', purchasePrice: '' });
   };
 
   const openEditModal = (item: CartItem) => {
@@ -260,6 +263,136 @@ const AdminPOSOrders = () => {
       return item;
     }));
     setEditingItem(null);
+  };
+
+  const handleGenerateBill = () => {
+    if (cart.length === 0) {
+        showToast("Cart is empty", "error");
+        return;
+    }
+
+    const doc = new jsPDF();
+
+    // --- Header ---
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text("GEETA", 14, 20);
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    const address = "Q7WM+92M, Q7WM+92M, , Indore Division,\nNagda, Madhya Pradesh, India - 454001\n7898111456";
+    doc.text(address, 14, 26);
+
+    // Line
+    doc.line(14, 40, 196, 40);
+
+    // --- Invoice Details ---
+    const invoiceNum = Math.floor(10000 + Math.random() * 90000);
+    const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' });
+    const timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+    doc.setFont("helvetica", "bold");
+    doc.text("Invoice Number:", 14, 48);
+    doc.text("Invoice Date:", 14, 53);
+    doc.text("Payment Status:", 14, 58);
+
+    doc.setFont("helvetica", "normal");
+    doc.text(invoiceNum.toString(), 196, 48, { align: 'right' });
+    doc.text(`${dateStr} ${timeStr}`, 196, 53, { align: 'right' });
+    doc.text("Cash", 196, 58, { align: 'right' });
+
+    // Line
+    doc.setLineWidth(0.5);
+    doc.line(14, 63, 196, 63);
+
+    // --- Table Header ---
+    doc.setFont("helvetica", "bold");
+    doc.text("Estimated Bill", 105, 68, { align: 'center' });
+
+    let y = 74;
+    doc.setFontSize(10);
+    doc.text("Item-name", 14, y);
+    doc.text("Qty", 100, y);
+    doc.text("MRP", 125, y);
+    doc.text("Sp.", 155, y);
+    doc.text("Total", 196, y, { align: 'right' });
+
+    y += 4;
+
+    // --- Table Body ---
+    doc.setFont("helvetica", "normal");
+
+    let totalQty = 0;
+    let totalMRP = 0;
+    let totalBillAmount = 0;
+
+    cart.forEach((item, index) => {
+        const qty = item.qty;
+        const sp = item.customPrice !== undefined ? item.customPrice : item.price;
+        const itemMrp = item.compareAtPrice && item.compareAtPrice > sp ? item.compareAtPrice : sp;
+
+        const rowTotal = sp * qty;
+        const rowMrpTotal = itemMrp * qty;
+
+        totalQty += qty;
+        totalMRP += rowMrpTotal;
+        totalBillAmount += rowTotal;
+
+        y += 6;
+        if (y > 280) {
+            doc.addPage();
+            y = 20;
+        }
+
+        const name = `(${index + 1}) ${item.productName}`;
+        const truncatedName = name.length > 40 ? name.substring(0, 37) + "..." : name;
+
+        doc.text(truncatedName, 14, y);
+        doc.text(qty.toString(), 100, y);
+        doc.text(itemMrp.toString(), 125, y);
+        doc.text(sp.toString(), 155, y);
+        doc.text(rowTotal.toString(), 196, y, { align: 'right' });
+    });
+
+    y += 8;
+    // Line
+    doc.line(14, y, 196, y);
+    y += 6;
+
+    // --- Summary ---
+    doc.setFont("helvetica", "normal");
+    doc.text(`Total Qty.: ${totalQty}`, 14, y);
+    doc.text(`Total MRP: Rs ${totalMRP}`, 196, y, { align: 'right' });
+
+    y += 4;
+
+    // Savings
+    const savings = totalMRP - totalBillAmount;
+    if (savings > 0) {
+        doc.setFillColor(200, 200, 200);
+        doc.rect(14, y, 182, 8, 'F');
+
+        const savingPercent = ((savings / totalMRP) * 100).toFixed(1);
+
+        doc.setFont("helvetica", "bold");
+        doc.text(`You Saved ${savingPercent} %`, 16, y + 5.5);
+        doc.text(savings.toString(), 194, y + 5.5, { align: 'right' });
+    }
+
+    y += 12;
+    doc.setLineWidth(0.3);
+    doc.line(14, y, 196, y);
+
+    y += 6;
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text("Total bill amount:", 14, y);
+    doc.text(totalBillAmount.toString(), 196, y, { align: 'right' });
+
+    y += 2;
+    doc.line(14, y + 2, 196, y + 2);
+
+    doc.save(`Invoice_${invoiceNum}.pdf`);
   };
 
   const handleAccessPayment = () => {
@@ -727,6 +860,15 @@ const AdminPOSOrders = () => {
                   <div className="space-y-3">
 
                       <button
+                        onClick={handleGenerateBill}
+                        disabled={cart.length === 0}
+                        className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                         Generate Bill
+                      </button>
+
+                      <button
                         onClick={handleAccessPayment}
                         disabled={loading}
                         className={`w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
@@ -770,8 +912,26 @@ const AdminPOSOrders = () => {
                         />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
+                         <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">MRP (₹)</label>
+                            <input
+                               type="number" min="0"
+                               value={quickForm.mrp} onChange={e => setQuickForm({...quickForm, mrp: e.target.value})}
+                               className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none"
+                               placeholder="0.00"
+                            />
+                        </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Price (₹)</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Purchase Price (₹)</label>
+                            <input
+                               type="number" min="0"
+                               value={quickForm.purchasePrice} onChange={e => setQuickForm({...quickForm, purchasePrice: e.target.value})}
+                               className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none"
+                               placeholder="0.00"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Selling Price (₹)</label>
                             <input
                                type="number" required min="0"
                                value={quickForm.price} onChange={e => setQuickForm({...quickForm, price: e.target.value})}
