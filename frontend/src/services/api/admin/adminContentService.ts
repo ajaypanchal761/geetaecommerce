@@ -8,7 +8,7 @@ export interface FAQ {
   question: string;
   answer: string;
   category?: string;
-  isActive: boolean;
+  status: "Active" | "Inactive";
   order: number;
   createdAt?: string;
   updatedAt?: string;
@@ -18,7 +18,7 @@ export interface CreateFAQData {
   question: string;
   answer: string;
   category?: string;
-  isActive?: boolean;
+  status?: "Active" | "Inactive";
   order?: number;
 }
 
@@ -26,7 +26,7 @@ export interface UpdateFAQData {
   question?: string;
   answer?: string;
   category?: string;
-  isActive?: boolean;
+  status?: "Active" | "Inactive";
   order?: number;
 }
 

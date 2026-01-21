@@ -196,6 +196,7 @@ export const deleteFAQ = asyncHandler(async (req: Request, res: Response) => {
     return res.status(200).json({
         success: true,
         message: "FAQ deleted successfully",
+        data: null,
     });
 });
 

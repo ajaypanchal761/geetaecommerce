@@ -6,10 +6,11 @@ export interface ICustomer extends Document {
   phone: string;
   dateOfBirth?: Date;
   registrationDate: Date;
-  status: 'Active' | 'Inactive';
+  status: 'Active' | 'Inactive' | 'Suspended';
   refCode: string;
   totalOrders: number;
   totalSpent: number;
+  creditBalance: number;
   // Location fields
   latitude?: number;
   longitude?: number;
@@ -77,7 +78,7 @@ const CustomerSchema = new Schema<ICustomer>(
     },
     status: {
       type: String,
-      enum: ['Active', 'Inactive'],
+      enum: ['Active', 'Inactive', 'Suspended'],
       default: 'Active',
     },
     refCode: {
@@ -143,8 +144,15 @@ const CustomerSchema = new Schema<ICustomer>(
 
   {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
   }
 );
+
+// Virtual for walletAmount to match frontend expectations
+CustomerSchema.virtual('walletAmount').get(function (this: ICustomer) {
+  return this.creditBalance;
+});
 
 // Generate refCode before saving if not provided
 CustomerSchema.pre('save', async function (next) {

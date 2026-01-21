@@ -11,6 +11,7 @@ import {
   getShops,
 } from "../modules/seller/controllers/productController";
 import { getBrands } from "../modules/admin/controllers/adminProductController";
+import { searchProductImage } from "../modules/seller/controllers/sellerToolsController";
 import { authenticate, requireUserType } from "../middleware/auth";
 
 const router = Router();
@@ -21,6 +22,9 @@ router.use(requireUserType("Seller"));
 
 // Get all brands - sellers need this for product creation
 router.get("/brands", getBrands);
+
+// Search image tool
+router.post("/search-image", searchProductImage);
 
 // Get all active shops - sellers need this for shop-by-store-only products
 router.get("/shops", getShops);

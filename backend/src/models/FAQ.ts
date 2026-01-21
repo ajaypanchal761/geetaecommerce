@@ -39,6 +39,8 @@ const faqSchema = new Schema<IFAQ>(
     },
     {
         timestamps: true,
+        toJSON: { virtuals: true },
+        toObject: { virtuals: true },
     }
 );
 

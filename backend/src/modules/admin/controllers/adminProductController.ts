@@ -1301,8 +1301,23 @@ export const updateProductOrder = asyncHandler(
  */
 export const getPOSProducts = asyncHandler(
   async (req: Request, res: Response) => {
-    const products = await Product.find({ status: "Active" })
-      .select("productName mainImage price discPrice stock sku variations category barcode")
+    const { search } = req.query;
+    const query: any = { status: "Active" };
+
+    if (search) {
+        const searchRegex = new RegExp(search as string, "i");
+        query.$or = [
+            { productName: searchRegex },
+            { sku: searchRegex },
+            { barcode: searchRegex },
+            { "variations.sku": searchRegex },
+            { "variations.barcode": searchRegex },
+            { itemCode: searchRegex }
+        ];
+    }
+
+    const products = await Product.find(query)
+      .select("productName mainImage price discPrice stock sku variations category barcode itemCode")
       .populate("category", "name")
       .sort({ productName: 1 });
 
