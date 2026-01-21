@@ -68,8 +68,8 @@ export function DeliveryStatusProvider({ children }: { children: ReactNode }) {
       handleLocationError,
       {
         enableHighAccuracy: true,
-        maximumAge: 0, // Force fresh GPS data
-        timeout: 15000,
+        maximumAge: 10000, // Allow positions up to 10s old to prevents timeouts
+        timeout: 45000, // Increased timeout for better stability
       }
     );
   };
