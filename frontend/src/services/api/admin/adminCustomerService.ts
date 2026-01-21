@@ -15,6 +15,7 @@ export interface Customer {
   walletAmount: number;
   totalOrders: number;
   totalSpent: number;
+  creditBalance: number;
   latitude?: number;
   longitude?: number;
   address?: string;
@@ -102,4 +103,3 @@ export const getCustomerOrders = async (
   );
   return response.data;
 };
-

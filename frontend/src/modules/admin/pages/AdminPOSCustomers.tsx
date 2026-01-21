@@ -1,26 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getMockCustomers, initializeMockData, MockCustomer } from '../../../services/mockPOSService';
+import { getCreditCustomers, CreditCustomer } from '../../../services/api/admin/creditService';
+import { useToast } from '../../../context/ToastContext';
 
 const AdminPOSCustomers = () => {
     const navigate = useNavigate();
-    const [customers, setCustomers] = useState<MockCustomer[]>([]);
+    const { showToast } = useToast();
+    const [customers, setCustomers] = useState<CreditCustomer[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        initializeMockData();
         loadCustomers();
-    }, []);
+    }, [searchQuery]);
 
-    const loadCustomers = () => {
-        const data = getMockCustomers();
-        // Sort by those who owe money first, then by name
-        data.sort((a, b) => {
-            if (b.balance > 0 && a.balance <= 0) return 1;
-            if (a.balance > 0 && b.balance <= 0) return -1;
-            return 0;
-        });
-        setCustomers(data);
+    // Debounce search could be better, but for now simple effect
+    useEffect(() => {
+        const timeoutId = setTimeout(() => {
+            loadCustomers();
+        }, 500);
+        return () => clearTimeout(timeoutId);
+    }, [searchQuery]);
+
+    const loadCustomers = async () => {
+        setLoading(true);
+        try {
+            const data = await getCreditCustomers(searchQuery);
+            // API returns list, allow frontend logic or backend sort
+            // The backend already sorts by creditBalance desc
+            setCustomers(data.data || []);
+        } catch (error) {
+            console.error("Failed to load customers", error);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const filteredCustomers = customers.filter(c =>
@@ -58,7 +71,9 @@ const AdminPOSCustomers = () => {
 
             {/* List */}
             <div className="flex-1 p-0 md:p-4 md:max-w-3xl md:mx-auto w-full">
-                {filteredCustomers.length === 0 ? (
+                {loading ? (
+                    <div className="text-center py-10">Loading...</div>
+                ) : customers.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-20 text-gray-400">
                         <svg className="w-16 h-16 mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -67,10 +82,10 @@ const AdminPOSCustomers = () => {
                     </div>
                 ) : (
                     <div className="bg-white md:rounded-xl md:shadow-sm divide-y divide-gray-100">
-                        {filteredCustomers.map(customer => (
+                        {customers.map(customer => (
                             <div
-                                key={customer.id}
-                                onClick={() => navigate(`/admin/pos/customers/${customer.id}`)}
+                                key={customer._id}
+                                onClick={() => navigate(`/admin/pos/customers/${customer._id}`)}
                                 className="p-4 hover:bg-gray-50 active:bg-gray-100 cursor-pointer flex justify-between items-center transition-colors"
                             >
                                 <div>
@@ -78,8 +93,8 @@ const AdminPOSCustomers = () => {
                                     <p className="text-sm text-gray-500 mt-0.5">{customer.phone}</p>
                                 </div>
                                 <div className="text-right">
-                                    {customer.balance > 0 ? (
-                                        <div className="text-red-600 font-bold text-base">₹{customer.balance.toLocaleString()} Due</div>
+                                    {customer.creditBalance > 0 ? (
+                                        <div className="text-red-600 font-bold text-base">₹{customer.creditBalance.toLocaleString()} Due</div>
                                     ) : (
                                         <div className="text-green-600 font-medium text-sm">No Dues</div>
                                     )}

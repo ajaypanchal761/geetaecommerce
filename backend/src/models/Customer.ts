@@ -96,6 +96,10 @@ const CustomerSchema = new Schema<ICustomer>(
       default: 0,
       min: [0, 'Total spent cannot be negative'],
     },
+    creditBalance: {
+      type: Number,
+      default: 0,
+    },
     // Location fields
     latitude: {
       type: Number,

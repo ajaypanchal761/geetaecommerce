@@ -12,6 +12,7 @@ import Product from "../../../models/Product";
 import Customer from "../../../models/Customer";
 import { Server as SocketIOServer } from "socket.io";
 import StockLedger from "../../../models/StockLedger";
+import CreditTransaction from "../../../models/CreditTransaction";
 
 /**
  * Get all orders with filters
@@ -592,210 +593,233 @@ export const exportOrders = asyncHandler(
 /**
  * Create POS Order
  */
+// ... (previous code)
+
+/**
+ * Create POS Order
+ */
 export const createPOSOrder = asyncHandler(
   async (req: Request, res: Response) => {
-    const { items, paymentMethod, paymentStatus } = req.body;
-    let { customerId } = req.body;
+    try {
+        const { items, paymentMethod, paymentStatus } = req.body;
+        let { customerId } = req.body;
 
-    // Validate request
-    if (!customerId || !items || !items.length || !paymentMethod) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing required fields: customerId, items, paymentMethod",
-      });
-    }
-
-    // Handle Walk-in Customer
-    if (customerId === "walk-in-customer") {
-      let walkIn = await Customer.findOne({ email: "walkin@pos.com" });
-      if (!walkIn) {
-        try {
-          walkIn = await Customer.create({
-            name: "Walk-in Customer",
-            email: "walkin@pos.com",
-            phone: "0000000000",
-            status: "Active",
+        // Validate request
+        if (!customerId || !items || !items.length || !paymentMethod) {
+          return res.status(400).json({
+            success: false,
+            message: "Missing required fields: customerId, items, paymentMethod",
           });
-        } catch (err) {
-             // Fallback if 0000000000 taken or validation fails, try another
-             console.error("Error creating walk-in customer", err);
-             // Try fetching by phone if email failed? No, assume uniqueness specific to this dummy
         }
-      }
-      if (walkIn) customerId = walkIn._id;
-    }
 
-    // Fetch customer
-    const customer = await Customer.findById(customerId);
-    if (!customer) {
-      return res.status(404).json({
-        success: false,
-        message: "Customer not found",
-      });
-    }
+        const adminId = req.user?.userId;
+        if (!adminId) {
+             console.warn("createPOSOrder: No admin user found in request (req.user)");
+        }
 
-    // Initialize Order Document first to get an ID
-    // We'll save it after calculating totals
-    // But to satisfy OrderItem 'order' required field, we need an Order ID.
-    // Strategy: Create Order with dummy totals, create Items, then update Order totals.
+        // Handle Walk-in Customer
+        if (customerId === "walk-in-customer") {
+          let walkIn = await Customer.findOne({ email: "walkin@pos.com" });
+          if (!walkIn) {
+            try {
+              walkIn = await Customer.create({
+                name: "Walk-in Customer",
+                email: "walkin@pos.com",
+                phone: "0000000000",
+                status: "Active",
+              });
+            } catch (err) {
+                 console.error("Error creating walk-in customer", err);
+            }
+          }
+          if (walkIn) customerId = walkIn._id;
+        }
 
-    // 1. Create Order shell
-    let order = await Order.create({
-      customer: customer._id,
-      customerName: customer.name,
-      customerEmail: customer.email,
-      customerPhone: customer.phone,
-      deliveryAddress: {
-        address: customer.address || "POS Order",
-        city: customer.city || "POS",
-        pincode: customer.pincode || "000000",
-        state: customer.state || "POS"
-      },
-      items: [],
-      subtotal: 0,
-      tax: 0,
-      shipping: 0,
-      discount: 0,
-      total: 0,
-      paymentMethod,
-      paymentStatus: paymentStatus || "Paid",
-      status: "Delivered",
-      deliveryBoyStatus: "Delivered",
-      deliveredAt: new Date(),
-      adminNotes: "Created via POS System"
-    });
+        // Fetch customer
+        const customer = await Customer.findById(customerId);
+        if (!customer) {
+          return res.status(404).json({
+            success: false,
+            message: "Customer not found",
+          });
+        }
 
-    // 2. Create Order Items
-    let subtotal = 0;
-    const orderItemsIds = [];
+        // 1. Create Order shell
+        let order = await Order.create({
+          customer: customer._id,
+          customerName: customer.name,
+          customerEmail: customer.email,
+          customerPhone: customer.phone,
+          deliveryAddress: {
+            address: customer.address || "POS Order",
+            city: customer.city || "POS",
+            pincode: customer.pincode || "000000",
+            state: customer.state || "POS"
+          },
+          items: [],
+          subtotal: 0,
+          tax: 0,
+          shipping: 0,
+          discount: 0,
+          total: 0,
+          paymentMethod,
+          paymentStatus: paymentStatus || "Paid",
+          status: "Delivered",
+          deliveryBoyStatus: "Delivered",
+          deliveredAt: new Date(),
+          adminNotes: "Created via POS System"
+        });
 
-    for (const item of items) {
-       // item: { productId, quantity, price, name }
+        // 2. Create Order Items
+        let subtotal = 0;
+        const orderItemsIds = [];
 
-       let productData: any = {
-           productName: item.name || "Custom Item", // Expect name from frontend or default
-           mainImage: "",
-           sku: "",
-           seller: null
-       };
-       let productId = null;
+        for (const item of items) {
+           let productData: any = {
+               productName: item.name || "Custom Item",
+               mainImage: "",
+               sku: "",
+               seller: null
+           };
+           let productId = null;
 
-       // Check if productId is a valid ObjectId (Real Product)
-       if (mongoose.Types.ObjectId.isValid(item.productId)) {
-           const product = await Product.findById(item.productId).populate('seller');
-           if (product) {
-               productId = product._id;
-               productData = {
-                   productName: product.productName,
-                   mainImage: product.mainImage,
-                   sku: product.sku,
-                   seller: (product.seller as any)._id || product.seller
-               };
-           }
-       }
-
-       const total = Number(item.price) * Number(item.quantity);
-       subtotal += total;
-
-       const orderItemPayload: any = {
-         order: order._id,
-         productName: productData.productName,
-         productImage: productData.mainImage,
-         sku: productData.sku,
-         unitPrice: item.price,
-         quantity: item.quantity,
-         total: total,
-         status: "Delivered"
-       };
-
-       if (productId) {
-           orderItemPayload.product = productId;
-       }
-
-       // Only add seller if it exists (Custom items have no seller)
-       if (productData.seller) {
-           orderItemPayload.seller = productData.seller;
-       }
-
-       const orderItem = await OrderItem.create(orderItemPayload);
-       orderItemsIds.push(orderItem._id);
-    }
-
-    // 3. Update Order with correct totals and items
-    const tax = 0;
-    const shipping = 0;
-    const discount = 0;
-    const total = subtotal + tax + shipping - discount;
-
-    order.items = orderItemsIds;
-    order.subtotal = subtotal;
-    order.total = total;
-
-    await order.save();
-
-    // --- STOCK MANAGEMENT ---
-    for (const item of items) {
-       if (mongoose.Types.ObjectId.isValid(item.productId)) {
-           const product = await Product.findById(item.productId);
-           if (product) {
-               const prevStock = product.stock;
-               const soldQty = Number(item.quantity) || 0;
-
-               if (item.variationId && product.variations) {
-                   // Handle Variation Stock
-                   const variationIndex = product.variations.findIndex(v => v._id?.toString() === item.variationId.toString());
-                   if (variationIndex > -1) {
-                       const prevVarStock = product.variations[variationIndex].stock || 0;
-                       product.variations[variationIndex].stock = Math.max(0, prevVarStock - soldQty);
-
-                       // Also update total stock if it's mirrored (mirrored in pre-save, but let's be explicit)
-                       product.stock = Math.max(0, prevStock - soldQty);
-
-                       await product.save();
-
-                       // Create Ledger Entry
-                       await StockLedger.create({
-                           product: product._id,
-                           variationId: item.variationId,
-                           sku: product.variations[variationIndex].sku || product.sku,
-                           quantity: soldQty,
-                           type: "OUT",
-                           source: "POS",
-                           referenceId: order._id,
-                           previousStock: prevVarStock,
-                           newStock: product.variations[variationIndex].stock,
-                           admin: req.user?.userId
-                       });
-                   }
-               } else {
-                   // Handle Main Product Stock
-                   product.stock = Math.max(0, prevStock - soldQty);
-                   await product.save();
-
-                   // Create Ledger Entry
-                   await StockLedger.create({
-                       product: product._id,
-                       sku: product.sku || "N/A",
-                       quantity: soldQty,
-                       type: "OUT",
-                       source: "POS",
-                       referenceId: order._id,
-                       previousStock: prevStock,
-                       newStock: product.stock,
-                       admin: req.user?.userId
-                   });
+           if (mongoose.Types.ObjectId.isValid(item.productId)) {
+               const product = await Product.findById(item.productId).populate('seller');
+               if (product) {
+                   productId = product._id;
+                   productData = {
+                       productName: product.productName,
+                       mainImage: product.mainImage,
+                       sku: product.sku,
+                       seller: (product.seller as any)?._id || product.seller
+                   };
                }
            }
-       }
-    }
 
-    return res.status(201).json({
-      success: true,
-      message: "POS Order created successfully",
-      data: order,
-    });
+           const total = Number(item.price) * Number(item.quantity);
+           subtotal += total;
+
+           const orderItemPayload: any = {
+             order: order._id,
+             productName: productData.productName,
+             productImage: productData.mainImage,
+             sku: productData.sku,
+             unitPrice: item.price,
+             quantity: item.quantity,
+             total: total,
+             status: "Delivered"
+           };
+
+           if (productId) orderItemPayload.product = productId;
+           if (productData.seller) orderItemPayload.seller = productData.seller;
+
+           const orderItem = await OrderItem.create(orderItemPayload);
+           orderItemsIds.push(orderItem._id);
+        }
+
+        // 3. Update Order with correct totals
+        const tax = 0;
+        const shipping = 0;
+        const discount = 0;
+        const total = subtotal + tax + shipping - discount;
+
+        order.items = orderItemsIds;
+        order.subtotal = subtotal;
+        order.total = total;
+
+        if (paymentMethod === 'Credit') {
+            order.paymentStatus = 'Pending';
+        }
+
+        await order.save();
+
+        // --- CREDIT MANAGEMENT ---
+        if (paymentMethod === 'Credit') {
+            customer.creditBalance = (customer.creditBalance || 0) + total;
+            await customer.save();
+
+            await CreditTransaction.create({
+                customer: customer._id,
+                type: 'Order',
+                amount: total,
+                balanceAfter: customer.creditBalance,
+                description: `POS Order #${order.orderNumber}`,
+                referenceId: order._id.toString(),
+                date: new Date(),
+                createdBy: adminId
+            });
+        }
+
+        // --- STOCK MANAGEMENT ---
+        for (const item of items) {
+           if (mongoose.Types.ObjectId.isValid(item.productId)) {
+               const product = await Product.findById(item.productId);
+               if (product) {
+                   const prevStock = product.stock;
+                   const soldQty = Number(item.quantity) || 0;
+
+                   if (item.variationId && product.variations) {
+                       const variationIndex = product.variations.findIndex((v: any) => v._id?.toString() === item.variationId.toString());
+                       if (variationIndex > -1) {
+                           const prevVarStock = product.variations[variationIndex].stock || 0;
+                           product.variations[variationIndex].stock = Math.max(0, prevVarStock - soldQty);
+                           product.stock = Math.max(0, prevStock - soldQty);
+                           await product.save();
+
+                           try {
+                               await StockLedger.create({
+                                   product: product._id,
+                                   variationId: item.variationId,
+                                   sku: product.variations[variationIndex].sku || product.sku,
+                                   quantity: soldQty,
+                                   type: "OUT",
+                                   source: "POS",
+                                   referenceId: order._id,
+                                   previousStock: prevVarStock,
+                                   newStock: product.variations[variationIndex].stock,
+                                   admin: adminId
+                               });
+                           } catch (err) { console.error("StockLedger Error (Var)", err); }
+                       }
+                   } else {
+                       product.stock = Math.max(0, prevStock - soldQty);
+                       await product.save();
+
+                       try {
+                           await StockLedger.create({
+                               product: product._id,
+                               sku: product.sku,
+                               quantity: soldQty,
+                               type: "OUT",
+                               source: "POS",
+                               referenceId: order._id,
+                               previousStock: prevStock,
+                               newStock: product.stock,
+                               admin: adminId
+                           });
+                       } catch (err) { console.error("StockLedger Error (Main)", err); }
+                   }
+               }
+           }
+        }
+
+        return res.status(201).json({
+            success: true,
+            message: "Order created successfully",
+            data: order
+        });
+
+    } catch (error) {
+        console.error("createPOSOrder CRASH:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal Server Error during POS Order creation",
+            error: process.env.NODE_ENV === 'development' ? error : undefined
+        });
+    }
   }
 );
+
 
 /**
  * Initiate POS Online Order (Razorpay/Cashfree)

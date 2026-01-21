@@ -166,6 +166,16 @@ router.patch("/orders/:id/status", orderController.updateOrderStatus);
 router.patch("/orders/:id/assign-delivery", orderController.assignDeliveryBoy);
 router.get("/orders/export/csv", orderController.exportOrders);
 
+// ==================== POS Credit Routes ====================
+import * as creditController from "../modules/admin/controllers/adminCreditController";
+
+router.get("/pos/credit/customers", creditController.getCreditCustomers);
+router.get("/pos/credit/history/:customerId", creditController.getCustomerHistory);
+router.post("/pos/credit/add", creditController.addCredit);
+router.post("/pos/credit/payment", creditController.acceptPayment);
+router.post("/pos/credit/payment/initiate", creditController.initiateCreditPayment);
+router.post("/pos/credit/payment/verify", creditController.verifyCreditPayment);
+
 // ==================== Return Request Routes ====================
 router.get("/return-requests", orderController.getReturnRequests);
 router.get("/return-requests/:id", orderController.getReturnRequestById);

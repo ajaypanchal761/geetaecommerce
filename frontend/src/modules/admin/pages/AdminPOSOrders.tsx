@@ -3,22 +3,21 @@ import { getPOSProducts, Product } from '../../../services/api/admin/adminProduc
 import { createPOSOrder, initiatePOSOnlineOrder, verifyPOSPayment } from '../../../services/api/admin/adminOrderService';
 import { getAllCustomers, Customer } from '../../../services/api/admin/adminCustomerService';
 import { useToast } from '../../../context/ToastContext';
-import { ensureMockCustomerBase, addMockOrder, initializeMockData } from '../../../services/mockPOSService';
 import { useNavigate } from 'react-router-dom';
 
 // Interface for Cart Item extending Product
 interface CartItem extends Product {
   qty: number;
   customPrice?: number; // For edited selling price
+  originalProductId?: string; // To store parent ID for variations
+  variationId?: string;
+  isVariation?: boolean;
 }
 
 const AdminPOSOrders = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
 
-  useEffect(() => {
-    initializeMockData();
-  }, []);
   const [selectedSeller, setSelectedSeller] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('Cash');
@@ -107,7 +106,7 @@ const AdminPOSOrders = () => {
         });
         if (response.success && response.data) {
           // Expand Variations
-          const expandedProducts: Product[] = [];
+          const expandedProducts: any[] = []; // Relax type to allow adding originalProductId
 
           response.data.forEach((product: any) => {
              if (product.variations && product.variations.length > 0) {
@@ -115,6 +114,7 @@ const AdminPOSOrders = () => {
                      expandedProducts.push({
                          ...product,
                          _id: `${product._id}-${variation.sku || Math.random().toString(36).substr(2, 5)}`,
+                         originalProductId: product._id, // Store parent ID
                          productName: `${product.productName} - ${variation.variationName}`,
                          price: variation.price,
                          stock: variation.stock,
@@ -124,7 +124,10 @@ const AdminPOSOrders = () => {
                      });
                  });
              } else {
-                 expandedProducts.push(product);
+                 expandedProducts.push({
+                     ...product,
+                     originalProductId: product._id
+                 });
              }
           });
 
@@ -158,7 +161,7 @@ const AdminPOSOrders = () => {
 
         if (exactMatch) {
             e.preventDefault();
-            addToCart(exactMatch);
+            addToCart(exactMatch as CartItem);
             setSearchQuery(''); // Clear for next scan
             // showToast("Item added!", "success");
         }
@@ -166,7 +169,7 @@ const AdminPOSOrders = () => {
   };
 
   // --- Cart Logic ---
-  const addToCart = (product: Product) => {
+  const addToCart = (product: Product | CartItem) => {
     // Check Stock
     if (product.stock <= 0) {
         showToast(`Item "${product.productName}" is Out of Stock!`, "error");
@@ -182,7 +185,7 @@ const AdminPOSOrders = () => {
         }
         return prev.map(item => item._id === product._id ? { ...item, qty: item.qty + 1 } : item);
       }
-      return [...prev, { ...product, qty: 1 }];
+      return [...prev, { ...(product as CartItem), qty: 1 }];
     });
   };
 
@@ -218,14 +221,13 @@ const AdminPOSOrders = () => {
   const handleQuickAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // Quick Add creates a temporary mock product in cart
-    // In a real app, this might need backend support or special ID
     const newItem: any = {
       _id: 'quick-' + Date.now(),
       productName: quickForm.name,
       price: parseFloat(quickForm.price),
       qty: parseInt(quickForm.qty) || 1,
       mainImage: '', // Placeholder
-      // Add other required Product fields with defaults if necessary for strictly typed CartItem
+      originalProductId: null
     };
     setCart(prev => [...prev, newItem]);
     setShowQuickAdd(false);
@@ -302,10 +304,11 @@ const AdminPOSOrders = () => {
         const orderData = {
             customerId: selectedCustomer ? selectedCustomer._id : "walk-in-customer",
             items: cart.map(item => ({
-                productId: item._id?.startsWith('quick-') ? 'custom_item' : item._id, // Use valid ID or custom tag
+                productId: item.originalProductId || item._id, // Send PARENT ID if available
                 name: item.productName,
                 quantity: item.qty,
-                price: item.customPrice !== undefined ? item.customPrice : item.price
+                price: item.customPrice !== undefined ? item.customPrice : item.price,
+                variationId: item.variationId
             })),
             gateway: method
         };
@@ -398,18 +401,14 @@ const AdminPOSOrders = () => {
   const performCashCheckout = async () => {
     setLoading(true);
     try {
-        // Ensure customer exists in mock base too (for history consistency if they later use credit)
-        if (selectedCustomer) {
-            ensureMockCustomerBase(selectedCustomer);
-        }
-
         const orderData = {
             customerId: selectedCustomer ? selectedCustomer._id : "walk-in-customer",
             items: cart.map(item => ({
-                productId: item._id?.startsWith('quick-') ? '' : item._id,
+                productId: item.originalProductId || item._id, // Use valid ID or custom
                 name: item.productName,
                 quantity: item.qty,
-                price: item.customPrice !== undefined ? item.customPrice : item.price
+                price: item.customPrice !== undefined ? item.customPrice : item.price,
+                variationId: item.variationId
             })),
             paymentMethod: 'Cash',
             paymentStatus: "Paid" as "Paid"
@@ -417,20 +416,6 @@ const AdminPOSOrders = () => {
 
         const response = await createPOSOrder(orderData);
         if (response.success) {
-            // Add to mock history as Paid order
-            if (selectedCustomer) {
-                addMockOrder(selectedCustomer._id || 'temp', {
-                    id: (response.data as any)?.orderId || 'ORD-' + Date.now(),
-                    customerId: selectedCustomer._id,
-                    customerName: selectedCustomer.name,
-                    date: new Date().toISOString().split('T')[0],
-                    amount: calculateTotal(),
-                    paymentType: 'Paid',
-                    itemsString: cart.map(i => `${i.productName} x ${i.qty}`).join(', '),
-                    images: cart.map(i => i.mainImage || '').filter(Boolean)
-                });
-            }
-
             showToast("Order placed successfully!", "success");
             setCart([]);
         } else {
@@ -452,55 +437,33 @@ const AdminPOSOrders = () => {
 
       setLoading(true);
       try {
-           // 1. Ensure customer exists in our mock system
-           const mockCust = ensureMockCustomerBase(selectedCustomer);
+           const orderData = {
+                customerId: selectedCustomer._id,
+                items: cart.map(item => ({
+                    productId: item.originalProductId || item._id, // Use valid ID
+                    name: item.productName,
+                    quantity: item.qty,
+                    price: item.customPrice !== undefined ? item.customPrice : item.price,
+                    variationId: item.variationId
+                })),
+                paymentMethod: 'Credit',
+                paymentStatus: "Pending" as "Pending"
+            };
 
-           // 2. Try to create actual order in backend
-           // If backend rejects 'Credit' payment method, we swallow the error and proceed locally for the purpose of this feature flow.
-           let backendOrderId = null;
-           try {
-               const orderData = {
-                    customerId: selectedCustomer._id,
-                    items: cart.map(item => ({
-                        productId: item._id?.startsWith('quick-') ? '' : item._id,
-                        name: item.productName,
-                        quantity: item.qty,
-                        price: item.customPrice !== undefined ? item.customPrice : item.price
-                    })),
-                    paymentMethod: 'Credit',
-                    paymentStatus: "Pending"  as "Pending"
-                };
+            const response = await createPOSOrder(orderData);
 
-                const response = await createPOSOrder(orderData);
-                if (response.success && (response.data as any)?.orderId) {
-                    backendOrderId = (response.data as any).orderId;
-                }
-           } catch (backendError) {
-               console.warn("Backend declined Credit order, proceeding with local flow:", backendError);
-           }
-
-           // 3. Add to Mock Credit Ledger (Always succeed for frontend flow)
-            const total = calculateTotal();
-            const ordId = backendOrderId || 'ORD-' + Date.now();
-
-            addMockOrder(mockCust.id, {
-                id: ordId,
-                customerId: mockCust.id,
-                customerName: mockCust.name,
-                date: new Date().toISOString().split('T')[0],
-                amount: total,
-                paymentType: 'Credit',
-                itemsString: cart.map(i => `${i.productName} x ${i.qty}`).join(', '),
-                images: cart.map(i => i.mainImage || '').filter(Boolean)
-            });
-
-            showToast(`Credit Order Placed! Balance updated for ${selectedCustomer.name}`, "success");
-            setCart([]);
-            navigate(`/admin/pos/customers/${selectedCustomer._id || mockCust.id}`);
+            if (response.success) {
+                showToast(`Credit Order Placed! Balance updated for ${selectedCustomer.name}`, "success");
+                setCart([]);
+                // Navigate to REAL customer credit page
+                navigate(`/admin/pos/customers/${selectedCustomer._id}`);
+            } else {
+                showToast(response.message || "Failed to create credit order", "error");
+            }
 
       } catch (error) {
           console.error(error);
-          showToast("Error processing credit order flow", "error");
+          showToast("Error processing credit order", "error");
       } finally {
           setLoading(false);
       }
@@ -914,7 +877,12 @@ const AdminPOSOrders = () => {
                           onClick={() => handlePaymentSelection('Credit')}
                           className="w-full group flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:border-red-500 hover:bg-red-50 transition-all"
                         >
-                            <span className="font-semibold text-gray-700 group-hover:text-red-700">Credit (Udhaar)</span>
+                            <div className="flex flex-col items-start">
+                                <span className="font-semibold text-gray-700 group-hover:text-red-700">Credit (Udhaar)</span>
+                                {selectedCustomer && (
+                                    <span className="text-xs text-red-500 font-medium">Due: ₹{selectedCustomer.creditBalance?.toLocaleString() || '0'}</span>
+                                )}
+                            </div>
                             <span className="text-gray-300 group-hover:text-red-500">→</span>
                         </button>
 
