@@ -690,6 +690,10 @@ const AdminPOSOrders = () => {
                               {customers.map(c => (
                                   <div
                                      key={c._id}
+                                     onMouseDown={(e) => {
+                                         e.preventDefault(); // Prevent input blur
+                                         selectCustomer(c);
+                                     }}
                                      onClick={() => selectCustomer(c)}
                                      className="p-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0"
                                   >

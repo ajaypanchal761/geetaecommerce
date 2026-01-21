@@ -109,11 +109,14 @@ export const initializeSocket = (httpServer: HttpServer) => {
             credentials: true,
         },
         // Production-specific Socket.io configuration
-        allowEIO3: true, // Allow Engine.IO v3 clients
-        pingTimeout: 60000, // 60 seconds
-        pingInterval: 25000, // 25 seconds
-        transports: ['websocket', 'polling'], // Allow both transports
-        upgradeTimeout: 30000, // 30 seconds for upgrade
+        allowEIO3: true,
+        pingTimeout: 60000,
+        pingInterval: 25000,
+        transports: ['websocket', 'polling'], // Keep polling for fallback
+        upgradeTimeout: 30000,
+        // Add robust connection handling
+        connectTimeout: 45000,
+        maxHttpBufferSize: 1e8,
     });
 
     // Authentication middleware
