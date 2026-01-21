@@ -5,6 +5,7 @@ import FloatingCartPill from './FloatingCartPill';
 import { useLocation as useLocationContext } from '../hooks/useLocation';
 import LocationPermissionRequest from './LocationPermissionRequest';
 import { useThemeContext } from '../context/ThemeContext';
+import QRScannerModal from './QRScannerModal';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -21,6 +22,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const { isLocationEnabled, isLocationLoading, location: userLocation } = useLocationContext();
   const [showLocationRequest, setShowLocationRequest] = useState(false);
   const [showLocationChangeModal, setShowLocationChangeModal] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
   const { currentTheme } = useThemeContext();
 
   const isActive = (path: string) => location.pathname === path;
@@ -305,19 +307,50 @@ export default function AppLayout({ children }: AppLayoutProps) {
               {/* Search bar - Hidden on Order Again page */}
               {showSearchBar && (
                 <div className="px-4 md:px-6 lg:px-8 pb-3">
-                  <div className="relative max-w-2xl md:mx-auto">
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => handleSearchChange(e.target.value)}
-                      placeholder="Search for products..."
-                      className="w-full px-4 py-2.5 pl-10 bg-neutral-50 border border-neutral-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent md:py-3"
-                    />
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400">🔍</span>
+                  <div className="relative max-w-2xl md:mx-auto flex gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => handleSearchChange(e.target.value)}
+                        placeholder="Search for products..."
+                        className="w-full px-4 py-2.5 pl-10 bg-neutral-50 border border-neutral-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent md:py-3"
+                      />
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400">🔍</span>
+                    </div>
+
+                    {/* Scanner Button */}
+                    <button
+                        onClick={() => setShowScanner(true)}
+                        className="bg-neutral-100 hover:bg-neutral-200 text-neutral-600 p-2.5 rounded-lg border border-neutral-200 transition-colors flex items-center justify-center"
+                        title="Scan Barcode"
+                    >
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
+                            <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
+                            <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
+                            <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
+                            <rect x="7" y="7" width="10" height="10" rx="1"></rect>
+                            <path d="M12 12h.01"></path>
+                        </svg>
+                    </button>
                   </div>
                 </div>
               )}
             </header>
+          )}
+
+          {/* Scanner Modal */}
+          {showScanner && (
+            <QRScannerModal
+                onScanSuccess={(decodedText) => {
+                    setShowScanner(false);
+                    if (decodedText) {
+                        handleSearchChange(decodedText);
+                    }
+                }}
+                onClose={() => setShowScanner(false)}
+            />
           )}
 
           {/* Scrollable Main Content */}

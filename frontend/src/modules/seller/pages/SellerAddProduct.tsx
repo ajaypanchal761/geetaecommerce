@@ -10,6 +10,7 @@ import {
   updateProduct,
   getProductById,
   getShops,
+  searchProductImage,
   ProductVariation,
   Shop,
 } from "../../../services/api/productService";
@@ -95,6 +96,11 @@ export default function SellerAddProduct() {
   const [isScanning, setIsScanning] = useState(false);
   const [scanTarget, setScanTarget] = useState<"product" | "variation">("product");
   const scannerRef = React.useRef<Html5Qrcode | null>(null);
+
+  // Image Search State
+  const [imageSearchQuery, setImageSearchQuery] = useState("");
+  const [searchedImage, setSearchedImage] = useState("");
+  const [isSearchingImage, setIsSearchingImage] = useState(false);
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<SubCategory[]>([]);
@@ -466,6 +472,39 @@ export default function SellerAddProduct() {
           });
       } else {
           setIsScanning(false);
+      }
+  };
+
+  const handleImageSearch = async () => {
+      if (!imageSearchQuery.trim()) {
+          setUploadError("Please enter a keyword to search");
+          return;
+      }
+      setIsSearchingImage(true);
+      setUploadError("");
+      try {
+          const res = await searchProductImage(imageSearchQuery);
+          if (res.success && res.data?.imageUrl) {
+              setSearchedImage(res.data.imageUrl);
+          } else {
+              setUploadError("No image found for this keyword");
+          }
+      } catch (err: any) {
+          console.error(err);
+          setUploadError("Image search failed. Please try again.");
+      } finally {
+          setIsSearchingImage(false);
+      }
+  };
+
+  const applySearchedImage = () => {
+      if (searchedImage) {
+          setFormData(prev => ({ ...prev, mainImageUrl: searchedImage }));
+          setMainImagePreview(searchedImage);
+          setMainImageFile(null); // Clear file since using URL
+          setSearchedImage("");
+          setSuccessMessage("Image applied successfully!");
+          setTimeout(() => setSuccessMessage(""), 2000);
       }
   };
 
@@ -1313,6 +1352,59 @@ export default function SellerAddProduct() {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* AI Image Search Section (New) */}
+          <div className="bg-white rounded-lg shadow-sm border border-neutral-200">
+              <div className="bg-purple-600 text-white px-4 sm:px-6 py-3 rounded-t-lg flex justify-between items-center">
+                  <h2 className="text-lg font-semibold flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                    Live Image Search
+                  </h2>
+                  <span className="text-xs bg-white/20 px-2 py-0.5 rounded">AI Powered</span>
+              </div>
+              <div className="p-4 sm:p-6 space-y-4">
+                  <div className="flex gap-2">
+                       <input
+                          type="text"
+                          value={imageSearchQuery}
+                          onChange={(e) => setImageSearchQuery(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleImageSearch())}
+                          placeholder="e.g. Vaseline 200ml, Dove Soap"
+                          className="flex-1 px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                       />
+                       <button
+                          type="button"
+                          onClick={handleImageSearch}
+                          disabled={isSearchingImage}
+                          className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors disabled:opacity-70 flex items-center gap-2"
+                       >
+                           {isSearchingImage ? (
+                               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                           ) : (
+                               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                           )}
+                           Search
+                       </button>
+                  </div>
+
+                  {searchedImage && (
+                      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 flex flex-col sm:flex-row gap-4 items-center">
+                          <img src={searchedImage} alt="Analysis Result" className="w-24 h-24 object-cover rounded bg-white border border-gray-200" />
+                          <div className="flex-1 text-center sm:text-left">
+                              <h4 className="font-medium text-gray-800">Image Found</h4>
+                              <p className="text-sm text-gray-500">Unsplash Search Result</p>
+                          </div>
+                          <button
+                              type="button"
+                              onClick={applySearchedImage}
+                              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
+                          >
+                              Use this Image
+                          </button>
+                      </div>
+                  )}
+              </div>
           </div>
 
           {/* Add Images Section */}

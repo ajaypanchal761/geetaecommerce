@@ -101,6 +101,10 @@ export interface IAppSettings extends Document {
   maintenanceMode: boolean;
   maintenanceMessage?: string;
 
+  // External APIs
+  geminiApiKey?: string;
+  googleCxId?: string; // Search Engine ID for Google Custom Search
+
   // Product Display Settings
   productDisplaySettings?: Array<{
     id: string;
@@ -378,6 +382,18 @@ const AppSettingsSchema = new Schema<IAppSettings>(
     maintenanceMessage: {
       type: String,
       trim: true,
+    },
+
+    // External APIs
+    geminiApiKey: {
+      type: String,
+      trim: true,
+      select: false, // Security: Don't return by default
+    },
+    googleCxId: {
+      type: String,
+      trim: true,
+      select: false,
     },
 
     // Product Display Settings

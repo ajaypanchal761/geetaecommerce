@@ -151,7 +151,7 @@ export default function AdminAddProduct() {
     fetchFieldSettings();
   }, []);
 
-  const handlePrintBarcode = (barcodeVal: string, qty: number) => {
+  const handlePrintBarcode = (barcodeVal: string, qty: number, name?: string, price?: number) => {
     if(!barcodeVal) return;
     const printWindow = window.open('', '_blank');
     if(!printWindow) {
@@ -164,13 +164,62 @@ export default function AdminAddProduct() {
         <head>
           <title>Print Barcodes</title>
           <style>
-            body { font-family: sans-serif; padding: 20px; }
-            .barcode-grid { display: flex; flex-wrap: wrap; gap: 15px; }
-            .barcode-container { text-align: center; border: 1px dashed #ccc; padding: 10px; page-break-inside: avoid; display: flex; flex-col; align-items: center; justify-content: center; }
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+            body {
+                font-family: 'Inter', sans-serif;
+                padding: 20px;
+            }
+            .barcode-grid {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 20px;
+                justify-content: flex-start;
+            }
+            .barcode-container {
+                text-align: center;
+                border: 1.5px dashed #a0a0a0;
+                padding: 15px 25px;
+                page-break-inside: avoid;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                width: 250px;
+                height: auto;
+                background: white;
+                box-sizing: border-box;
+            }
+            .store-name {
+                font-size: 15px;
+                font-weight: 800;
+                text-transform: uppercase;
+                margin-bottom: 4px;
+                color: #000;
+                letter-spacing: 0.5px;
+            }
+            .product-name {
+                font-size: 14px;
+                font-weight: 600;
+                margin-bottom: 15px;
+                color: #000;
+                line-height: 1.3;
+                text-transform: capitalize;
+            }
+            .price {
+                font-size: 18px;
+                font-weight: 800;
+                margin-bottom: 5px;
+                color: #000;
+            }
+            svg.barcode {
+                width: 100%;
+                height: 55px;
+                max-width: 200px;
+            }
             @media print {
-              @page { margin: 0; }
-              .barcode-container { break-inside: avoid; border: none; }
-              body { margin: 1cm; }
+              @page { margin: 0.5cm; }
+              body { padding: 0; }
+              .barcode-container { break-inside: avoid; border: 1.5px dashed #a0a0a0; }
             }
           </style>
           <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
@@ -179,13 +228,19 @@ export default function AdminAddProduct() {
           <div class="barcode-grid">
           ${Array(qty).fill(0).map(() => `
             <div class="barcode-container">
+              <div class="store-name">GEETA STORES</div>
+              <div class="product-name">${name || ''}</div>
+              ${price ? `<div class="price">Price: ₹${price.toFixed(2)}</div>` : ''}
               <svg class="barcode"
                 jsbarcode-format="CODE128"
                 jsbarcode-value="${barcodeVal}"
                 jsbarcode-width="2"
-                jsbarcode-height="50"
+                jsbarcode-height="55"
                 jsbarcode-textmargin="0"
-                jsbarcode-fontoptions="bold">
+                jsbarcode-fontoptions="bold"
+                jsbarcode-displayValue="true"
+                jsbarcode-fontSize="14"
+                jsbarcode-marginBottom="5">
               </svg>
             </div>
           `).join('')}
@@ -195,8 +250,7 @@ export default function AdminAddProduct() {
             // Auto print after a short delay to ensure rendering
             setTimeout(() => {
                 window.print();
-                // window.close(); // Optional: close after print
-            }, 500);
+            }, 800);
           </script>
         </body>
       </html>
@@ -1452,12 +1506,29 @@ export default function AdminAddProduct() {
                            className="w-full px-3 py-2.5 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
                            value={selectedPrintBarcode}
                            onChange={(e) => {
-                             setSelectedPrintBarcode(e.target.value);
-                             // If user selects a barcode, and valid, we could potentially auto-trigger print if requested?
-                             // User said: "jaise hi dropdown se select kare ... print popup khul jana chahiye"
-                             // So I can trigger handlePrintBarcode here directly!
-                             if(e.target.value) {
-                                handlePrintBarcode(e.target.value, parseInt(printQuantity) || 1);
+                             const selectedVal = e.target.value;
+                             setSelectedPrintBarcode(selectedVal);
+
+                             if(selectedVal) {
+                                let name = formData.productName;
+                                let price: number | undefined;
+
+                                // Check if variation
+                                const variation = variations.find(v => v.barcode === selectedVal);
+                                if (variation) {
+                                    name = `${formData.productName} - ${variation.title}`;
+                                    price = variation.price;
+                                } else if (selectedVal === (formData as any).barcode) {
+                                    // Main product - try to get price from first variation or purchasePrice if relevant?
+                                    // For now preferring first variation price as it's often the selling price
+                                    if (variations.length > 0) {
+                                        price = variations[0].price;
+                                    } else if (variationForm.price) {
+                                         price = parseFloat(variationForm.price);
+                                    }
+                                }
+
+                                handlePrintBarcode(selectedVal, parseInt(printQuantity) || 1, name, price);
                              }
                            }}
                          >

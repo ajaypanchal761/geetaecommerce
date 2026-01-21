@@ -88,10 +88,10 @@ export const updateCustomerStatus = asyncHandler(
     const { id } = req.params;
     const { status } = req.body;
 
-    if (!["Active", "Inactive"].includes(status)) {
+    if (!["Active", "Inactive", "Suspended"].includes(status)) {
       return res.status(400).json({
         success: false,
-        message: "Status must be Active or Inactive",
+        message: "Status must be Active, Inactive, or Suspended",
       });
     }
 

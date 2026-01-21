@@ -98,6 +98,11 @@ const AdminPOSOrders = () => {
   // Fetch Products
   useEffect(() => {
     const fetchProducts = async () => {
+      if (!searchQuery.trim()) {
+        setProducts([]);
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
         const response = await getPOSProducts({
@@ -268,11 +273,7 @@ const AdminPOSOrders = () => {
         return;
     }
 
-    if (!selectedCustomer) {
-        showToast("Please select a customer first", "error");
-        return;
-    }
-
+    // Customer check removed to allow guest checkout
     setShowPaymentModal(true);
   };
 
