@@ -74,8 +74,12 @@ import * as promoStripController from "../modules/admin/controllers/adminPromoSt
 
 const router = Router();
 
-// All routes require admin authentication
+// All routes require authentication
 router.use(authenticate);
+
+// Settings Routes (Accessible to all authenticated users - Sellers need this)
+router.get("/settings", settingsController.getAppSettings);
+
 router.use(requireUserType("Admin"));
 
 // ==================== Profile Routes ====================
@@ -220,7 +224,7 @@ router.patch(
 );
 
 // ==================== Settings Routes ====================
-router.get("/settings", settingsController.getAppSettings);
+// router.get("/settings", settingsController.getAppSettings); // Moved to top
 router.put("/settings", settingsController.updateAppSettings);
 router.get("/settings/payment-methods", settingsController.getPaymentMethods);
 router.put(

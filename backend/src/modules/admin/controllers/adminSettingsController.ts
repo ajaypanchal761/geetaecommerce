@@ -8,7 +8,7 @@ import PaymentMethod from "../../../models/PaymentMethod";
  */
 export const getAppSettings = asyncHandler(
   async (_req: Request, res: Response) => {
-    let settings = await AppSettings.findOne();
+    let settings = await AppSettings.findOne().lean();
 
     // Create default settings if none exist
     if (!settings) {
@@ -17,6 +17,8 @@ export const getAppSettings = asyncHandler(
         contactEmail: "contact@Geeta Stores.com",
         contactPhone: "1234567890",
       });
+      // Convert to plain object if created newly (create doesn't support lean directly)
+      settings = (settings as any).toObject ? (settings as any).toObject() : settings;
     }
 
     return res.status(200).json({
@@ -43,7 +45,7 @@ export const updateAppSettings = asyncHandler(
       settings = await AppSettings.findOneAndUpdate({}, updateData, {
         new: true,
         runValidators: true,
-      });
+      }).lean();
     }
 
     return res.status(200).json({

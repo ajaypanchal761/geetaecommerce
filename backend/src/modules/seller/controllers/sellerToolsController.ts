@@ -21,28 +21,36 @@ export const searchProductImage = asyncHandler(
     // 1. Try to get keys from DB (Dynamic)
     const settings = await AppSettings.findOne().select("+geminiApiKey +googleCxId");
 
-    // Keys priorities: DB > Env
+    // Keys priorities: Env (Explicit) > DB > Env (Gemini)
     const unsplashKey = process.env.UNSPLASH_ACCESS_KEY;
-    const googleApiKey = settings?.geminiApiKey || process.env.GEMINI_API_KEY; // Using "Gemini" key as Google Cloud Key
-    // Default to a generic "Search the Web" CX if not provided.
-    // This ID (764d2a65825484865) is a public Programmable Search Engine configured to search the entire web for images.
-    const googleCxId = settings?.googleCxId || process.env.GOOGLE_CX_ID || "764d2a65825484865";
+
+    // Explicitly clean the key to avoid whitespace issues causing "Invalid Argument"
+    // Prioritize GOOGLE_CUSTOM_API_KEY from env as user recently added it
+    let googleApiKey = process.env.GOOGLE_CUSTOM_API_KEY || settings?.geminiApiKey || process.env.GEMINI_API_KEY;
+    if (googleApiKey) googleApiKey = googleApiKey.trim();
+
+    // Default to the user's provided CX ID if not in env (Hotfix to avoid server restart)
+    const googleCxId = process.env.GOOGLE_CX_ID || settings?.googleCxId || "933cd3189f86843e3";
 
     let imageUrl = "";
 
-    // Strategy A: Google Custom Search (Best for Specific Brands like "Vaseline")
-    // Requires: API Key AND Search Engine ID (CX)
+    let debugInfo = "";
+
+    // Strategy A: Google Custom Search
     if (googleApiKey && googleCxId) {
         try {
-             console.log(`[Image Search] Using Google Custom Search for: "${query}"`);
+             const keyPrefix = googleApiKey.length > 5 ? googleApiKey.substring(0, 5) + "..." : "HIDDEN";
+             console.log(`[Image Search] Using Google Custom Search. Key: ${keyPrefix} CX: ${googleCxId}`);
+
              const response = await axios.get(`https://www.googleapis.com/customsearch/v1`, {
                  params: {
                      key: googleApiKey,
                      cx: googleCxId,
-                     q: query + " product india", // Append text to get better product results
+                     // Exclude stock photo sites to get original product images
+                     q: query + " product india -site:unsplash.com -site:pexels.com -site:pixabay.com",
                      searchType: "image",
                      num: 1,
-                     imgSize: "large", // Prefer high quality
+                     imgSize: "large",
                      safe: "active"
                  }
              });
@@ -52,37 +60,19 @@ export const searchProductImage = asyncHandler(
                  console.log(`[Image Search] Google Found: ${imageUrl}`);
              } else {
                  console.warn(`[Image Search] Google returned 0 results.`);
+                 debugInfo += ` | Google: No Results (CX: ${googleCxId})`;
              }
         } catch (error: any) {
-             console.error("[Image Search] Google Error:", error.response?.data?.error?.message || error.message);
+             const errorMsg = error.response?.data?.error?.message || error.message;
+             console.error("[Image Search] Google Error:", errorMsg);
+             debugInfo += ` | Google Error: ${errorMsg} (Key: ...${googleApiKey ? googleApiKey.slice(-4) : 'NONE'}, CX: ${googleCxId})`;
         }
     }
 
-    // Strategy B: Unsplash (Fallback - Best for Generic items)
-    if (!imageUrl && unsplashKey) {
-        try {
-            console.log(`[Image Search] Falling back to Unsplash for: "${query}"`);
-            const response = await axios.get(`https://api.unsplash.com/search/photos`, {
-                params: {
-                    query: query,
-                    per_page: 1,
-                    orientation: "squarish"
-                },
-                headers: {
-                    Authorization: `Client-ID ${unsplashKey}`
-                }
-            });
+    // Strategy B: Unsplash (Disabled by user request for "Original Images")
+    // User explicitly requested to blocking unsplash/pexels/pixabay.
 
-            if (response.data.results && response.data.results.length > 0) {
-                imageUrl = response.data.results[0].urls.regular;
-                console.log(`[Image Search] Unsplash Found: ${imageUrl}`);
-            } else {
-                console.warn(`[Image Search] Unsplash returned 0 results.`);
-            }
-        } catch (error: any) {
-            console.error("[Image Search] Unsplash Error:", error.response?.data || error.message);
-        }
-    }
+    // if (!imageUrl && unsplashKey) { ... }
 
     if (imageUrl) {
         return res.status(200).json({
@@ -92,15 +82,10 @@ export const searchProductImage = asyncHandler(
         });
     }
 
-    // Return 200 with success: false
-    let failureMessage = "No image found.";
-    if (!googleCxId) {
-        failureMessage += " (To get better results for brands, please configure Google Search Engine ID in settings)";
-    }
-
+    // Return detailed error message
     return res.status(200).json({
         success: false,
-        message: failureMessage
+        message: `No image found. ${debugInfo}`
     });
   }
 );

@@ -28,6 +28,7 @@ import {
   getHeaderCategoriesPublic,
   HeaderCategory,
 } from "../../../services/api/headerCategoryService";
+import { getAppSettings } from "../../../services/api/admin/adminSettingsService";
 
 import ThemedDropdown from "../components/ThemedDropdown";
 import { Html5Qrcode } from "html5-qrcode";
@@ -102,6 +103,9 @@ export default function SellerAddProduct() {
   const [searchedImage, setSearchedImage] = useState("");
   const [isSearchingImage, setIsSearchingImage] = useState(false);
 
+  // Dynamic Product Settings
+  const [productDisplaySettings, setProductDisplaySettings] = useState<any[]>([]);
+
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<SubCategory[]>([]);
   const [subSubCategories, setSubSubCategories] = useState<SubSubCategory[]>([]);
@@ -122,6 +126,7 @@ export default function SellerAddProduct() {
           getBrands(),
           getHeaderCategoriesPublic(),
           getShops(),
+          getAppSettings(),
         ]);
 
         // Handle categories
@@ -158,12 +163,36 @@ export default function SellerAddProduct() {
           // Shops API failed - this is non-critical, log and continue
           console.warn("Failed to fetch shops (Shop By Store feature may be unavailable):", results[4].reason?.message || "Unknown error");
         }
+
+        // Handle App Settings (Product Display Settings)
+        if (results[5].status === "fulfilled" && results[5].value.success) {
+             if (results[5].value.data?.productDisplaySettings) {
+                 setProductDisplaySettings(results[5].value.data.productDisplaySettings);
+             }
+        }
+
       } catch (err) {
         console.error("Error fetching form data:", err);
       }
     };
     fetchData();
   }, []);
+
+  const shouldShowField = (fieldId: string) => {
+    // If settings haven't loaded or are empty, default to Showing Everything (safer)
+    if (!productDisplaySettings || productDisplaySettings.length === 0) return true;
+
+    for (const section of productDisplaySettings) {
+        if (section.fields) {
+            const field = section.fields.find((f: any) => f.id === fieldId);
+            if (field) {
+                return field.isEnabled;
+            }
+        }
+    }
+    // If field is not found in settings configuration (e.g. new field), show it by default
+    return true;
+  };
 
   useEffect(() => {
     if (id) {
@@ -484,11 +513,12 @@ export default function SellerAddProduct() {
       setUploadError("");
       try {
           const res = await searchProductImage(imageSearchQuery);
-          if (res.success && res.data?.imageUrl) {
-              setSearchedImage(res.data.imageUrl);
-          } else {
-              setUploadError("No image found for this keyword");
-          }
+        if (res.success && res.data?.imageUrl) {
+            setSearchedImage(res.data.imageUrl);
+        } else {
+            // Show the detailed error message from the backend (which includes Google/Unsplash errors)
+            setUploadError(res.message || "No image found for this keyword");
+        }
       } catch (err: any) {
           console.error(err);
           setUploadError("Image search failed. Please try again.");
@@ -748,6 +778,7 @@ export default function SellerAddProduct() {
                   />
                 </div>
 
+                {shouldShowField('pack') && (
                 <div className="md:col-span-2">
                    <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     Pack / Unit Size <span className="text-xs text-neutral-500 font-normal ml-1">(e.g. 1 kg, 500 ml, 1 pc)</span>
@@ -761,7 +792,9 @@ export default function SellerAddProduct() {
                      className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
                    />
                 </div>
+                )}
 
+                {shouldShowField('item_code') && (
                 <div className="md:col-span-1">
                    <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     Item Code (SKU)
@@ -775,6 +808,8 @@ export default function SellerAddProduct() {
                      className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
                    />
                 </div>
+                )}
+                {shouldShowField('rack_number') && (
                 <div className="md:col-span-1">
                    <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     Rack Number
@@ -788,7 +823,9 @@ export default function SellerAddProduct() {
                      className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
                    />
                 </div>
+                )}
 
+                {shouldShowField('header_category') && (
                 <div>
                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     Header Category <span className="text-red-500">*</span>
@@ -800,7 +837,9 @@ export default function SellerAddProduct() {
                     placeholder="Select Header Category"
                   />
                 </div>
+                )}
 
+                {shouldShowField('category') && (
                 <div>
                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     Category
@@ -824,7 +863,9 @@ export default function SellerAddProduct() {
                     disabled={!formData.headerCategory}
                   />
                 </div>
+                )}
 
+                {shouldShowField('subcategory') && (
                 <div>
                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     SubCategory
@@ -837,7 +878,9 @@ export default function SellerAddProduct() {
                     disabled={!formData.category}
                   />
                 </div>
+                )}
 
+                {shouldShowField('sub_subcategory') && (
                 <div>
                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     Sub-SubCategory
@@ -851,6 +894,7 @@ export default function SellerAddProduct() {
                     className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
                   />
                 </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
@@ -885,6 +929,7 @@ export default function SellerAddProduct() {
                   />
                 </div>
 
+                {shouldShowField('brand') && (
                 <div>
                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     Brand
@@ -896,7 +941,9 @@ export default function SellerAddProduct() {
                     placeholder="Select Brand"
                   />
                 </div>
+                )}
 
+                {shouldShowField('tags') && (
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     Tags <span className="text-xs text-neutral-500 font-normal ml-1">(Separated by comma)</span>
@@ -910,8 +957,10 @@ export default function SellerAddProduct() {
                     className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
                   />
                 </div>
+                )}
               </div>
 
+              {shouldShowField('summary') && (
               <div>
                 <label className="block text-sm font-semibold text-neutral-700 mb-2">
                   Short Description
@@ -925,6 +974,7 @@ export default function SellerAddProduct() {
                   className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 resize-none transition-all"
                 />
               </div>
+              )}
             </div>
           </div>
 
@@ -936,6 +986,7 @@ export default function SellerAddProduct() {
             </div>
             <div className="p-6 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {shouldShowField('seo_title') && (
                 <div>
                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     meta Title
@@ -949,6 +1000,8 @@ export default function SellerAddProduct() {
                     className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
                   />
                 </div>
+                )}
+                {shouldShowField('seo_keywords') && (
                 <div>
                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     meta Keywords
@@ -962,6 +1015,8 @@ export default function SellerAddProduct() {
                     className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
                   />
                 </div>
+                )}
+                {shouldShowField('seo_image_alt') && (
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     Image Alt Attributes
@@ -975,6 +1030,8 @@ export default function SellerAddProduct() {
                     className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
                   />
                 </div>
+                )}
+                {shouldShowField('seo_description') && (
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     meta Description
@@ -988,6 +1045,7 @@ export default function SellerAddProduct() {
                     className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 resize-none transition-all"
                   />
                 </div>
+                )}
               </div>
             </div>
           </div>
@@ -1069,6 +1127,7 @@ export default function SellerAddProduct() {
                       className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
                     />
                   </div>
+                  {shouldShowField('online_offer_price') && (
                   <div>
                     <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
                       Offer Price
@@ -1084,6 +1143,7 @@ export default function SellerAddProduct() {
                       />
                     </div>
                   </div>
+                  )}
                   <div className="md:col-span-5 grid grid-cols-1 md:grid-cols-2 gap-4">
                      <div className="flex-1">
                         <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
@@ -1182,6 +1242,7 @@ export default function SellerAddProduct() {
             </div>
             <div className="p-6 space-y-6 border-x border-b border-neutral-200 rounded-b-xl">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {shouldShowField('manufacturer') && (
                 <div>
                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     Manufacturer
@@ -1195,6 +1256,8 @@ export default function SellerAddProduct() {
                     className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
                   />
                 </div>
+                )}
+                {shouldShowField('made_in') && (
                 <div>
                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     Made In
@@ -1208,6 +1271,8 @@ export default function SellerAddProduct() {
                     className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
                   />
                 </div>
+                )}
+                {shouldShowField('tax') && (
                 <div>
                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     Tax Category
@@ -1219,6 +1284,8 @@ export default function SellerAddProduct() {
                     placeholder="Select Tax"
                   />
                 </div>
+                )}
+                {shouldShowField('is_returnable') && (
                 <div>
                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     Returnable?
@@ -1229,6 +1296,8 @@ export default function SellerAddProduct() {
                     onChange={(val) => setFormData(prev => ({ ...prev, isReturnable: val }))}
                   />
                 </div>
+                )}
+                {shouldShowField('is_returnable') && (
                 <div>
                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     Max Return Days
@@ -1242,6 +1311,8 @@ export default function SellerAddProduct() {
                     className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
                   />
                 </div>
+                )}
+                {shouldShowField('fssai') && (
                 <div>
                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     FSSAI Lic. No.
@@ -1255,6 +1326,8 @@ export default function SellerAddProduct() {
                     className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
                   />
                 </div>
+                )}
+                {shouldShowField('total_allowed_quantity') && (
                 <div>
                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     Total Allowed Quantity
@@ -1271,6 +1344,7 @@ export default function SellerAddProduct() {
                     Max quantity a user can buy at once
                   </p>
                 </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
@@ -1286,6 +1360,7 @@ export default function SellerAddProduct() {
                   />
                 </div>
 
+                {shouldShowField('purchase_price') && (
                 <div>
                    <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     Purchase Price (₹)
@@ -1299,7 +1374,9 @@ export default function SellerAddProduct() {
                      className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
                    />
                 </div>
+                )}
 
+                {shouldShowField('hsn_code') && (
                 <div>
                    <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     HSN Code
@@ -1313,7 +1390,9 @@ export default function SellerAddProduct() {
                      className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
                    />
                 </div>
+                )}
 
+                {shouldShowField('delivery_time') && (
                 <div>
                    <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     Delivery Time / In
@@ -1327,6 +1406,8 @@ export default function SellerAddProduct() {
                      className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
                    />
                 </div>
+                )}
+                {shouldShowField('barcode') && (
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     Barcode (EAN/UPC)
@@ -1350,6 +1431,7 @@ export default function SellerAddProduct() {
                     </button>
                   </div>
                 </div>
+                )}
               </div>
             </div>
           </div>
@@ -1393,7 +1475,7 @@ export default function SellerAddProduct() {
                           <img src={searchedImage} alt="Analysis Result" className="w-24 h-24 object-cover rounded bg-white border border-gray-200" />
                           <div className="flex-1 text-center sm:text-left">
                               <h4 className="font-medium text-gray-800">Image Found</h4>
-                              <p className="text-sm text-gray-500">Unsplash Search Result</p>
+                              <p className="text-sm text-gray-500">Web Search Result</p>
                           </div>
                           <button
                               type="button"

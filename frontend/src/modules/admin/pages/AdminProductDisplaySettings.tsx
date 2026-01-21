@@ -25,10 +25,46 @@ const DEFAULT_SECTIONS: SettingSection[] = [
     description: 'Control what appears on your product page.',
     fields: [
       {
+         id: 'pack',
+         label: 'Pack / Unit Size',
+         description: 'e.g. 1kg, 500ml',
+         isEnabled: true,
+      },
+      {
+         id: 'item_code',
+         label: 'Item Code (SKU)',
+         description: 'Stock Keeping Unit',
+         isEnabled: true,
+      },
+      {
+         id: 'rack_number',
+         label: 'Rack Number',
+         description: 'Storage Location',
+         isEnabled: true,
+      },
+      {
+        id: 'header_category',
+        label: 'Header Category',
+        description: 'Top level classification',
+        isEnabled: true,
+      },
+      {
         id: 'category',
         label: 'Category',
         description: 'Product Category Information',
         isEnabled: true,
+      },
+      {
+         id: 'subcategory',
+         label: 'Sub-Category',
+         description: 'Detailed Classification',
+         isEnabled: true,
+      },
+      {
+         id: 'sub_subcategory',
+         label: 'Sub-Sub-Category',
+         description: 'Deep Classification',
+         isEnabled: true,
       },
       {
         id: 'brand',
@@ -37,9 +73,15 @@ const DEFAULT_SECTIONS: SettingSection[] = [
         isEnabled: true,
       },
       {
+         id: 'tags',
+         label: 'Tags',
+         description: 'Search keywords/tags',
+         isEnabled: true,
+      },
+      {
         id: 'summary',
         label: 'Summary',
-        description: '2-3 key points, e.g. 4 star frost free refrigerator',
+        description: 'Short description (Small Description)',
         isEnabled: true,
       },
       {
@@ -54,7 +96,48 @@ const DEFAULT_SECTIONS: SettingSection[] = [
         description: 'Specify product youtube video link',
         isEnabled: false,
       },
+      {
+         id: 'manufacturer',
+         label: 'Manufacturer',
+         description: 'Product Manufacturer',
+         isEnabled: true,
+      },
+      {
+         id: 'made_in',
+         label: 'Made In',
+         description: 'Country of Origin',
+         isEnabled: true,
+      },
+      {
+         id: 'fssai',
+         label: 'FSSAI License',
+         description: 'Food license number',
+         isEnabled: true,
+      },
+      {
+         id: 'is_returnable',
+         label: 'Return Policy',
+         description: 'Returnable status and max days',
+         isEnabled: true,
+      },
+      {
+         id: 'total_allowed_quantity',
+         label: 'Max Quantity',
+         description: 'Max qty allowed per order',
+         isEnabled: true,
+      },
     ],
+  },
+  {
+      id: 'seo',
+      title: 'SEO Settings',
+      description: 'Search Engine Optimization',
+      fields: [
+          { id: 'seo_title', label: 'SEO Title', isEnabled: true },
+          { id: 'seo_keywords', label: 'SEO Keywords', isEnabled: true },
+          { id: 'seo_description', label: 'SEO Description', isEnabled: true },
+          { id: 'seo_image_alt', label: 'SEO Image Alt', isEnabled: true },
+      ]
   },
   {
     id: 'pricing',
@@ -67,10 +150,22 @@ const DEFAULT_SECTIONS: SettingSection[] = [
         isEnabled: true,
       },
       {
+         id: 'hsn_code',
+         label: 'HSN Code',
+         description: 'Harmonized System Nomenclature',
+         isEnabled: true,
+      },
+      {
         id: 'purchase_price',
         label: 'Purchase Price',
         description: 'Purchase price of goods (visible only to you)',
         isEnabled: true,
+      },
+       {
+         id: 'delivery_time',
+         label: 'Delivery Time',
+         description: 'Estimated delivery days',
+         isEnabled: true,
       },
     ],
   },
@@ -126,17 +221,43 @@ export default function AdminProductDisplaySettings() {
       setLoading(true);
       const response = await getAppSettings();
       if (response.success && response.data.productDisplaySettings && response.data.productDisplaySettings.length > 0) {
-        // Map backend response to ensure types match (handling optional fields)
-        const mappedSettings = response.data.productDisplaySettings.map((section: any) => ({
-          ...section,
-          fields: section.fields.map((field: any) => ({
-             ...field,
-             // Ensure defaults if backend misses them
-             type: field.type || 'toggle',
-             canDelete: field.canDelete || false
-          }))
-        }));
-        setSections(mappedSettings);
+        // Merge backend settings with DEFAULT_SECTIONS to ensure new fields are added
+        const mergedSettings = DEFAULT_SECTIONS.map(defaultSection => {
+            const backendSection = response.data.productDisplaySettings?.find((s: any) => s.id === defaultSection.id);
+            if (!backendSection) return defaultSection;
+
+            // Merge Fields
+            const mergedFields = defaultSection.fields.map(defaultField => {
+                const backendField = backendSection.fields.find((f: any) => f.id === defaultField.id);
+                if (backendField) {
+                    return {
+                        ...defaultField, // Keep default props like label/desc in case code updated
+                        isEnabled: backendField.isEnabled, // Use saved value
+                        canDelete: backendField.canDelete || defaultField.canDelete,
+                        type: backendField.type || defaultField.type
+                    };
+                }
+                return defaultField; // Use default if new field not in DB
+            });
+
+            // Also include custom fields added by user (e.g. variants) that are NOT in default
+            if (backendSection.id === 'variants') {
+                const customFields = backendSection.fields.filter((f: any) =>
+                    !defaultSection.fields.some(df => df.id === f.id)
+                );
+                return {
+                    ...defaultSection,
+                    fields: [...mergedFields, ...customFields]
+                };
+            }
+
+            return {
+                ...defaultSection,
+                fields: mergedFields
+            };
+        });
+
+        setSections(mergedSettings);
       } else {
         // If no settings exist on backend, use defaults
          setSections(DEFAULT_SECTIONS);
@@ -273,8 +394,17 @@ export default function AdminProductDisplaySettings() {
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-neutral-900">Product Settings</h1>
           </div>
-          <div className="text-sm text-neutral-600">
-            <span className="text-teal-600">Home</span> / <span className="text-neutral-900">Product Settings</span>
+          <div className="flex items-center gap-3">
+             <div className="text-sm text-neutral-600 hidden sm:block mr-2">
+                <span className="text-teal-600">Home</span> / <span className="text-neutral-900">Product Settings</span>
+             </div>
+             <button
+               onClick={saveSettings}
+               disabled={saving}
+               className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg shadow-sm transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+             >
+               {saving ? 'Saving...' : 'Save Changes'}
+             </button>
           </div>
         </div>
       </div>
