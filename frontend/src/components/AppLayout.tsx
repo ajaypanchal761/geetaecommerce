@@ -184,26 +184,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 <span className="font-medium text-sm">Order Again</span>
               </Link>
 
-              {/* Brand */}
-              <Link
-                to="/brand"
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${isActive('/brand')
-                  ? 'bg-white shadow-md font-semibold'
-                  : 'hover:bg-white/20'
-                  }`}
-                style={{
-                  color: isActive('/brand') ? currentTheme.accentColor : currentTheme.headerTextColor
-                }}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  {isActive('/brand') ? (
-                    <path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-                  ) : (
-                    <path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" fill="none" />
-                  )}
-                </svg>
-                <span className="font-medium text-sm">Brand</span>
-              </Link>
+
 
               {/* Video Finds */}
               <Link
@@ -518,45 +499,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                   </Link>
                 </motion.div>
 
-                {/* Brand */}
-                <motion.div
-                  whileTap={{ scale: 0.95 }}
-                  transition={{ duration: 0.1 }}
-                  className="flex-1 h-full"
-                >
-                  <Link
-                    to="/brand"
-                    className="flex flex-col items-center justify-center h-full relative"
-                  >
-                    <div className="flex flex-col items-center justify-center relative z-10">
-                      <motion.svg
-                        width="24"
-                        height="24"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        animate={isActive('/brand') ? {
-                          scale: [1, 1.1, 1]
-                        } : {}}
-                        transition={{
-                          duration: 0.4,
-                          ease: "easeInOut",
-                          repeat: isActive('/brand') ? Infinity : 0,
-                          repeatDelay: 2
-                        }}
-                      >
-                         {isActive('/brand') ? (
-                           <path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" fill="#22c55e" stroke="#1f2937" strokeWidth="2" strokeLinejoin="round" />
-                         ) : (
-                           <path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" stroke="#6b7280" strokeWidth="2" strokeLinejoin="round" fill="none" />
-                         )}
-                      </motion.svg>
-                    </div>
-                    <span className={`text-xs mt-0.5 relative z-10 ${isActive('/brand') ? 'font-medium text-neutral-700' : 'font-medium text-neutral-500'}`}>
-                      Brand
-                    </span>
-                  </Link>
-                </motion.div>
+
 
                 {/* Video Finds */}
                 <motion.div

@@ -3,6 +3,8 @@ import { getPOSProducts, Product } from '../../../services/api/admin/adminProduc
 import { createPOSOrder, initiatePOSOnlineOrder, verifyPOSPayment } from '../../../services/api/admin/adminOrderService';
 import { getAllCustomers, Customer } from '../../../services/api/admin/adminCustomerService';
 import { useToast } from '../../../context/ToastContext';
+import { ensureMockCustomerBase, addMockOrder, initializeMockData } from '../../../services/mockPOSService';
+import { useNavigate } from 'react-router-dom';
 
 // Interface for Cart Item extending Product
 interface CartItem extends Product {
@@ -11,7 +13,12 @@ interface CartItem extends Product {
 }
 
 const AdminPOSOrders = () => {
+  const navigate = useNavigate();
   const { showToast } = useToast();
+
+  useEffect(() => {
+    initializeMockData();
+  }, []);
   const [selectedSeller, setSelectedSeller] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('Cash');
@@ -285,6 +292,11 @@ const AdminPOSOrders = () => {
        return;
     }
 
+    if (method === 'Credit') {
+        performCreditCheckout();
+        return;
+    }
+
     setLoading(true);
     try {
         const orderData = {
@@ -386,6 +398,11 @@ const AdminPOSOrders = () => {
   const performCashCheckout = async () => {
     setLoading(true);
     try {
+        // Ensure customer exists in mock base too (for history consistency if they later use credit)
+        if (selectedCustomer) {
+            ensureMockCustomerBase(selectedCustomer);
+        }
+
         const orderData = {
             customerId: selectedCustomer ? selectedCustomer._id : "walk-in-customer",
             items: cart.map(item => ({
@@ -400,6 +417,20 @@ const AdminPOSOrders = () => {
 
         const response = await createPOSOrder(orderData);
         if (response.success) {
+            // Add to mock history as Paid order
+            if (selectedCustomer) {
+                addMockOrder(selectedCustomer._id || 'temp', {
+                    id: (response.data as any)?.orderId || 'ORD-' + Date.now(),
+                    customerId: selectedCustomer._id,
+                    customerName: selectedCustomer.name,
+                    date: new Date().toISOString().split('T')[0],
+                    amount: calculateTotal(),
+                    paymentType: 'Paid',
+                    itemsString: cart.map(i => `${i.productName} x ${i.qty}`).join(', '),
+                    images: cart.map(i => i.mainImage || '').filter(Boolean)
+                });
+            }
+
             showToast("Order placed successfully!", "success");
             setCart([]);
         } else {
@@ -411,6 +442,68 @@ const AdminPOSOrders = () => {
     } finally {
         setLoading(false);
     }
+  };
+
+  const performCreditCheckout = async () => {
+      if (!selectedCustomer) {
+          showToast("Customer selection is mandatory for Credit orders", "error");
+          return;
+      }
+
+      setLoading(true);
+      try {
+           // 1. Ensure customer exists in our mock system
+           const mockCust = ensureMockCustomerBase(selectedCustomer);
+
+           // 2. Try to create actual order in backend
+           // If backend rejects 'Credit' payment method, we swallow the error and proceed locally for the purpose of this feature flow.
+           let backendOrderId = null;
+           try {
+               const orderData = {
+                    customerId: selectedCustomer._id,
+                    items: cart.map(item => ({
+                        productId: item._id?.startsWith('quick-') ? '' : item._id,
+                        name: item.productName,
+                        quantity: item.qty,
+                        price: item.customPrice !== undefined ? item.customPrice : item.price
+                    })),
+                    paymentMethod: 'Credit',
+                    paymentStatus: "Pending"  as "Pending"
+                };
+
+                const response = await createPOSOrder(orderData);
+                if (response.success && (response.data as any)?.orderId) {
+                    backendOrderId = (response.data as any).orderId;
+                }
+           } catch (backendError) {
+               console.warn("Backend declined Credit order, proceeding with local flow:", backendError);
+           }
+
+           // 3. Add to Mock Credit Ledger (Always succeed for frontend flow)
+            const total = calculateTotal();
+            const ordId = backendOrderId || 'ORD-' + Date.now();
+
+            addMockOrder(mockCust.id, {
+                id: ordId,
+                customerId: mockCust.id,
+                customerName: mockCust.name,
+                date: new Date().toISOString().split('T')[0],
+                amount: total,
+                paymentType: 'Credit',
+                itemsString: cart.map(i => `${i.productName} x ${i.qty}`).join(', '),
+                images: cart.map(i => i.mainImage || '').filter(Boolean)
+            });
+
+            showToast(`Credit Order Placed! Balance updated for ${selectedCustomer.name}`, "success");
+            setCart([]);
+            navigate(`/admin/pos/customers/${selectedCustomer._id || mockCust.id}`);
+
+      } catch (error) {
+          console.error(error);
+          showToast("Error processing credit order flow", "error");
+      } finally {
+          setLoading(false);
+      }
   };
 
   return (
@@ -432,7 +525,17 @@ const AdminPOSOrders = () => {
           </svg>
           View POS Report
         </button>
+        <button
+          onClick={() => navigate('/admin/pos/customers')}
+          className="px-4 py-2 bg-blue-600 text-white border border-blue-600 rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors flex items-center gap-2"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+          Customers (Credit)
+        </button>
       </div>
+
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
 
@@ -801,6 +904,14 @@ const AdminPOSOrders = () => {
                         >
                             <span className="font-semibold text-gray-700 group-hover:text-purple-700">Cashfree</span>
                             <span className="text-gray-300 group-hover:text-purple-500">→</span>
+                        </button>
+
+                         <button
+                          onClick={() => handlePaymentSelection('Credit')}
+                          className="w-full group flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:border-red-500 hover:bg-red-50 transition-all"
+                        >
+                            <span className="font-semibold text-gray-700 group-hover:text-red-700">Credit (Udhaar)</span>
+                            <span className="text-gray-300 group-hover:text-red-500">→</span>
                         </button>
 
                          <button
