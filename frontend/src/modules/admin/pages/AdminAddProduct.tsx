@@ -97,12 +97,16 @@ export default function AdminAddProduct() {
     offerPrice: "",
   });
 
+  interface GalleryItem {
+    id: string;
+    url: string;
+    file?: File;
+    isExisting: boolean;
+  }
+
   const [mainImageFile, setMainImageFile] = useState<File | null>(null);
   const [mainImagePreview, setMainImagePreview] = useState<string>("");
-  const [galleryImageFiles, setGalleryImageFiles] = useState<File[]>([]);
-  const [galleryImagePreviews, setGalleryImagePreviews] = useState<string[]>(
-    []
-  );
+  const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string>("");
   const [successMessage, setSuccessMessage] = useState<string>("");
@@ -153,6 +157,31 @@ export default function AdminAddProduct() {
 
   const handlePrintBarcode = (barcodeVal: string, qty: number, name?: string, price?: number) => {
     if(!barcodeVal) return;
+
+    // Get barcode size setting from localStorage
+    const savedSize = localStorage.getItem('barcode_print_size') || 'medium';
+
+    // Define dimensions based on size setting
+    let containerWidth = 250;
+    let barcodeHeight = 55;
+    let fontSize = 14;
+    let productNameSize = 14;
+    let storeNameSize = 15;
+
+    if (savedSize === 'small') {
+        containerWidth = 200;
+        barcodeHeight = 40;
+        fontSize = 12;
+        productNameSize = 12;
+        storeNameSize = 13;
+    } else if (savedSize === 'large') {
+        containerWidth = 320;
+        barcodeHeight = 75;
+        fontSize = 16;
+        productNameSize = 16;
+        storeNameSize = 17;
+    }
+
     const printWindow = window.open('', '_blank');
     if(!printWindow) {
         alert("Please allow popups to print barcodes");
@@ -184,13 +213,13 @@ export default function AdminAddProduct() {
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
-                width: 250px;
+                width: ${containerWidth}px;
                 height: auto;
                 background: white;
                 box-sizing: border-box;
             }
             .store-name {
-                font-size: 15px;
+                font-size: ${storeNameSize}px;
                 font-weight: 800;
                 text-transform: uppercase;
                 margin-bottom: 4px;
@@ -198,7 +227,7 @@ export default function AdminAddProduct() {
                 letter-spacing: 0.5px;
             }
             .product-name {
-                font-size: 14px;
+                font-size: ${productNameSize}px;
                 font-weight: 600;
                 margin-bottom: 15px;
                 color: #000;
@@ -206,15 +235,15 @@ export default function AdminAddProduct() {
                 text-transform: capitalize;
             }
             .price {
-                font-size: 18px;
+                font-size: ${fontSize + 4}px;
                 font-weight: 800;
                 margin-bottom: 5px;
                 color: #000;
             }
             svg.barcode {
                 width: 100%;
-                height: 55px;
-                max-width: 200px;
+                height: ${barcodeHeight}px;
+                max-width: ${containerWidth - 50}px;
             }
             @media print {
               @page { margin: 0.5cm; }
@@ -235,11 +264,11 @@ export default function AdminAddProduct() {
                 jsbarcode-format="CODE128"
                 jsbarcode-value="${barcodeVal}"
                 jsbarcode-width="2"
-                jsbarcode-height="55"
+                jsbarcode-height="${barcodeHeight}"
                 jsbarcode-textmargin="0"
                 jsbarcode-fontoptions="bold"
                 jsbarcode-displayValue="true"
-                jsbarcode-fontSize="14"
+                jsbarcode-fontSize="${fontSize}"
                 jsbarcode-marginBottom="5">
               </svg>
             </div>
@@ -380,7 +409,11 @@ export default function AdminAddProduct() {
               );
             }
             if (product.galleryImageUrls) {
-              setGalleryImagePreviews(product.galleryImageUrls);
+              setGalleryItems(product.galleryImageUrls.map((url) => ({
+                id: url,
+                url: url,
+                isExisting: true,
+              })));
             }
           }
         } catch (err) {
@@ -515,22 +548,28 @@ export default function AdminAddProduct() {
       return;
     }
 
-    setGalleryImageFiles(files);
     setUploadError("");
 
     try {
-      const previews = await Promise.all(
-        files.map((file) => createImagePreview(file))
+      const newItems: GalleryItem[] = await Promise.all(
+        files.map(async (file) => ({
+          id: URL.createObjectURL(file),
+          url: await createImagePreview(file),
+          file: file,
+          isExisting: false,
+        }))
       );
-      setGalleryImagePreviews(previews);
+      setGalleryItems((prev) => [...prev, ...newItems]);
     } catch (error) {
       setUploadError("Failed to create image previews");
     }
+
+    // Reset input to allow selecting same files again if needed
+    e.target.value = "";
   };
 
   const removeGalleryImage = (index: number) => {
-    setGalleryImageFiles((prev) => prev.filter((_, i) => i !== index));
-    setGalleryImagePreviews((prev) => prev.filter((_, i) => i !== index));
+    setGalleryItems((prev) => prev.filter((_, i) => i !== index));
   };
 
   const addVariation = () => {
@@ -666,7 +705,16 @@ export default function AdminAddProduct() {
     try {
       // Keep local copies so we don't rely on async state updates before submit
       let mainImageUrl = formData.mainImageUrl;
-      let galleryImageUrls = [...formData.galleryImageUrls];
+
+      // Existing gallery images (filter items with isExisting: true)
+      let galleryImageUrls = galleryItems
+        .filter((item) => item.isExisting)
+        .map((item) => item.url);
+
+      // New gallery images to upload
+      const newGalleryFiles = galleryItems
+        .filter((item) => !item.isExisting && item.file)
+        .map((item) => item.file as File);
 
       // Upload main image if provided
       if (mainImageFile) {
@@ -681,13 +729,14 @@ export default function AdminAddProduct() {
         }));
       }
 
-      // Upload gallery images if provided
-      if (galleryImageFiles.length > 0) {
+      // Upload new gallery images if provided
+      if (newGalleryFiles.length > 0) {
         const galleryResults = await uploadImages(
-          galleryImageFiles,
+          newGalleryFiles,
           "Geeta Stores/products/gallery"
         );
-        galleryImageUrls = galleryResults.map((result) => result.secureUrl);
+        const newUrls = galleryResults.map((result) => result.secureUrl);
+        galleryImageUrls = [...galleryImageUrls, ...newUrls];
         setFormData((prev) => ({ ...prev, galleryImageUrls }));
       }
 
@@ -818,8 +867,7 @@ export default function AdminAddProduct() {
             setVariations([]);
             setMainImageFile(null);
             setMainImagePreview("");
-            setGalleryImageFiles([]);
-            setGalleryImagePreviews([]);
+            setGalleryItems([]);
           }
           setSuccessMessage("");
           // Navigate to product list
@@ -844,7 +892,6 @@ export default function AdminAddProduct() {
       {/* Main Content */}
       <div className="flex-1">
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Product Section */}
           {/* Product Section */}
           <div className="bg-white rounded-xl shadow-sm border border-neutral-200">
             <div className="bg-teal-600 text-white px-6 py-4 rounded-t-xl">
@@ -873,7 +920,7 @@ export default function AdminAddProduct() {
                    <input
                      type="text"
                      name="pack"
-                     value={(formData as any).pack}
+                     value={formData.pack}
                      onChange={handleChange}
                      placeholder="Enter Unit Size (displayed on card)"
                      className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
@@ -887,7 +934,7 @@ export default function AdminAddProduct() {
                    <input
                      type="text"
                      name="itemCode"
-                     value={(formData as any).itemCode}
+                     value={formData.itemCode}
                      onChange={handleChange}
                      placeholder="Enter Item Code / SKU"
                      className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
@@ -900,7 +947,7 @@ export default function AdminAddProduct() {
                    <input
                      type="text"
                      name="rackNumber"
-                     value={(formData as any).rackNumber}
+                     value={formData.rackNumber}
                      onChange={handleChange}
                      placeholder="Enter Rack Number"
                      className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
@@ -1054,7 +1101,6 @@ export default function AdminAddProduct() {
             </div>
           </div>
 
-          {/* SEO Content Section */}
           {/* SEO Content Section */}
           <div className="bg-white rounded-xl shadow-sm border border-neutral-200">
             <div className="bg-teal-600 text-white px-6 py-4 rounded-t-xl">
@@ -1631,13 +1677,13 @@ export default function AdminAddProduct() {
                   Product Gallery Images (Optional)
                 </label>
                 <label className="block border-2 border-dashed border-neutral-300 rounded-lg p-8 text-center hover:border-teal-500 transition-colors cursor-pointer">
-                  {galleryImagePreviews.length > 0 ? (
+                  {galleryItems.length > 0 ? (
                     <div className="space-y-4">
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {galleryImagePreviews.map((preview, index) => (
-                          <div key={index} className="relative">
+                        {galleryItems.map((item, index) => (
+                          <div key={item.id} className="relative">
                             <img
-                              src={preview}
+                              src={item.url}
                               alt={`Gallery ${index + 1}`}
                               className="w-full h-32 object-cover rounded-lg"
                             />
@@ -1663,7 +1709,7 @@ export default function AdminAddProduct() {
                         ))}
                       </div>
                       <p className="text-sm text-neutral-600">
-                        {galleryImageFiles.length} image(s) selected
+                        {galleryItems.length} image(s) selected
                       </p>
                     </div>
                   ) : (

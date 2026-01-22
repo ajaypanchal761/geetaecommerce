@@ -21,6 +21,7 @@ export interface GetProductsParams {
     search?: string;
     category?: string;
     subcategory?: string;
+    brand?: string;
     minPrice?: number;
     maxPrice?: number;
     sort?: 'price_asc' | 'price_desc' | 'popular' | 'discount';

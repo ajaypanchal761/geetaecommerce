@@ -39,6 +39,7 @@ interface Seller {
     addressProof?: string;
     requireProductApproval?: boolean;
     viewCustomerDetails?: boolean;
+    isEnabled?: boolean;
 }
 
 // Helper function to convert backend seller to frontend format
@@ -79,6 +80,7 @@ const mapSellerToFrontend = (seller: SellerType): Seller => {
         addressProof: seller.addressProof,
         requireProductApproval: seller.requireProductApproval,
         viewCustomerDetails: seller.viewCustomerDetails,
+        isEnabled: true, // Default to true for frontend-only feature
     };
 };
 
@@ -360,6 +362,19 @@ export default function AdminManageSellerList() {
         setSelectedSeller(null);
     };
 
+    const handleToggleStatus = (id: number | string) => {
+        const sellerId = typeof id === 'number' ? sellers.find(s => s.id === id)?._id : id;
+        if (!sellerId) return;
+
+        setSellers(prevSellers =>
+            prevSellers.map(seller =>
+                seller._id === sellerId
+                    ? { ...seller, isEnabled: !seller.isEnabled }
+                    : seller
+            )
+        );
+    };
+
     return (
         <div className="flex flex-col h-full bg-gray-50">
             {/* Page Content */}
@@ -516,6 +531,9 @@ export default function AdminManageSellerList() {
                                             Need Approval?
                                         </th>
                                         <th className="p-4">
+                                            Enable/Disable
+                                        </th>
+                                        <th className="p-4">
                                             Action
                                         </th>
                                     </tr>
@@ -579,6 +597,20 @@ export default function AdminManageSellerList() {
                                                 </span>
                                             </td>
                                             <td className="p-4 align-middle">
+                                                <button
+                                                    onClick={() => handleToggleStatus(seller._id)}
+                                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 ${
+                                                        seller.isEnabled ? 'bg-teal-600' : 'bg-gray-200'
+                                                    }`}
+                                                >
+                                                    <span
+                                                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                                            seller.isEnabled ? 'translate-x-6' : 'translate-x-1'
+                                                        }`}
+                                                    />
+                                                </button>
+                                            </td>
+                                            <td className="p-4 align-middle">
                                                 <div className="flex items-center gap-2">
                                                     <button
                                                         onClick={() => handleEdit(seller._id)}
@@ -606,7 +638,7 @@ export default function AdminManageSellerList() {
                                     ))}
                                     {displayedSellers.length === 0 && (
                                         <tr>
-                                            <td colSpan={11} className="p-8 text-center text-neutral-400">
+                                            <td colSpan={12} className="p-8 text-center text-neutral-400">
                                                 No sellers found.
                                             </td>
                                         </tr>

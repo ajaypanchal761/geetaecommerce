@@ -51,6 +51,8 @@ const FashionStore = lazy(() => import("./modules/user/FashionStore"));
 const ToyStore = lazy(() => import("./modules/user/ToyStore"));
 const HobbyStore = lazy(() => import("./modules/user/HobbyStore"));
 const StorePage = lazy(() => import("./modules/user/StorePage"));
+const Brands = lazy(() => import("./modules/user/Brands"));
+const BrandProducts = lazy(() => import("./modules/user/BrandProducts"));
 // Lazy load delivery routes
 const DeliveryLayout = lazy(() => import("./modules/delivery/components/DeliveryLayout"));
 const DeliveryDashboard = lazy(() => import("./modules/delivery/pages/DeliveryDashboard"));
@@ -142,6 +144,10 @@ const AdminDeliverySettings = lazy(() => import("./modules/admin/pages/AdminDeli
 const AdminSalesSummary = lazy(() => import("./modules/admin/pages/AdminSalesSummary"));
 const AdminPOSCustomers = lazy(() => import("./modules/admin/pages/AdminPOSCustomers"));
 const AdminPOSCustomerDetail = lazy(() => import("./modules/admin/pages/AdminPOSCustomerDetail"));
+const AdminBannerSetup = lazy(() => import("./modules/admin/pages/AdminBannerSetup"));
+const AdminFlashDeal = lazy(() => import("./modules/admin/pages/AdminFlashDeal"));
+const AdminDealOfTheDay = lazy(() => import("./modules/admin/pages/AdminDealOfTheDay"));
+const AdminFeaturedDeal = lazy(() => import("./modules/admin/pages/AdminFeaturedDeal"));
 
 function App() {
   return (
@@ -354,6 +360,14 @@ function App() {
                             <Route path="product-display-settings" element={<AdminProductDisplaySettings />} />
                             <Route path="delivery-settings" element={<AdminDeliverySettings />} />
                             <Route path="sales-summary" element={<AdminSalesSummary />} />
+
+                            {/* Promotion Routes */}
+                            <Route path="promotion/banner-setup" element={<AdminBannerSetup />} />
+                            <Route path="promotion/flash-deals" element={<AdminFlashDeal />} />
+                            <Route path="promotion/deal-of-the-day" element={<AdminDealOfTheDay />} />
+                            <Route path="promotion/featured-deal" element={<AdminFeaturedDeal />} />
+
+                            <Route path="banner-management" element={<AdminBannerSetup />} />
                           </Routes>
                         </AdminLayout>
                         </Suspense>
@@ -397,6 +411,8 @@ function App() {
                             <Route path="/store/fashion-basics" element={<FashionStore />} />
                             <Route path="/store/toy" element={<ToyStore />} />
                             <Route path="/store/hobby" element={<HobbyStore />} />
+                            <Route path="/brands" element={<Brands />} />
+                            <Route path="/brand/:id" element={<BrandProducts />} />
                           </Routes>
                         </Suspense>
                       </AppLayout>

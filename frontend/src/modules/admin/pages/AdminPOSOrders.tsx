@@ -15,27 +15,132 @@ interface CartItem extends Product {
   isVariation?: boolean;
 }
 
+interface Bill {
+  id: string;
+  name: string;
+  cart: CartItem[];
+  selectedCustomer: Customer | null;
+  customerSearch: string;
+  paymentMethod: string;
+  createdAt: number;
+}
+
 const AdminPOSOrders = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
 
   const [selectedSeller, setSelectedSeller] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('Cash');
-  const [cart, setCart] = useState<CartItem[]>(() => {
+
+  // Multi-Bill State
+  const [bills, setBills] = useState<Bill[]>(() => {
     try {
-      const saved = localStorage.getItem('pos_cart');
-      const parsed = saved ? JSON.parse(saved) : [];
-      return Array.isArray(parsed) ? parsed.filter((item: any) => item && item._id) : [];
+      const savedBills = localStorage.getItem('pos_bills');
+      if (savedBills) {
+        const parsed = JSON.parse(savedBills);
+        if (Array.isArray(parsed) && parsed.length === 1) {
+          // Normalize single remaining bill's name to "Bill 1"
+          parsed[0] = { ...parsed[0], name: 'Bill 1' };
+        }
+        return parsed;
+      }
     } catch (e) {
-      console.error("Failed to load cart from local storage", e);
-      return [];
+      console.error("Failed to load bills", e);
     }
+    return [{
+      id: '1',
+      name: 'Bill 1',
+      cart: [],
+      selectedCustomer: null,
+      customerSearch: '',
+      paymentMethod: 'Cash',
+      createdAt: Date.now()
+    }];
   });
 
+  const [activeBillId, setActiveBillId] = useState<string>(() => {
+    return localStorage.getItem('pos_active_bill') || '1';
+  });
+
+  const activeBill = bills.find(b => b.id === activeBillId) || bills[0];
+
+  // Helper to update active bill state
+  const updateActiveBill = (updates: Partial<Bill>) => {
+    setBills(prev => {
+      const newBills = prev.map(b => b.id === activeBillId ? { ...b, ...updates } : b);
+      localStorage.setItem('pos_bills', JSON.stringify(newBills));
+      return newBills;
+    });
+  };
+
+  const createNewBill = () => {
+    const newId = (Date.now()).toString();
+    const newBill: Bill = {
+      id: newId,
+      name: `Bill ${bills.length + 1}`,
+      cart: [],
+      selectedCustomer: null,
+      customerSearch: '',
+      paymentMethod: 'Cash',
+      createdAt: Date.now()
+    };
+    setBills(prev => {
+      const updated = [...prev, newBill];
+      localStorage.setItem('pos_bills', JSON.stringify(updated));
+      return updated;
+    });
+    setActiveBillId(newId);
+    localStorage.setItem('pos_active_bill', newId);
+  };
+
+  const closeBill = (billId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (bills.length <= 1) {
+      showToast("At least one bill must remain open", "error");
+      return;
+    }
+
+    setBills(prev => {
+      let updated = prev.filter(b => b.id !== billId);
+      // If only one bill remains, ensure its name is "Bill 1"
+      if (updated.length === 1) {
+        updated = [{ ...updated[0], name: 'Bill 1' }];
+      }
+      localStorage.setItem('pos_bills', JSON.stringify(updated));
+
+      // If closing active bill, switch to the last available one
+      if (billId === activeBillId) {
+        const nextBill = updated[updated.length - 1];
+        setActiveBillId(nextBill.id);
+        localStorage.setItem('pos_active_bill', nextBill.id);
+      }
+      return updated;
+    });
+  };
+
+  // Derived State (Proxies for existing logic)
+  const cart = activeBill.cart;
+  const selectedCustomer = activeBill.selectedCustomer;
+  const customerSearch = activeBill.customerSearch;
+  const paymentMethod = activeBill.paymentMethod;
+
+  const setCart = (action: React.SetStateAction<CartItem[]>) => {
+    let newCart;
+    if (typeof action === 'function') {
+      newCart = action(activeBill.cart);
+    } else {
+      newCart = action;
+    }
+    updateActiveBill({ cart: newCart });
+  };
+
+  const setPaymentMethod = (method: string) => {
+      updateActiveBill({ paymentMethod: method });
+  };
+
   useEffect(() => {
-    localStorage.setItem('pos_cart', JSON.stringify(cart));
-  }, [cart]);
+    localStorage.setItem('pos_active_bill', activeBillId);
+  }, [activeBillId]);
 
   // Data State
   const [products, setProducts] = useState<Product[]>([]);
@@ -54,9 +159,9 @@ const AdminPOSOrders = () => {
   const [editForm, setEditForm] = useState({ name: '', price: '', qty: '' });
 
   // Customer Search State
-  const [customerSearch, setCustomerSearch] = useState('');
+  // const [customerSearch, setCustomerSearch] = useState(''); // Removed global
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  // const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null); // Removed global
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
 
   // Search Customers
@@ -84,16 +189,23 @@ const AdminPOSOrders = () => {
   }, [customerSearch, selectedCustomer]);
 
   const selectCustomer = (c: Customer) => {
-      setSelectedCustomer(c);
+      // setSelectedCustomer(c);
+      // const displayName = c.phone ? `${c.name} (${c.phone})` : c.name;
+      // setCustomerSearch(displayName);
       const displayName = c.phone ? `${c.name} (${c.phone})` : c.name;
-      setCustomerSearch(displayName);
+      updateActiveBill({ selectedCustomer: c, customerSearch: displayName });
       setShowCustomerDropdown(false);
   };
 
   const clearCustomer = () => {
-      setSelectedCustomer(null);
-      setCustomerSearch('');
+      // setSelectedCustomer(null);
+      // setCustomerSearch('');
+      updateActiveBill({ selectedCustomer: null, customerSearch: '' });
       setCustomers([]);
+  };
+
+  const handleCustomerSearchChange = (val: string) => {
+    updateActiveBill({ customerSearch: val });
   };
 
   // Fetch Products
@@ -750,6 +862,39 @@ const AdminPOSOrders = () => {
               </button>
             </div>
 
+            {/* Bill Tabs */}
+            <div className="flex items-center gap-2 px-2 pt-2 overflow-x-auto border-b border-gray-200 bg-gray-50">
+              {bills.map(bill => (
+                <div
+                  key={bill.id}
+                  onClick={() => setActiveBillId(bill.id)}
+                  className={`
+                    flex items-center gap-2 px-3 py-2 rounded-t-lg cursor-pointer border-t border-l border-r transition-all min-w-[100px] justify-between select-none text-xs font-medium
+                    ${activeBillId === bill.id
+                      ? 'bg-white border-b-transparent text-blue-600 relative -mb-[1px] z-10 shadow-[0_-2px_4px_rgba(0,0,0,0.02)]'
+                      : 'bg-gray-100 border-gray-200 text-gray-500 hover:bg-gray-200/50'}
+                  `}
+                >
+                  <span className="truncate max-w-[80px]">{bill.name}</span>
+                  <button
+                    onClick={(e) => closeBill(bill.id, e)}
+                    className="hover:bg-red-100 text-gray-400 hover:text-red-500 rounded-full p-0.5 transition-colors"
+                    title="Close Bill"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                  </button>
+                </div>
+              ))}
+
+              <button
+                onClick={createNewBill}
+                className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors ml-1 flex-shrink-0"
+                title="New Bill"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
+              </button>
+            </div>
+
             <div className="flex-1 flex flex-col overflow-hidden">
               {/* Customer Selection */}
               <div className="p-4 border-b border-gray-100">
@@ -1065,4 +1210,3 @@ const AdminPOSOrders = () => {
 };
 
 export default AdminPOSOrders;
-

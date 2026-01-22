@@ -17,6 +17,12 @@ interface AdminStockBulkEditProps {
   onSave: () => void;
 }
 
+interface ProductImage {
+  id: string;
+  url: string;
+  file?: File;
+}
+
 interface EditableProduct {
   id: string;
   original: Product;
@@ -26,10 +32,7 @@ interface EditableProduct {
   price: number;
   stock: number;
   publish: boolean;
-  mainImage: string;
-  newImageFile?: File;
-  galleryImages: string[];
-  newGalleryFiles?: File[];
+  images: ProductImage[];
   isChanged: boolean;
   // New fields
   itemCode: string; // SKU
@@ -109,6 +112,16 @@ export default function AdminStockBulkEdit({
           }
       }
 
+      const images: ProductImage[] = [];
+      if (p.mainImage) {
+        images.push({ id: `main-${p._id}`, url: p.mainImage });
+      }
+      if (p.galleryImages && p.galleryImages.length > 0) {
+        p.galleryImages.forEach((url, i) => {
+           images.push({ id: `gal-${p._id}-${i}`, url });
+        });
+      }
+
       return {
         id: p._id,
         original: p,
@@ -134,8 +147,7 @@ export default function AdminStockBulkEdit({
         brandId: brandId,
         tax: p.tax || "",
         offerPrice: p.discPrice || 0,
-        mainImage: p.mainImage || "",
-        galleryImages: p.galleryImages || [],
+        images: images,
         isChanged: false,
       };
     });
@@ -157,11 +169,11 @@ export default function AdminStockBulkEdit({
   const handleImageChange = (index: number, files: FileList | null) => {
       if (!files || files.length === 0) return;
 
-      const mainFile = files[0];
-      const galleryFiles = Array.from(files).slice(1);
-
-      const mainPreview = URL.createObjectURL(mainFile);
-      const galleryPreviews = galleryFiles.map(f => URL.createObjectURL(f));
+      const newImages: ProductImage[] = Array.from(files).map((f) => ({
+        id: URL.createObjectURL(f),
+        url: URL.createObjectURL(f),
+        file: f,
+      }));
 
       setEditableProducts((prev) => {
           const updated = [...prev];
@@ -169,22 +181,27 @@ export default function AdminStockBulkEdit({
 
           updated[index] = {
               ...currentProduct,
-              newImageFile: mainFile,
-              mainImage: mainPreview,
-              newGalleryFiles: galleryFiles,
-              galleryImages: [...galleryPreviews, ...(currentProduct.galleryImages || []).slice(0, 3 - galleryFiles.length)], // Maintain up to 3 gallery images logic or just replace
-              // For bulk edit, simply showing the new selection + existing (up to limit) is good UX.
-              // But to keep simple "ek sath 3 images dal sake", we will prioritize the new selection.
+              images: [...currentProduct.images, ...newImages],
               isChanged: true
           };
 
-          // Update gallery previews to show what was selected
-          if (galleryFiles.length > 0) {
-             updated[index].galleryImages = galleryPreviews;
-          }
-
           return updated;
       });
+  };
+
+  const handleRemoveImage = (productIndex: number, imageId: string) => {
+    setEditableProducts((prev) => {
+      const updated = [...prev];
+      const currentProduct = updated[productIndex];
+
+      updated[productIndex] = {
+        ...currentProduct,
+        images: currentProduct.images.filter((img) => img.id !== imageId),
+        isChanged: true,
+      };
+
+      return updated;
+    });
   };
 
   const handleSave = async () => {
@@ -197,32 +214,26 @@ export default function AdminStockBulkEdit({
     setSaving(true);
     try {
       const updatePromises = changedProducts.map(async (p) => {
-        let imageUrl = p.mainImage;
-        // Upload new image if present
-        if (p.newImageFile) {
+        const finalImages: string[] = [];
+
+        // Upload new images and collect all URLs
+        for (const img of p.images) {
+          if (img.file) {
             try {
-                const uploadRes = await uploadImage(p.newImageFile);
-                if (uploadRes.success) {
-                    imageUrl = uploadRes.data.url;
-                }
+              const uploadRes = await uploadImage(img.file);
+              if (uploadRes.success) {
+                finalImages.push(uploadRes.data.url);
+              }
             } catch (err) {
-                console.error("Failed to upload image for product", p.productName, err);
-                // Fallback to original image if upload fails or handle error
+              console.error("Failed to upload image", err);
             }
+          } else {
+            finalImages.push(img.url);
+          }
         }
 
-        // Upload Gallery Images if present
-        let finalGalleryImages = p.galleryImages;
-
-        if (p.newGalleryFiles && p.newGalleryFiles.length > 0) {
-            try {
-                const galleryUploads = await Promise.all(p.newGalleryFiles.map(f => uploadImage(f)));
-                const newUrls = galleryUploads.filter(res => res.success).map(res => res.data.url);
-                finalGalleryImages = newUrls;
-            } catch (err) {
-                 console.error("Failed to upload gallery images", err);
-            }
-        }
+        const mainImage = finalImages.length > 0 ? finalImages[0] : "";
+        const galleryImages = finalImages.length > 1 ? finalImages.slice(1) : [];
 
         return updateProduct(p.id, {
           productName: p.productName,
@@ -231,8 +242,8 @@ export default function AdminStockBulkEdit({
           price: p.price,
           stock: p.stock,
           publish: p.publish,
-          mainImage: imageUrl,
-          galleryImages: finalGalleryImages,
+          mainImage: mainImage,
+          galleryImages: galleryImages,
           // New fields update
           sku: p.itemCode, // mapped to sku
           itemCode: p.itemCode,
@@ -381,29 +392,26 @@ export default function AdminStockBulkEdit({
                   <td className="p-2 border-r border-neutral-200 text-center text-xs text-neutral-500">
                     {index + 1}
                   </td>
-                  {/* Image (Already there) */ }
+                  {/* Image (Modified) */}
                   <td className="p-1 border-r border-neutral-200 text-center align-middle">
-                      <div className="relative group min-h-[60px] flex flex-wrap justify-center items-center gap-1 p-1">
-                          {/* Main Image */}
-                          <div className="w-10 h-10 border border-gray-200 rounded overflow-hidden bg-white shrink-0">
-                              {product.mainImage ? (
-                                  <img src={product.mainImage} alt="Main" className="w-full h-full object-cover" />
-                              ) : (
-                                  <div className="w-full h-full flex items-center justify-center text-[8px] text-gray-400">No Img</div>
-                              )}
-                          </div>
-
-                          {/* Gallery Images */}
-                          {product.galleryImages?.slice(0, 3).map((img, i) => (
-                             <div key={i} className="w-8 h-8 border border-gray-200 rounded overflow-hidden bg-white shrink-0">
-                                <img src={img} alt={`Gal-${i}`} className="w-full h-full object-cover" />
+                      <div className="flex flex-wrap justify-center items-center gap-2 p-1 min-w-[140px]">
+                          {product.images.map((img, i) => (
+                             <div key={img.id} className="relative group w-12 h-12 border border-gray-200 rounded overflow-hidden bg-white shrink-0">
+                                <img src={img.url} alt={`Img-${i}`} className="w-full h-full object-cover" />
+                                <button
+                                    onClick={() => handleRemoveImage(originalIndex, img.id)}
+                                    className="absolute top-0 right-0 bg-red-600 text-white w-4 h-4 flex items-center justify-center rounded-bl opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700 z-10"
+                                    title="Remove"
+                                >
+                                    <span className="text-[10px] font-bold leading-none">&times;</span>
+                                </button>
+                                {i === 0 && <span className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[8px] py-[1px]">Main</span>}
                              </div>
                           ))}
 
-                          {/* Edit Overlay */}
-                          <label htmlFor={`file-input-${originalIndex}`} className="absolute inset-0 bg-black/60 rounded flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-20">
-                              <svg className="w-5 h-5 text-white mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                              <span className="text-[9px] text-white">Add/Edit Imgs</span>
+                          {/* Add Button */}
+                          <label htmlFor={`file-input-${originalIndex}`} className="w-10 h-10 border border-dashed border-gray-400 rounded flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 text-gray-500 hover:text-teal-600 transition-colors shrink-0" title="Add Images">
+                              <span className="text-xl leading-none font-light">+</span>
                               <input
                                 id={`file-input-${originalIndex}`}
                                 type="file"
@@ -412,6 +420,7 @@ export default function AdminStockBulkEdit({
                                 className="hidden"
                                 onChange={(e) => {
                                     handleImageChange(originalIndex, e.target.files);
+                                    e.target.value = "";
                                 }}
                               />
                           </label>

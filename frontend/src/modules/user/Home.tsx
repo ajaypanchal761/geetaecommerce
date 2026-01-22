@@ -6,22 +6,29 @@ import LowestPricesEver from "./components/LowestPricesEver";
 import CategoryTileSection from "./components/CategoryTileSection";
 import FeaturedThisWeek from "./components/FeaturedThisWeek";
 import ProductCard from "./components/ProductCard";
+import BannerSlider from "./components/banners/BannerSlider";
+import HomePopup from "./components/banners/HomePopup";
+import FlashDealSection from "./components/banners/FlashDealSection";
+import FeaturedDeal from "./components/banners/FeaturedDeal";
+import DealOfTheDay from "./components/banners/DealOfTheDay";
 import { getHomeContent } from "../../services/api/customerHomeService";
 import { getHeaderCategoriesPublic } from "../../services/api/headerCategoryService";
 import { useLocation } from "../../hooks/useLocation";
 import { useLoading } from "../../context/LoadingContext";
 import PageLoader from "../../components/PageLoader";
-
 import { useThemeContext } from "../../context/ThemeContext";
+import { getTheme } from "../../utils/themes";
 
 export default function Home() {
   const navigate = useNavigate();
   const { location } = useLocation();
   const { activeCategory, setActiveCategory } = useThemeContext();
   const { startRouteLoading, stopRouteLoading } = useLoading();
-  const activeTab = activeCategory; // mapping for existing code compatibility
+  const activeTab = activeCategory;
   const setActiveTab = setActiveCategory;
   const contentRef = useRef<HTMLDivElement>(null);
+
+  const theme = getTheme(activeTab || 'all');
 
   // State for dynamic data
   const [loading, setLoading] = useState(true);
@@ -29,7 +36,7 @@ export default function Home() {
   const [homeData, setHomeData] = useState<any>({
     bestsellers: [],
     categories: [],
-    homeSections: [], // Dynamic sections created by admin
+    homeSections: [],
     shops: [],
     promoBanners: [],
     trending: [],
@@ -44,11 +51,7 @@ export default function Home() {
         startRouteLoading();
         setLoading(true);
         setError(null);
-        const response = await getHomeContent(
-          undefined
-          // location?.latitude,
-          // location?.longitude
-        );
+        const response = await getHomeContent(undefined);
         if (response.success && response.data) {
           setHomeData(response.data);
 
@@ -67,20 +70,10 @@ export default function Home() {
         if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
           errorMessage = "Cannot connect to the server. Please ensure the backend server is running on http://localhost:5000";
         } else if (error.response) {
-          // Server responded with error status
           errorMessage = `Server error: ${error.response.status} - ${error.response.data?.message || 'Unknown error'}`;
         } else if (error.request) {
-          // Request was made but no response received
           errorMessage = "No response from server. Please check if the backend is running.";
         }
-
-        console.error("Error details:", {
-          message: error.message,
-          code: error.code,
-          config: error.config?.url,
-          baseURL: error.config?.baseURL
-        });
-
         setError(errorMessage);
       } finally {
         setLoading(false);
@@ -90,45 +83,27 @@ export default function Home() {
 
     fetchData();
 
-    // Preload PromoStrip data for all header categories in the background
-    // This ensures instant loading when users switch tabs
+    // Preload PromoStrip data
     const preloadHeaderCategories = async () => {
       try {
-        // Wait a bit after initial load to not interfere with main content
         await new Promise(resolve => setTimeout(resolve, 1000));
-
         const headerCategories = await getHeaderCategoriesPublic(true);
-        // Preload data for each header category (including 'all')
         const slugsToPreload = ['all', ...headerCategories.map(cat => cat.slug)];
-
-        // Preload in batches to avoid overwhelming the network
         const batchSize = 2;
         for (let i = 0; i < slugsToPreload.length; i += batchSize) {
           const batch = slugsToPreload.slice(i, i + batchSize);
           await Promise.all(
             batch.map(slug =>
-              getHomeContent(
-                slug,
-                // location?.latitude,
-                // location?.longitude,
-                undefined,
-                undefined,
-                true,
-                5 * 60 * 1000,
-                true
-              ).catch(err => {
-                // Silently fail - this is just preloading
+              getHomeContent(slug, undefined, undefined, true, 5 * 60 * 1000, true).catch(err => {
                 console.debug(`Failed to preload data for ${slug}:`, err);
               })
             )
           );
-          // Small delay between batches
           if (i + batchSize < slugsToPreload.length) {
             await new Promise(resolve => setTimeout(resolve, 200));
           }
         }
       } catch (error) {
-        // Silently fail - preloading is optional
         console.debug("Failed to preload header categories:", error);
       }
     };
@@ -153,7 +128,7 @@ export default function Home() {
   );
 
   if (loading && !products.length) {
-    return <PageLoader />; // Let the global IconLoader handle the initial loading state
+    return <PageLoader />;
   }
 
   if (error && !loading) {
@@ -178,8 +153,19 @@ export default function Home() {
 
   return (
     <div className="bg-white min-h-screen pb-20 md:pb-0" ref={contentRef}>
+      {/* 1. Popup Banner (First Visit) */}
+      <HomePopup />
+
       {/* Hero Header with Gradient and Tabs */}
       <HomeHero activeTab={activeTab} onTabChange={setActiveTab} />
+
+      {/* 2. MAIN SLIDER - With Themed Background */}
+      <div
+        className="px-4 md:px-6 lg:px-8 pt-4 md:pt-6 pb-4"
+        style={{ background: `linear-gradient(to bottom, ${theme.primary[2]}, ${theme.primary[3]})` }}
+      >
+          <BannerSlider position="HOME_MAIN_SLIDER" />
+      </div>
 
       {/* Promo Strip */}
       <PromoStrip activeTab={activeTab} />
@@ -187,10 +173,49 @@ export default function Home() {
       {/* LOWEST PRICES EVER Section */}
       <LowestPricesEver activeTab={activeTab} products={homeData.lowestPrices} />
 
+      {/* FLASH DEAL Section - New addition */}
+      {/* Moved inside main content wrapper to respect layout flow and negative margins */}
+
       {/* Main content */}
       <div
         ref={contentRef}
         className="bg-neutral-50 -mt-2 pt-1 space-y-5 md:space-y-8 md:pt-4">
+
+        {/* FLASH DEAL Section */}
+        <FlashDealSection />
+
+        {/* Featured Deal Section */}
+        <FeaturedDeal />
+
+        {/* Bestsellers Section (Moved here as requested) */}
+        {activeTab === "all" && (
+            <div className="mt-2 md:mt-4">
+              <CategoryTileSection
+                title="Bestsellers"
+                tiles={
+                  homeData.bestsellers && homeData.bestsellers.length > 0
+                    ? homeData.bestsellers
+                      .slice(0, 6)
+                      .map((card: any) => {
+                        return {
+                          id: card.id,
+                          categoryId: card.categoryId,
+                          name: card.name || "Category",
+                          productImages: card.productImages || [],
+                          productCount: card.productCount || 0,
+                        };
+                      })
+                    : []
+                }
+                columns={3}
+                showProductCount={true}
+              />
+            </div>
+        )}
+
+        {/* Deal of the Day Section */}
+        <DealOfTheDay />
+
         {/* Filtered Products Section */}
         {activeTab !== "all" && (
           <div data-products-section className="mt-6 mb-6 md:mt-8 md:mb-8">
@@ -223,33 +248,9 @@ export default function Home() {
           </div>
         )}
 
-        {/* Bestsellers Section */}
+        {/* Bestsellers Section - Originally here, now moved up. Only keeping condition wrapper for other sections if needed */}
         {activeTab === "all" && (
           <>
-            <div className="mt-2 md:mt-4">
-              <CategoryTileSection
-                title="Bestsellers"
-                tiles={
-                  homeData.bestsellers && homeData.bestsellers.length > 0
-                    ? homeData.bestsellers
-                      .slice(0, 6)
-                      .map((card: any) => {
-                        // Bestseller cards have categoryId and productImages array from backend
-                        return {
-                          id: card.id,
-                          categoryId: card.categoryId,
-                          name: card.name || "Category",
-                          productImages: card.productImages || [],
-                          productCount: card.productCount || 0,
-                        };
-                      })
-                    : []
-                }
-                columns={3}
-                showProductCount={true}
-              />
-            </div>
-
             {/* Featured this week Section */}
             <FeaturedThisWeek />
 
@@ -260,7 +261,6 @@ export default function Home() {
                   const columnCount = Number(section.columns) || 4;
 
                   if (section.displayType === "products" && section.data && section.data.length > 0) {
-                    // Strict column mapping as requested - applies to ALL screen sizes including mobile
                     const gridClass = {
                       2: "grid-cols-2",
                       3: "grid-cols-3",
@@ -269,7 +269,6 @@ export default function Home() {
                       8: "grid-cols-8"
                     }[columnCount] || "grid-cols-4";
 
-                    // Use compact mode for 4 or more columns to fit content on mobile
                     const isCompact = columnCount >= 4;
                     const gapClass = columnCount >= 4 ? "gap-2" : "gap-3 md:gap-4";
 
@@ -311,6 +310,12 @@ export default function Home() {
                 })}
               </>
             )}
+
+
+            {/* Main Section Banner */}
+            <div className="px-4 md:px-6 lg:px-8 mt-6 mb-6">
+                <BannerSlider position="Main Section Banner" />
+            </div>
 
             {/* Shop by Store Section */}
             <div className="mb-6 mt-6 md:mb-8 md:mt-8">
@@ -354,7 +359,6 @@ export default function Home() {
                           )}
                         </div>
 
-                        {/* Tile name - outside card */}
                         <div className="mt-1.5 text-center">
                           <span className="text-xs font-semibold text-neutral-900 line-clamp-2 leading-tight">
                             {tile.name}
@@ -368,6 +372,11 @@ export default function Home() {
             </div>
           </>
         )}
+
+        {/* Footer Banner */}
+        <div className="px-4 md:px-6 lg:px-8 mt-6 mb-8">
+             <BannerSlider position="Footer Banner" />
+        </div>
       </div>
     </div>
   );
