@@ -4,34 +4,39 @@ import { getProducts } from '../../../services/api/admin/adminProductService';
 import { Product } from '../../../types/domain';
 
 export default function AdminDealOfTheDay() {
-  const [config, setConfig] = useState(bannerService.getDealsConfig());
+  const [config, setConfig] = useState<any>({ dealOfTheDayProductIds: [] });
   const [search, setSearch] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProducts, setSelectedProducts] = useState<Product[]>([]); // Store full objects for display
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
-  // Initial load of selected products
+  // Initial load
   useEffect(() => {
-    const loadSelectedProducts = async () => {
-        const ids = config.dealOfTheDayProductIds || [];
-        // Support legacy single ID if no array
-        if (ids.length === 0 && config.dealOfTheDayProductId) {
-             ids.push(config.dealOfTheDayProductId);
-        }
+    const init = async () => {
+        try {
+            const data = await bannerService.getDealsConfig();
+            setConfig(data);
 
-        if (ids.length > 0) {
-            try {
+            const ids = data.dealOfTheDayProductIds || [];
+            // Support legacy single ID if no array
+            // if (ids.length === 0 && data.dealOfTheDayProductId) {
+            //      ids.push(data.dealOfTheDayProductId);
+            // }
+
+            if (ids.length > 0) {
                  const res = await getProducts({ limit: 100 });
                  if (res.success && res.data) {
                      const allProducts = (res.data as any).products || res.data;
                      const found = allProducts.filter((p: any) => ids.includes(p._id || p.id));
                      setSelectedProducts(found);
                  }
-            } catch(e) { console.error(e); }
+            }
+        } catch (error) {
+            console.error("Error initializing Deal of the Day:", error);
         }
     };
-    loadSelectedProducts();
+    init();
   }, []);
 
   // Fetch product list for dropdown/search

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { bannerService } from '../../../services/bannerService';
 
 export default function AdminFlashDeal() {
-  const [config, setConfig] = useState(bannerService.getDealsConfig());
+  const [config, setConfig] = useState<{flashDealTargetDate: string; flashDealImage?: string}>({ flashDealTargetDate: '' });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -10,10 +10,18 @@ export default function AdminFlashDeal() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setConfig(bannerService.getDealsConfig());
-    if (config.flashDealImage) {
-        setPreviewUrl(config.flashDealImage);
-    }
+    const fetchConfig = async () => {
+        try {
+            const data = await bannerService.getDealsConfig();
+            setConfig(data);
+            if (data.flashDealImage) {
+                setPreviewUrl(data.flashDealImage);
+            }
+        } catch (error) {
+            console.error("Error fetching flash deal config:", error);
+        }
+    };
+    fetchConfig();
   }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

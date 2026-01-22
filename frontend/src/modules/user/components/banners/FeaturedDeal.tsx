@@ -17,7 +17,7 @@ export default function FeaturedDeal() {
   useEffect(() => {
     const fetchFeaturedProducts = async () => {
       try {
-        const config = bannerService.getDealsConfig();
+        const config = await bannerService.getDealsConfig();
 
         let products: Product[] = [];
 
@@ -32,7 +32,8 @@ export default function FeaturedDeal() {
                         ...res.data,
                         id: (res.data as any)._id || (res.data as any).id,
                         imageUrl: (res.data as any).mainImage || (res.data as any).imageUrl,
-                        name: (res.data as any).productName || (res.data as any).name,
+                        name: (typeof (res.data as any).productName === 'string' ? (res.data as any).productName : null) ||
+                              (typeof (res.data as any).name === 'string' ? (res.data as any).name : null) || 'Product',
                         price: (res.data as any).salePrice || (res.data as any).price,
                         mrp: (res.data as any).mrp,
                          // Only needed props
@@ -40,32 +41,8 @@ export default function FeaturedDeal() {
                  }
              });
         }
-        // Fallback to single ID (backward compatibility)
-        else if ((config as any).featuredDealProductId) {
-             const res = await getProductById((config as any).featuredDealProductId);
-             if (res.success && res.data) {
-                 products.push({
-                    ...res.data,
-                    id: (res.data as any)._id || (res.data as any).id,
-                    imageUrl: (res.data as any).mainImage || (res.data as any).imageUrl,
-                    name: (res.data as any).productName || (res.data as any).name
-                 } as any);
-             }
-        }
-
-        // If no configured products, find some discounted ones
-        if (products.length === 0) {
-            const response = await getProducts({ limit: 10 });
-            if (response.success && response.data) {
-                const discounts = (response.data as any[]).filter(p => p.mrp > p.price).slice(0, 5);
-                products = discounts.map(p => ({
-                    ...p,
-                    id: p._id || p.id,
-                    imageUrl: p.mainImage || p.imageUrl,
-                    name: p.productName || p.name
-                }));
-            }
-        }
+        // Fallback logic removed as per user request to follow Deal of the Day style.
+        // If no products are selected in admin, this section will not show random products.
 
         setFeaturedProducts(products);
 
@@ -149,9 +126,9 @@ export default function FeaturedDeal() {
 
                          {/* Content */}
                          <div className="flex-1 min-w-0 flex flex-col justify-center text-left">
-                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight truncate">
-                                 {(product as any).brand || (product as any).category?.name || "FEATURED"}
-                             </span>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight truncate">
+                                  {(typeof (product as any).brand === 'object' ? (product as any).brand?.name : (product as any).brand) || (product as any).category?.name || "FEATURED"}
+                              </span>
                              <h4 className="font-bold text-slate-800 text-sm line-clamp-2 leading-snug">
                                  {product.name}
                              </h4>

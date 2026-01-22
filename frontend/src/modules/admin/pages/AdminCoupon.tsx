@@ -141,14 +141,18 @@ export default function AdminCoupon() {
       const today = new Date().toISOString().split("T")[0];
       const couponData = {
         code: formData.couponCode.toUpperCase(),
+        title: formData.couponTitle,
         description: formData.couponDescription,
+        image: imageUrl,
         discountType: formData.couponType === "Percentage" ? "Percentage" as const : "Fixed" as const,
         discountValue: parseFloat(formData.couponValue),
         minimumPurchase: parseFloat(formData.couponMinOrderAmount),
         startDate: today,
         endDate: formData.couponExpiryDate,
         usageLimit: formData.numberOfTimes === "Single Time Valid" ? 1 : undefined,
-        applicableTo: formData.userType === "All Users" ? "All" as const : "All" as const,
+        applicableTo: formData.userType === "All Users" ? "All" as const : "All" as const, // Keeping 'All' for applicableTo for now as per logic, independent of userType
+        userType: formData.userType as "All Users" | "Specific User",
+        status: formData.couponStatus as "Published" | "Draft",
       };
 
       const response = await createCoupon(couponData);

@@ -43,7 +43,8 @@ const ProductCard = memo(({
   const inCartQty = cartQuantity;
 
   // Get product name, clean it (remove description suffixes), and truncate if needed
-  let productName = product.name || product.productName || '';
+  let productName = (typeof product.name === 'string' ? product.name : null) ||
+                   (typeof product.productName === 'string' ? product.productName : null) || '';
   // Remove common description patterns like " - Fresh & Quality Assured", " - Premium Quality", etc.
   productName = productName.replace(/\s*-\s*(Fresh|Quality|Assured|Premium|Best|Top|Hygienic|Carefully|Selected).*$/i, '').trim();
   const displayName = truncateText(productName, 60);

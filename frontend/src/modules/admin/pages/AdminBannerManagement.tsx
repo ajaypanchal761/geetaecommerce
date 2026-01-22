@@ -31,9 +31,14 @@ export default function AdminBannerManagement() {
     loadBanners();
   }, [activePosition]);
 
-  const loadBanners = () => {
-    const data = bannerService.getBannersByPosition(activePosition);
-    setBanners(data);
+  const loadBanners = async () => {
+    try {
+      const data = await bannerService.getBannersByPosition(activePosition);
+      setBanners(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Failed to load banners", error);
+      setBanners([]);
+    }
   };
 
   const handleOpenModal = (banner?: Banner) => {
@@ -41,8 +46,8 @@ export default function AdminBannerManagement() {
       setEditingBanner(banner);
       setFormData({
         ...banner,
-        startDate: banner.startDate.split('T')[0],
-        endDate: banner.endDate.split('T')[0]
+        startDate: typeof banner.startDate === 'string' ? banner.startDate.split('T')[0] : '',
+        endDate: typeof banner.endDate === 'string' ? banner.endDate.split('T')[0] : ''
       });
     } else {
       setEditingBanner(null);
@@ -62,7 +67,7 @@ export default function AdminBannerManagement() {
     setIsModalOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.title) {
       alert("Title is required");
       return;
@@ -75,26 +80,48 @@ export default function AdminBannerManagement() {
       endDate: new Date(formData.endDate as string).toISOString(),
     } as any;
 
-    if (editingBanner) {
-      bannerService.updateBanner(editingBanner.id, bannerData);
-    } else {
-      bannerService.addBanner(bannerData);
-    }
+    try {
+      if (editingBanner) {
+        await bannerService.updateBanner(editingBanner.id, bannerData);
+      } else {
+        await bannerService.addBanner(bannerData);
+      }
 
-    setIsModalOpen(false);
-    loadBanners();
-  };
-
-  const handleDelete = (id: string) => {
-    if (window.confirm("Are you sure you want to delete this banner?")) {
-      bannerService.deleteBanner(id);
+      setIsModalOpen(false);
       loadBanners();
+    } catch (error) {
+      console.error("Failed to save banner", error);
     }
   };
 
-  const handleToggleStatus = (id: string) => {
-    bannerService.toggleBannerStatus(id);
-    loadBanners();
+  const handleDelete = async (id: string) => {
+    if (window.confirm("Are you sure you want to delete this banner?")) {
+      try {
+        await bannerService.deleteBanner(id);
+        loadBanners();
+      } catch (error) {
+        console.error("Failed to delete banner", error);
+      }
+    }
+  };
+
+  const handleToggleStatus = async (id: string) => {
+    // Assuming there's a toggle method or we update the banner
+    // Check if toggleBannerStatus exists in service, if not use update
+    // The previous code had toggleBannerStatus, checking service definition again...
+    // Service definition at Step 37 does NOT have toggleBannerStatus.
+    // So I need to implement it using update.
+
+    // I need to find the banner first
+    const banner = banners.find(b => b.id === id);
+    if (banner) {
+        try {
+            await bannerService.updateBanner(id, { isActive: !banner.isActive });
+            loadBanners();
+        } catch (error) {
+            console.error("Failed to toggle status", error);
+        }
+    }
   };
 
   return (

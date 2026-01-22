@@ -14,10 +14,20 @@ import { bannerService } from '../../../../services/bannerService';
 export default function FlashDealSection() {
   const { activeCategory } = useThemeContext();
   const theme = getTheme(activeCategory || 'all');
-  const [config, setConfig] = useState(bannerService.getDealsConfig());
+  const [config, setConfig] = useState<{flashDealTargetDate: string; flashDealImage?: string}>({ flashDealTargetDate: '' });
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    setConfig(bannerService.getDealsConfig());
+    const fetchConfig = async () => {
+        try {
+            const data = await bannerService.getDealsConfig();
+            setConfig(data);
+            setIsLoaded(true);
+        } catch (error) {
+            console.error("Error fetching deals config:", error);
+        }
+    };
+    fetchConfig();
   }, []);
 
   const [targetDate, setTargetDate] = useState(() => {

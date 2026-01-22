@@ -4,37 +4,34 @@ import { getProducts } from '../../../services/api/admin/adminProductService';
 import { Product } from '../../../types/domain';
 
 export default function AdminFeaturedDeal() {
-  const [config, setConfig] = useState(bannerService.getDealsConfig());
+  const [config, setConfig] = useState<any>({ featuredDealProductIds: [] });
   const [search, setSearch] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProducts, setSelectedProducts] = useState<Product[]>([]); // Store full objects for display
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
-  // Initial load of selected products
+  // Initial load
   useEffect(() => {
-    const loadSelectedProducts = async () => {
-        const ids = config.featuredDealProductIds || [];
-        if (ids.length > 0) {
-            // Fetch all selected products to display details
-            // In a real app, we might want an endpoint to fetch by IDs,
-            // but here we can just ensure they are in the loaded list or fetch individually if needed.
-            // For simplicity, we'll try to find them in the search result or fetch them if possible.
-            // Given the limitations, let's just fetch everything or use what we have.
-            // Better approach: We will fetch the full list of products and filter,
-            // OR if the API supports it, fetch by IDs.
-            // As a fallback for this mock/dev environment:
-            try {
-                 const res = await getProducts({ limit: 100 }); // Fetch a bunch to try and find them
+    const init = async () => {
+        try {
+            const data = await bannerService.getDealsConfig();
+            setConfig(data);
+
+            const ids = data.featuredDealProductIds || [];
+            if (ids.length > 0) {
+                 const res = await getProducts({ limit: 100 });
                  if (res.success && res.data) {
                      const allProducts = (res.data as any).products || res.data;
                      const found = allProducts.filter((p: any) => ids.includes(p._id || p.id));
                      setSelectedProducts(found);
                  }
-            } catch(e) { console.error(e); }
+            }
+        } catch (error) {
+            console.error("Error initializing Featured Deals:", error);
         }
     };
-    loadSelectedProducts();
+    init();
   }, []);
 
   // Fetch product list for dropdown/search
@@ -69,7 +66,7 @@ export default function AdminFeaturedDeal() {
 
   const handleRemoveProduct = (productId: string) => {
       const currentIds = config.featuredDealProductIds || [];
-      const newIds = currentIds.filter(id => id !== productId);
+      const newIds = currentIds.filter((id: string) => id !== productId);
       setConfig({ ...config, featuredDealProductIds: newIds });
       setSelectedProducts(selectedProducts.filter(p => (p._id || p.id) !== productId));
   };

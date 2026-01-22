@@ -197,7 +197,8 @@ export default function PromoStrip({ activeTab = "all" }: PromoStripProps) {
                   null;
 
                 // Always prioritize productName to avoid showing category names
-                const productName = product?.productName || product?.name || "Product";
+                const productName = (typeof product?.productName === 'string' ? product.productName : null) ||
+                                   (typeof product?.name === 'string' ? product.name : null) || "Product";
 
                 return {
                   id: product?._id || p,
@@ -253,7 +254,8 @@ export default function PromoStrip({ activeTab = "all" }: PromoStripProps) {
                 null;
 
               // Always prioritize productName to avoid showing category names
-              const productName = p.productName || p.name || "Product";
+              const productName = (typeof p.productName === 'string' ? p.productName : null) ||
+                                 (typeof p.name === 'string' ? p.name : null) || "Product";
 
               return {
                 id: p._id,

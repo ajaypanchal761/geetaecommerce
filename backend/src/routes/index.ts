@@ -27,6 +27,8 @@ import customerHomeRoutes from "./customerHomeRoutes";
 import customerCartRoutes from "./customerCartRoutes";
 import wishlistRoutes from "./wishlistRoutes";
 import productReviewRoutes from "./productReviewRoutes";
+import bannerRoutes from "./bannerRoutes";
+import flashDealRoutes from "./flashDealRoutes";
 import adminRoutes from "./adminRoutes";
 import customerTrackingRoutes from "../modules/customer/routes/trackingRoutes";
 import deliveryTrackingRoutes from "../modules/delivery/routes/trackingRoutes";
@@ -164,5 +166,9 @@ router.use("/seller/taxes", taxRoutes);
 
 // Add more routes here
 // router.use('/users', userRoutes);
+
+// Banner routes (public read, admin write)
+router.use("/banners", bannerRoutes);
+router.use("/flash-deals", flashDealRoutes);
 
 export default router;

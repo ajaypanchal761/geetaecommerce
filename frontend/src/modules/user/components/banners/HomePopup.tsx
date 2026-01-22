@@ -7,17 +7,24 @@ export default function HomePopup() {
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
-    const banners = bannerService.getActiveBannersForPosition('POPUP_ON_FIRST_VISIT');
-    if (banners.length > 0) {
-        const hasSeen = localStorage.getItem('has_seen_popup_' + banners[0].id);
-        if (!hasSeen) {
-            setPopupData(banners[0]);
-            // Small delay to not overwhelm user immediately
-            setTimeout(() => {
-                setIsOpen(true);
-            }, 2000);
+    const fetchBanners = async () => {
+      try {
+        const banners = await bannerService.getActiveBannersForPosition('POPUP_ON_FIRST_VISIT');
+        if (banners && banners.length > 0) {
+            const hasSeen = localStorage.getItem('has_seen_popup_' + banners[0].id);
+            if (!hasSeen) {
+                setPopupData(banners[0]);
+                // Small delay to not overwhelm user immediately
+                setTimeout(() => {
+                    setIsOpen(true);
+                }, 2000);
+            }
         }
-    }
+      } catch (error) {
+        console.error("Failed to load popup banner", error);
+      }
+    };
+    fetchBanners();
   }, []);
 
   const handleClose = () => {
@@ -57,8 +64,12 @@ export default function HomePopup() {
          </div>
 
          <div className="p-6 text-center relative -mt-6 bg-white rounded-t-3xl">
-             <h3 className="text-2xl font-bold text-gray-900 mb-2">{popupData.title}</h3>
-             <p className="text-gray-600 mb-6 text-sm leading-relaxed">{popupData.subtitle}</p>
+             <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                 {typeof popupData.title === 'string' ? popupData.title : (popupData as any).resourceName || 'Special Offer'}
+             </h3>
+             <p className="text-gray-600 mb-6 text-sm leading-relaxed">
+                 {typeof popupData.subtitle === 'string' ? popupData.subtitle : ''}
+             </p>
              <button
                 onClick={handleClose}
                 className="w-full py-3.5 bg-black text-white rounded-xl font-semibold text-sm hover:bg-gray-800 transition-transform active:scale-95 shadow-lg"

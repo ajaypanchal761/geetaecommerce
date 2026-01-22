@@ -120,6 +120,25 @@ export interface IAppSettings extends Document {
     }>;
   }>;
 
+  // Flash Deal Settings
+  flashDeal?: {
+    targetDate?: Date;
+    image?: string;
+    active?: boolean;
+  };
+
+  // Deal of the Day Settings
+  dealOfTheDay?: {
+      productIds: string[];
+      active?: boolean;
+  };
+
+  // Featured Deal Settings
+  featuredDeal?: {
+      productIds: string[];
+      active?: boolean;
+  };
+
   // Updated By
   updatedBy?: mongoose.Types.ObjectId;
 
@@ -423,6 +442,45 @@ const AppSettingsSchema = new Schema<IAppSettings>(
         ],
       },
     ],
+
+    // Flash Deal Settings
+    flashDeal: {
+      targetDate: {
+        type: Date,
+      },
+      image: {
+        type: String,
+        trim: true,
+      },
+      active: {
+        type: Boolean,
+        default: true
+      }
+    },
+
+    // Deal of the Day Settings
+    dealOfTheDay: {
+      productIds: [{
+        type: String, // Storing as String first as these might not be ObjectIds if from different DBs? Actually assuming strictObjectId. But let's use String for robustness with legacy code if any.
+        trim: true
+      }],
+      active: {
+          type: Boolean,
+          default: true
+      }
+    },
+
+    // Featured Deal Settings
+    featuredDeal: {
+      productIds: [{
+        type: String,
+        trim: true
+      }],
+      active: {
+          type: Boolean,
+          default: true
+      }
+    },
 
     // Updated By
     updatedBy: {

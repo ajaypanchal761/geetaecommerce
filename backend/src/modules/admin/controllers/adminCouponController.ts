@@ -20,13 +20,17 @@ export const createCoupon = asyncHandler(
       usageLimitPerUser,
       applicableTo,
       applicableIds,
+      title,
+      image,
+      userType,
+      status, // 'Published' | 'Draft'
     } = req.body;
 
-    if (!code || !discountType || !discountValue || !startDate || !endDate) {
+    if (!code || !discountType || !discountValue || !startDate || !endDate || !title) {
       return res.status(400).json({
         success: false,
         message:
-          "Code, discount type, discount value, start date, and end date are required",
+          "Code, title, discount type, discount value, start date, and end date are required",
       });
     }
 
@@ -44,9 +48,13 @@ export const createCoupon = asyncHandler(
       });
     }
 
+    const isActive = status === 'Published';
+
     const coupon = await Coupon.create({
       code: code.toUpperCase(),
+      title,
       description,
+      image,
       discountType,
       discountValue,
       minimumPurchase,
@@ -58,7 +66,9 @@ export const createCoupon = asyncHandler(
       applicableTo: applicableTo || "All",
       applicableIds,
       createdBy: req.user?.userId,
-      isActive: true,
+      status: status || 'Published',
+      userType: userType || 'All Users',
+      isActive,
     });
 
     return res.status(201).json({
@@ -165,6 +175,11 @@ export const updateCoupon = asyncHandler(
     }
     if (updateData.endDate) {
       updateData.endDate = new Date(updateData.endDate);
+    }
+
+    // Sync isActive with status if status is provided
+    if (updateData.status) {
+      updateData.isActive = updateData.status === 'Published';
     }
 
     const coupon = await Coupon.findByIdAndUpdate(id, updateData, {

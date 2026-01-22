@@ -22,6 +22,11 @@ export interface Coupon {
   createdBy: string | { firstName: string; lastName: string };
   createdAt?: string;
   updatedAt?: string;
+  // New Fields
+  title: string;
+  image?: string;
+  userType?: "All Users" | "Specific User";
+  status?: "Published" | "Draft" | "Archived";
 }
 
 export interface CreateCouponData {
@@ -37,6 +42,11 @@ export interface CreateCouponData {
   usageLimitPerUser?: number;
   applicableTo?: "All" | "Category" | "Product" | "Seller";
   applicableIds?: string[];
+  // New Fields
+  title: string;
+  image?: string;
+  userType?: "All Users" | "Specific User";
+  status?: "Published" | "Draft" | "Archived";
 }
 
 export interface GetCouponsParams {

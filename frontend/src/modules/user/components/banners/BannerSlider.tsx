@@ -13,8 +13,16 @@ export default function BannerSlider({ position, className = '', heightClass = "
   const [currentIndex, setCurrentIndex] = useState(0);
 
   useEffect(() => {
-    const activeBanners = bannerService.getActiveBannersForPosition(position);
-    setBanners(activeBanners);
+    const fetchBanners = async () => {
+      try {
+        const activeBanners = await bannerService.getActiveBannersForPosition(position);
+        setBanners(Array.isArray(activeBanners) ? activeBanners : []);
+      } catch (error) {
+        console.error("Failed to load banners", error);
+        setBanners([]);
+      }
+    };
+    fetchBanners();
   }, [position]);
 
   useEffect(() => {
@@ -44,12 +52,12 @@ export default function BannerSlider({ position, className = '', heightClass = "
             />
             {/* Optional Overlay Text */}
             <div className="absolute inset-0 bg-black/20 flex flex-col justify-center px-8 md:px-16 text-white">
-               {banner.title && (
-                   <h2 className="text-2xl md:text-5xl font-bold mb-2 translate-y-4 opacity-0 animate-slide-up" style={{ animationDelay: '300ms', animationFillMode: 'forwards' }}>{banner.title}</h2>
-               )}
-               {banner.subtitle && (
-                 <p className="text-lg md:text-xl translate-y-4 opacity-0 animate-slide-up" style={{ animationDelay: '500ms', animationFillMode: 'forwards' }}>{banner.subtitle}</p>
-               )}
+                {typeof banner.title === 'string' && banner.title && (
+                    <h2 className="text-2xl md:text-5xl font-bold mb-2 translate-y-4 opacity-0 animate-slide-up" style={{ animationDelay: '300ms', animationFillMode: 'forwards' }}>{banner.title}</h2>
+                )}
+                {typeof banner.subtitle === 'string' && banner.subtitle && (
+                  <p className="text-lg md:text-xl translate-y-4 opacity-0 animate-slide-up" style={{ animationDelay: '500ms', animationFillMode: 'forwards' }}>{banner.subtitle}</p>
+                )}
             </div>
           </div>
         ))}

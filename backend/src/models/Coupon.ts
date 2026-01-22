@@ -17,6 +17,14 @@ export interface ICoupon extends Document {
   endDate: Date;
   isActive: boolean;
 
+  // Status
+  status: "Published" | "Draft" | "Archived";
+
+  // UI Fields
+  title: string;
+  image?: string;
+  userType: "All Users" | "Specific User";
+
   // Usage Limits
   usageLimit?: number; // Total usage limit
   usageCount: number; // Current usage count
@@ -42,9 +50,28 @@ const CouponSchema = new Schema<ICoupon>(
       trim: true,
       uppercase: true,
     },
+    title: {
+      type: String,
+      required: [true, "Coupon title is required"],
+      trim: true,
+    },
     description: {
       type: String,
       trim: true,
+    },
+    image: {
+      type: String,
+      trim: true,
+    },
+    status: {
+      type: String,
+      enum: ["Published", "Draft", "Archived"],
+      default: "Published",
+    },
+    userType: {
+      type: String,
+      enum: ["All Users", "Specific User"],
+      default: "All Users",
     },
 
     // Discount Type
@@ -125,6 +152,7 @@ const CouponSchema = new Schema<ICoupon>(
 // Indexes for faster queries
 CouponSchema.index({ code: 1 });
 CouponSchema.index({ isActive: 1, startDate: 1, endDate: 1 });
+CouponSchema.index({ status: 1 });
 
 const Coupon = mongoose.model<ICoupon>("Coupon", CouponSchema);
 

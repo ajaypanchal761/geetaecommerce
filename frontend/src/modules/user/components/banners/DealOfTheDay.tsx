@@ -17,7 +17,7 @@ export default function DealOfTheDay() {
   useEffect(() => {
     const fetchDealProducts = async () => {
       try {
-        const config = bannerService.getDealsConfig();
+        const config = await bannerService.getDealsConfig();
 
         let products: Product[] = [];
 
@@ -32,7 +32,8 @@ export default function DealOfTheDay() {
                         ...res.data,
                         id: (res.data as any)._id || (res.data as any).id,
                         imageUrl: (res.data as any).mainImage || (res.data as any).imageUrl,
-                        name: (res.data as any).productName || (res.data as any).name,
+                        name: (typeof (res.data as any).productName === 'string' ? (res.data as any).productName : null) ||
+                              (typeof (res.data as any).name === 'string' ? (res.data as any).name : null) || 'Product',
                         price: (res.data as any).salePrice || (res.data as any).price,
                         mrp: (res.data as any).mrp,
                      } as any);
@@ -52,19 +53,8 @@ export default function DealOfTheDay() {
              }
         }
 
-        // If no configured products, find some items
-        if (products.length === 0) {
-            const response = await getProducts({ limit: 10 });
-            if (response.success && response.data) {
-                // For fallback, use products with some price
-                products = (response.data as any[]).slice(0, 5).map(p => ({
-                    ...p,
-                    id: p._id || p.id,
-                    imageUrl: p.mainImage || p.imageUrl,
-                    name: p.productName || p.name
-                }));
-            }
-        }
+        // Fallback logic removed as per user request.
+        // If no products are selected in admin, this section will not show random products.
 
         setDealProducts(products);
 
