@@ -91,6 +91,7 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
         email: seller.email,
         storeName: seller.storeName,
         status: seller.status,
+        isEnabled: seller.isEnabled,
         logo: seller.logo,
         address: seller.address,
         city: seller.city,
@@ -140,14 +141,14 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   // Validate location is provided
   const latitude = req.body.latitude ? parseFloat(req.body.latitude) : null;
   const longitude = req.body.longitude ? parseFloat(req.body.longitude) : null;
-  
+
   // Parse and validate service radius
   let serviceRadiusKm = 10; // Default 10km
   if (req.body.serviceRadiusKm !== undefined && req.body.serviceRadiusKm !== null && req.body.serviceRadiusKm !== '') {
-    const parsedRadius = typeof req.body.serviceRadiusKm === 'string' 
-      ? parseFloat(req.body.serviceRadiusKm) 
+    const parsedRadius = typeof req.body.serviceRadiusKm === 'string'
+      ? parseFloat(req.body.serviceRadiusKm)
       : Number(req.body.serviceRadiusKm);
-    
+
     if (!isNaN(parsedRadius) && parsedRadius >= 0.1 && parsedRadius <= 100) {
       serviceRadiusKm = parsedRadius;
     } else {
@@ -283,10 +284,10 @@ export const updateProfile = asyncHandler(async (req: Request, res: Response) =>
 
   // Handle serviceRadiusKm update
   if (updates.serviceRadiusKm !== undefined && updates.serviceRadiusKm !== null && updates.serviceRadiusKm !== '') {
-    const radius = typeof updates.serviceRadiusKm === 'string' 
-      ? parseFloat(updates.serviceRadiusKm) 
+    const radius = typeof updates.serviceRadiusKm === 'string'
+      ? parseFloat(updates.serviceRadiusKm)
       : Number(updates.serviceRadiusKm);
-    
+
     if (!isNaN(radius) && radius >= 0.1 && radius <= 100) {
       updates.serviceRadiusKm = radius; // Ensure it's saved as a number
     } else {

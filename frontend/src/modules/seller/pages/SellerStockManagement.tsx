@@ -18,6 +18,8 @@ interface StockItem {
 }
 
 export default function SellerStockManagement() {
+    const { user } = useAuth();
+    const isEnabled = user?.isEnabled !== false;
     const [stockItems, setStockItems] = useState<StockItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string>('');
@@ -33,7 +35,6 @@ export default function SellerStockManagement() {
     const [categories, setCategories] = useState<string[]>([]);
     const [totalPages, setTotalPages] = useState(1);
     const [showScanner, setShowScanner] = useState(false);
-    const { user } = useAuth();
 
     // Fetch categories for filter
     useEffect(() => {
@@ -223,6 +224,18 @@ export default function SellerStockManagement() {
 
             {/* Content Card */}
             <div className="bg-white rounded-xl shadow-sm border border-neutral-200 flex-1 flex flex-col overflow-hidden">
+                {!isEnabled && (
+                    <div className="bg-red-50 border-b border-red-200 p-4">
+                        <div className="flex items-center">
+                            <svg className="w-5 h-5 text-red-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                            </svg>
+                            <span className="text-red-700 font-medium">
+                                Your account is currently disabled. You can monitor stock but cannot update it.
+                            </span>
+                        </div>
+                    </div>
+                )}
 
                 {/* Filters and Controls */}
                 <div className="p-5 border-b border-neutral-100 bg-white">
@@ -447,10 +460,11 @@ export default function SellerStockManagement() {
                                             <input
                                                 type="number"
                                                 min="0"
+                                                disabled={!isEnabled}
                                                 defaultValue={item.stock}
-                                                className="w-20 px-3 py-1.5 border border-neutral-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all"
+                                                className={`w-20 px-3 py-1.5 border border-neutral-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all ${!isEnabled ? 'bg-neutral-50 text-neutral-400' : ''}`}
                                                 onKeyDown={(e) => {
-                                                    if (e.key === 'Enter') {
+                                                    if (e.key === 'Enter' && isEnabled) {
                                                         const val = parseInt((e.target as HTMLInputElement).value);
                                                         if (!isNaN(val)) {
                                                             handleStockUpdate(item.productId, item.variationId, val);
@@ -459,16 +473,21 @@ export default function SellerStockManagement() {
                                                 }}
                                             />
                                             <button
-                                                disabled={updatingStock === item.variationId}
+                                                disabled={updatingStock === item.variationId || !isEnabled}
                                                 onClick={(e) => {
+                                                    if (!isEnabled) return;
                                                     const input = (e.currentTarget.previousElementSibling as HTMLInputElement);
                                                     const val = parseInt(input.value);
                                                     if (!isNaN(val)) {
                                                         handleStockUpdate(item.productId, item.variationId, val);
                                                     }
                                                 }}
-                                                className="p-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors disabled:bg-neutral-300 shadow-sm"
-                                                title="Update Stock"
+                                                className={`p-2 rounded-lg transition-colors shadow-sm ${
+                                                    isEnabled
+                                                    ? "bg-teal-600 text-white hover:bg-teal-700"
+                                                    : "bg-neutral-300 text-white cursor-not-allowed"
+                                                }`}
+                                                title={isEnabled ? "Update Stock" : "Account Disabled"}
                                             >
                                                 {updatingStock === item.variationId ? (
                                                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>

@@ -139,6 +139,12 @@ export interface IAppSettings extends Document {
       active?: boolean;
   };
 
+  // Payment Discount Settings
+  onlinePaymentDiscount?: {
+      enabled: boolean;
+      percentage: number;
+  };
+
   // Updated By
   updatedBy?: mongoose.Types.ObjectId;
 
@@ -479,6 +485,20 @@ const AppSettingsSchema = new Schema<IAppSettings>(
       active: {
           type: Boolean,
           default: true
+      }
+    },
+
+    // Payment Discount Settings
+    onlinePaymentDiscount: {
+      enabled: {
+        type: Boolean,
+        default: false
+      },
+      percentage: {
+        type: Number,
+        default: 0,
+        min: [0, "Discount percentage cannot be negative"],
+        max: [100, "Discount percentage cannot exceed 100%"]
       }
     },
 

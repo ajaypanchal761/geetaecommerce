@@ -21,223 +21,233 @@ export interface IProduct extends Document {
   galleryImages: string[];
 
   // Pricing & Inventory
-  price: number;
-  discPrice?: number;
-  compareAtPrice?: number;
-  stock: number;
-  sku?: string;
-  barcode?: string;
-  rackNumber?: string;
-  hsnCode?: string;
-  purchasePrice?: number;
-  lowStockQuantity?: number;
-  deliveryTime?: string;
-
-  // Variations
-  variationType?: string; // e.g., 'Size', 'Color', 'Weight'
-  variations?: Array<{
-    _id?: any;
-    name: string;
-    value: string;
-    price?: number;
+    price: number;
+    wholesalePrice?: number;
     discPrice?: number;
-    stock?: number;
+    compareAtPrice?: number;
+    stock: number;
     sku?: string;
-    status?: string;
-  }>;
-
-  // Status Flags
-  publish: boolean;
-  popular: boolean;
-  dealOfDay: boolean;
-  status: "Active" | "Inactive" | "Pending" | "Rejected";
-
-  // Product Details
-  manufacturer?: string;
-  madeIn?: string;
-  tax?: string;
-  fssaiLicNo?: string;
-  totalAllowedQuantity?: number;
-
-  // Return Policy
-  isReturnable: boolean;
-  maxReturnDays?: number;
-
-  // SEO
-  seoTitle?: string;
-  seoKeywords?: string;
-  seoDescription?: string;
-  seoImageAlt?: string;
-
-  // Details
-  pack?: string;
-  shelfLife?: string;
-  marketer?: string;
-
-  // Ratings
-  rating: number;
-  reviewsCount: number;
-  discount: number; // Calculated percentage
-
-  returnPolicyText?: string;
-
-  // Tags
-  tags: string[];
-
-  // Approval
-  requiresApproval: boolean;
-  approvedBy?: mongoose.Types.ObjectId;
-  approvedAt?: Date;
-
-  // Commission
-  commission?: number;
-
-  // Shop by Store
-  isShopByStoreOnly?: boolean;
-  shopId?: mongoose.Types.ObjectId;
-
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-const ProductSchema = new Schema<IProduct>(
-  {
-    // Basic Info
-    productName: {
-      type: String,
-      required: [true, "Product name is required"],
-      trim: true,
-    },
-    smallDescription: {
-      type: String,
-      trim: true,
-    },
-    description: {
-      type: String,
-      trim: true,
-    },
-
-    // Categorization
-    category: {
-      type: Schema.Types.ObjectId,
-      ref: "Category",
-      required: [
-        function (this: any) {
-          return !this.isShopByStoreOnly;
-        },
-        "Category is required",
-      ],
-    },
-    subcategory: {
-      type: Schema.Types.ObjectId,
-      ref: "SubCategory",
-    },
-    subSubCategory: {
-      type: String,
-      trim: true,
-    },
-    headerCategoryId: {
-      type: Schema.Types.ObjectId,
-      ref: "HeaderCategory",
-    },
-    brand: {
-      type: Schema.Types.ObjectId,
-      ref: "Brand",
-    },
-
-    // Seller Info
-    seller: {
-      type: Schema.Types.ObjectId,
-      ref: "Seller",
-      required: [true, "Seller is required"],
-    },
-
-    // Images
-    mainImage: {
-      type: String,
-      trim: true,
-    },
-    galleryImages: {
-      type: [String],
-      default: [],
-    },
-
-    // Pricing & Inventory
-    price: {
-      type: Number,
-      required: [true, "Price is required"],
-      min: [0, "Price cannot be negative"],
-    },
-    discPrice: {
-      type: Number,
-      default: 0,
-      min: [0, "Discounted price cannot be negative"],
-    },
-    compareAtPrice: {
-      type: Number,
-      min: [0, "Compare at price cannot be negative"],
-    },
-    stock: {
-      type: Number,
-      required: [true, "Stock is required"],
-      default: 0,
-      min: [0, "Stock cannot be negative"],
-    },
-    sku: {
-      type: String,
-      trim: true,
-      unique: true,
-      sparse: true,
-    },
-    barcode: {
-      type: String,
-      trim: true,
-    },
-    rackNumber: {
-      type: String,
-      trim: true,
-    },
-    hsnCode: {
-      type: String,
-      trim: true,
-    },
-    purchasePrice: {
-      type: Number,
-      min: [0, "Purchase price cannot be negative"],
-    },
-    lowStockQuantity: {
-      type: Number,
-      min: [0, "Low stock quantity cannot be negative"],
-      default: 5,
-    },
-    deliveryTime: {
-      type: String,
-      trim: true,
-    },
+    barcode?: string;
+    rackNumber?: string;
+    hsnCode?: string;
+    purchasePrice?: number;
+    lowStockQuantity?: number;
+    deliveryTime?: string;
 
     // Variations
-    variationType: {
-      type: String,
-      trim: true,
-    },
-    variations: {
-      type: [
-        {
-          name: String,
-          value: String,
-          price: Number,
-          discPrice: { type: Number, default: 0 },
-          stock: Number,
-          status: {
-            type: String,
-            enum: ["Available", "Sold out", "In stock"],
-            default: "Available",
+    variationType?: string; // e.g., 'Size', 'Color', 'Weight'
+    variations?: Array<{
+      _id?: any;
+      name: string;
+      value: string;
+      price?: number;
+      wholesalePrice?: number;
+      discPrice?: number;
+      stock?: number;
+      sku?: string;
+      status?: string;
+      barcode?: string;
+    }>;
+
+    // Status Flags
+    publish: boolean;
+    popular: boolean;
+    dealOfDay: boolean;
+    status: "Active" | "Inactive" | "Pending" | "Rejected";
+
+    // Product Details
+    manufacturer?: string;
+    madeIn?: string;
+    tax?: string;
+    fssaiLicNo?: string;
+    totalAllowedQuantity?: number;
+
+    // Return Policy
+    isReturnable: boolean;
+    maxReturnDays?: number;
+
+    // SEO
+    seoTitle?: string;
+    seoKeywords?: string;
+    seoDescription?: string;
+    seoImageAlt?: string;
+
+    // Details
+    pack?: string;
+    shelfLife?: string;
+    marketer?: string;
+
+    // Ratings
+    rating: number;
+    reviewsCount: number;
+    discount: number; // Calculated percentage
+
+    returnPolicyText?: string;
+
+    // Tags
+    tags: string[];
+
+    // Approval
+    requiresApproval: boolean;
+    approvedBy?: mongoose.Types.ObjectId;
+    approvedAt?: Date;
+
+    // Commission
+    commission?: number;
+
+    // Shop by Store
+    isShopByStoreOnly?: boolean;
+    shopId?: mongoose.Types.ObjectId;
+
+    createdAt: Date;
+    updatedAt: Date;
+  }
+
+  const ProductSchema = new Schema<IProduct>(
+    {
+      // Basic Info
+      productName: {
+        type: String,
+        required: [true, "Product name is required"],
+        trim: true,
+      },
+      smallDescription: {
+        type: String,
+        trim: true,
+      },
+      description: {
+        type: String,
+        trim: true,
+      },
+
+      // Categorization
+      category: {
+        type: Schema.Types.ObjectId,
+        ref: "Category",
+        required: [
+          function (this: any) {
+            return !this.isShopByStoreOnly;
           },
-          sku: String,
-        },
-      ],
-      default: [],
-    },
+          "Category is required",
+        ],
+      },
+      subcategory: {
+        type: Schema.Types.ObjectId,
+        ref: "SubCategory",
+      },
+      subSubCategory: {
+        type: String,
+        trim: true,
+      },
+      headerCategoryId: {
+        type: Schema.Types.ObjectId,
+        ref: "HeaderCategory",
+      },
+      brand: {
+        type: Schema.Types.ObjectId,
+        ref: "Brand",
+      },
+
+      // Seller Info
+      seller: {
+        type: Schema.Types.ObjectId,
+        ref: "Seller",
+        required: [true, "Seller is required"],
+      },
+
+      // Images
+      mainImage: {
+        type: String,
+        trim: true,
+      },
+      galleryImages: {
+        type: [String],
+        default: [],
+      },
+
+      // Pricing & Inventory
+      price: {
+        type: Number,
+        required: [true, "Price is required"],
+        min: [0, "Price cannot be negative"],
+      },
+      wholesalePrice: {
+        type: Number,
+        default: 0,
+        min: [0, "Wholesale price cannot be negative"],
+      },
+      discPrice: {
+        type: Number,
+        default: 0,
+        min: [0, "Discounted price cannot be negative"],
+      },
+      compareAtPrice: {
+        type: Number,
+        min: [0, "Compare at price cannot be negative"],
+      },
+      stock: {
+        type: Number,
+        required: [true, "Stock is required"],
+        default: 0,
+        min: [0, "Stock cannot be negative"],
+      },
+      sku: {
+        type: String,
+        trim: true,
+        unique: true,
+        sparse: true,
+      },
+      barcode: {
+        type: String,
+        trim: true,
+      },
+      rackNumber: {
+        type: String,
+        trim: true,
+      },
+      hsnCode: {
+        type: String,
+        trim: true,
+      },
+      purchasePrice: {
+        type: Number,
+        min: [0, "Purchase price cannot be negative"],
+      },
+      lowStockQuantity: {
+        type: Number,
+        min: [0, "Low stock quantity cannot be negative"],
+        default: 5,
+      },
+      deliveryTime: {
+        type: String,
+        trim: true,
+      },
+
+      // Variations
+      variationType: {
+        type: String,
+        trim: true,
+      },
+      variations: {
+        type: [
+          {
+            name: String,
+            value: String,
+            price: Number,
+            wholesalePrice: { type: Number, default: 0 },
+            discPrice: { type: Number, default: 0 },
+            stock: Number,
+            status: {
+              type: String,
+              enum: ["Available", "Sold out", "In stock"],
+              default: "Available",
+            },
+            sku: String,
+            barcode: String,
+          },
+        ],
+        default: [],
+      },
 
     // Status Flags
     publish: {

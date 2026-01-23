@@ -4,6 +4,7 @@ import Product from "../../../models/Product";
 import OrderItem from "../../../models/OrderItem";
 import Customer from "../../../models/Customer";
 import Seller from "../../../models/Seller";
+import AppSettings from "../../../models/AppSettings";
 import mongoose from "mongoose";
 import axios from "axios";
 import { calculateDistance } from "../../../utils/locationHelper";
@@ -802,6 +803,10 @@ export const initiateOnlineOrder = async (req: Request, res: Response) => {
              return res.status(400).json({ success: false, message: "Invalid delivery address coordinates" });
         }
 
+        // Fetch AppSettings to check for online payment discount
+        const settings = await AppSettings.findOne().lean();
+        const onlineDiscountConfig = settings?.onlinePaymentDiscount;
+
         // --- Create Order Shell ---
         const newOrder = new Order({
             customer: new mongoose.Types.ObjectId(userId),
@@ -940,9 +945,19 @@ export const initiateOnlineOrder = async (req: Request, res: Response) => {
         // --- Finalize Order Totals ---
         const platformFee = Number(fees?.platformFee) || 0;
         const deliveryFee = Number(fees?.deliveryFee) || 0;
-        const finalTotal = calculatedSubtotal + platformFee + deliveryFee;
+
+        // Base amount for discount is subtotal + shipping + platform fee
+        const baseAmount = calculatedSubtotal + deliveryFee + platformFee;
+
+        let onlineDiscount = 0;
+        if (onlineDiscountConfig?.enabled && onlineDiscountConfig?.percentage > 0) {
+            onlineDiscount = (baseAmount * onlineDiscountConfig.percentage) / 100;
+        }
+
+        const finalTotal = baseAmount - onlineDiscount;
 
         newOrder.subtotal = Number(calculatedSubtotal.toFixed(2));
+        newOrder.discount = Number(onlineDiscount.toFixed(2));
         newOrder.total = Number(finalTotal.toFixed(2));
         newOrder.items = orderItemIds;
 

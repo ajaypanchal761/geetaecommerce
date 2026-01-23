@@ -113,6 +113,7 @@ export interface Product {
   mainImage?: string;
   galleryImages: string[];
   price: number;
+  wholesalePrice?: number;
   compareAtPrice?: number;
   stock: number;
   sku?: string;
@@ -128,6 +129,7 @@ export interface Product {
     name?: string;
     value?: string;
     price?: number;
+    wholesalePrice?: number;
     discPrice?: number;
     stock?: number;
     sku?: string;
@@ -184,6 +186,7 @@ export interface CreateProductData {
   mainImage?: string;
   galleryImages?: string[];
   price: number;
+  wholesalePrice?: number;
   compareAtPrice?: number;
   stock: number;
   sku?: string;
@@ -199,6 +202,7 @@ export interface CreateProductData {
     name?: string;
     value?: string;
     price?: number;
+    wholesalePrice?: number;
     discPrice?: number;
     stock?: number;
     sku?: string;

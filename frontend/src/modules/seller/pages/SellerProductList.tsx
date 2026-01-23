@@ -19,6 +19,8 @@ import ThemedDropdown from "../components/ThemedDropdown";
 
 export default function SellerProductList() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isEnabled = user?.isEnabled !== false;
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
@@ -42,7 +44,6 @@ export default function SellerProductList() {
   } | null>(null);
   const [allCategories, setAllCategories] = useState<apiCategory[]>([]);
   const [showScanner, setShowScanner] = useState(false);
-  const { user } = useAuth();
 
   // Fetch categories
   useEffect(() => {
@@ -297,6 +298,18 @@ export default function SellerProductList() {
 
       {/* Content Card */}
       <div className="bg-white rounded-xl shadow-sm border border-neutral-200 flex-1 flex flex-col overflow-hidden">
+        {!isEnabled && (
+          <div className="bg-red-50 border-b border-red-200 p-4">
+            <div className="flex items-center">
+              <svg className="w-5 h-5 text-red-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              <span className="text-red-700 font-medium">
+                Your account is currently disabled. You can view product details but cannot edit, delete or change prices.
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Filters and Controls */}
         <div className="p-5 border-b border-neutral-100 bg-white">
@@ -656,9 +669,14 @@ export default function SellerProductList() {
                     <td className="p-4 align-middle">
                       <div className="flex items-center justify-center gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
                         <button
-                          onClick={() => handleEdit(variation.productId)}
-                          className="p-2 text-teal-600 bg-teal-50 hover:bg-teal-100 rounded-md transition-colors"
-                          title="Edit Product">
+                          onClick={() => isEnabled && handleEdit(variation.productId)}
+                          disabled={!isEnabled}
+                          className={`p-2 rounded-md transition-colors ${
+                              isEnabled
+                              ? "text-teal-600 bg-teal-50 hover:bg-teal-100"
+                              : "text-neutral-400 bg-neutral-50 cursor-not-allowed"
+                          }`}
+                          title={isEnabled ? "Edit Product" : "Account Disabled"}>
                           <svg
                             width="16"
                             height="16"
@@ -673,9 +691,14 @@ export default function SellerProductList() {
                           </svg>
                         </button>
                         <button
-                          onClick={() => handleDelete(variation.productId)}
-                          className="p-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
-                          title="Delete Product">
+                          onClick={() => isEnabled && handleDelete(variation.productId)}
+                          disabled={!isEnabled}
+                          className={`p-2 rounded-md transition-colors ${
+                              isEnabled
+                              ? "text-red-600 bg-red-50 hover:bg-red-100"
+                              : "text-neutral-400 bg-neutral-50 cursor-not-allowed"
+                          }`}
+                          title={isEnabled ? "Delete Product" : "Account Disabled"}>
                           <svg
                             width="16"
                             height="16"

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { getPOSProducts, Product } from '../../../services/api/admin/adminProductService';
+import { getPOSProducts, Product, updateProduct, getSellers, Seller } from '../../../services/api/admin/adminProductService';
 import { createPOSOrder, initiatePOSOnlineOrder, verifyPOSPayment } from '../../../services/api/admin/adminOrderService';
 import { getAllCustomers, Customer } from '../../../services/api/admin/adminCustomerService';
+import { getAppSettings, AppSettings } from '../../../services/api/admin/adminSettingsService';
 import { useToast } from '../../../context/ToastContext';
 import { useNavigate } from 'react-router-dom';
 import { jsPDF } from "jspdf";
@@ -10,9 +11,10 @@ import { jsPDF } from "jspdf";
 interface CartItem extends Product {
   qty: number;
   customPrice?: number; // For edited selling price
-  originalProductId?: string; // To store parent ID for variations
   variationId?: string;
   isVariation?: boolean;
+  addToInventory?: boolean;
+  wholesalePrice?: number;
 }
 
 interface Bill {
@@ -161,8 +163,13 @@ const AdminPOSOrders = () => {
     localStorage.setItem('pos_active_bill', activeBillId);
   }, [activeBillId]);
 
-  // Data State
+  const [sellers, setSellers] = useState<Seller[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [brands, setBrands] = useState<any[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedBrand, setSelectedBrand] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
+  const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 12;
@@ -173,9 +180,9 @@ const AdminPOSOrders = () => {
   const [editingItem, setEditingItem] = useState<CartItem | null>(null);
 
   // Quick Add Form
-  const [quickForm, setQuickForm] = useState({ name: '', price: '', qty: '1', mrp: '', addToInventory: false });
+  const [quickForm, setQuickForm] = useState({ name: '', price: '', qty: '1', mrp: '', purchasePrice: '', wholesalePrice: '', categoryId: '', brandId: '', addToInventory: false });
   // Edit Item Form
-  const [editForm, setEditForm] = useState({ name: '', price: '', qty: '', mrp: '', purchasePrice: '' });
+  const [editForm, setEditForm] = useState({ name: '', price: '', qty: '', mrp: '', purchasePrice: '', wholesalePrice: '' });
 
   // New UI States
   const [showPaymentDropdown, setShowPaymentDropdown] = useState(false);
@@ -185,6 +192,27 @@ const AdminPOSOrders = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   // const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null); // Removed global
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+
+  // Fetch Settings, Sellers, Categories & Brands
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [settingsRes, sellersRes, categoriesRes, brandsRes] = await Promise.all([
+            getAppSettings(),
+            getSellers(),
+            import('../../../services/api/admin/adminProductService').then(m => m.getCategories()),
+            import('../../../services/api/admin/adminProductService').then(m => m.getBrands())
+        ]);
+        if (settingsRes.success) setSettings(settingsRes.data);
+        if (sellersRes.success) setSellers(sellersRes.data);
+        if (categoriesRes.success) setCategories(categoriesRes.data);
+        if (brandsRes.success) setBrands(brandsRes.data);
+      } catch (e) {
+        console.error("Failed to fetch initial data", e);
+      }
+    };
+    fetchData();
+  }, []);
 
   // Success/Print Modal
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -247,6 +275,9 @@ const AdminPOSOrders = () => {
       try {
         const response = await getPOSProducts({
           search: searchQuery,
+          seller: selectedSeller || undefined,
+          category: selectedCategory || undefined,
+          brand: selectedBrand || undefined,
           limit: 1000 // Fetch all for client-side pagination
         });
         if (response.success && response.data) {
@@ -293,7 +324,7 @@ const AdminPOSOrders = () => {
     }, 500);
 
     return () => clearTimeout(debounceTimer);
-  }, [searchQuery]);
+  }, [searchQuery, selectedSeller, selectedCategory, selectedBrand]);
 
   // Barcode Scanner Handler
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -332,7 +363,14 @@ const AdminPOSOrders = () => {
         }
         return prev.map(item => item._id === product._id ? { ...item, qty: item.qty + 1 } : item);
       }
-      return [...prev, { ...(product as CartItem), qty: 1 }];
+
+      const price = (orderType === 'Wholesale' && product.wholesalePrice) ? product.wholesalePrice : product.price;
+      const newItem = { ...(product as CartItem), qty: 1 };
+      if (orderType === 'Wholesale' && product.wholesalePrice) {
+          newItem.customPrice = product.wholesalePrice;
+      }
+
+      return [...prev, newItem];
     });
   };
 
@@ -365,22 +403,73 @@ const AdminPOSOrders = () => {
   };
 
   // --- Handlers ---
-  const handleQuickAddSubmit = (e: React.FormEvent) => {
+  const handleQuickAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    let productId = 'quick-' + Date.now();
+    let finalProductData: any = null;
+
+    if (quickForm.addToInventory) {
+        setLoading(true);
+        try {
+            const res = await (import('../../../services/api/admin/adminProductService')).then(m => m.createProduct({
+                productName: quickForm.name,
+                price: parseFloat(quickForm.price) || 0,
+                compareAtPrice: parseFloat(quickForm.mrp) || 0,
+                purchasePrice: parseFloat(quickForm.purchasePrice) || 0,
+                wholesalePrice: parseFloat(quickForm.wholesalePrice) || 0,
+                stock: parseInt(quickForm.qty) || 0,
+                category: quickForm.categoryId,
+                brand: quickForm.brandId,
+                seller: selectedSeller || undefined, // Will default to Admin Store in backend if undefined
+                status: 'Active',
+                publish: true
+            }));
+
+            if (res.success && res.data) {
+                productId = res.data._id;
+                finalProductData = res.data;
+                showToast("Product created and added to cart", "success");
+            } else {
+                showToast(res.message || "Failed to create product in inventory", "error");
+                setLoading(false);
+                return;
+            }
+        } catch (err) {
+            console.error(err);
+            showToast("Error creating product", "error");
+            setLoading(false);
+            return;
+        } finally {
+            setLoading(false);
+        }
+    }
+
     // Quick Add creates a temporary mock product in cart
-    const newItem: any = {
-      _id: 'quick-' + Date.now(),
+    const newItem: any = finalProductData ? {
+        ...finalProductData,
+        qty: parseInt(quickForm.qty) || 1,
+        originalProductId: finalProductData._id
+    } : {
+      _id: productId,
       productName: quickForm.name,
       price: parseFloat(quickForm.price) || 0,
       compareAtPrice: parseFloat(quickForm.mrp) || 0,
+      wholesalePrice: parseFloat(quickForm.wholesalePrice) || 0,
+      purchasePrice: parseFloat(quickForm.purchasePrice) || 0,
       qty: parseInt(quickForm.qty) || 1,
       mainImage: '', // Placeholder
       originalProductId: null,
       addToInventory: quickForm.addToInventory // Store flag
     };
+
     setCart(prev => [...prev, newItem]);
     setShowQuickAdd(false);
-    setQuickForm({ name: '', price: '', qty: '1', mrp: '', addToInventory: false });
+    setQuickForm({
+        name: '', price: '', qty: '1', mrp: '',
+        purchasePrice: '', wholesalePrice: '',
+        categoryId: '', brandId: '', addToInventory: false
+    });
   };
 
   const openEditModal = (item: CartItem) => {
@@ -391,7 +480,8 @@ const AdminPOSOrders = () => {
       price: currentPrice.toString(),
       qty: item.qty.toString(),
       mrp: (item.compareAtPrice || 0).toString(),
-      purchasePrice: (item.purchasePrice || 0).toString()
+      purchasePrice: (item.purchasePrice || 0).toString(),
+      wholesalePrice: (item.wholesalePrice || 0).toString()
     });
   };
 
@@ -401,14 +491,31 @@ const AdminPOSOrders = () => {
 
     setCart(prev => prev.map(item => {
       if (item._id === editingItem._id) {
-        return {
+        const updatedItem = {
           ...item,
           productName: editForm.name,
           customPrice: parseFloat(editForm.price),
           compareAtPrice: parseFloat(editForm.mrp) || 0,
           purchasePrice: parseFloat(editForm.purchasePrice) || 0,
-          qty: parseInt(editForm.qty) || 1
+          wholesalePrice: parseFloat(editForm.wholesalePrice) || 0,
+          qty: parseInt(editForm.qty) || 1,
+          updateInventory: (document.getElementById('updateInventory') as HTMLInputElement)?.checked || false
         };
+
+        // If updateInventory is checked and it's not a quick-add item, update the actual product
+        if (updatedItem.updateInventory && !item._id.toString().startsWith('quick-')) {
+            const productId = item.originalProductId || item._id;
+            updateProduct(productId, {
+                price: updatedItem.customPrice,
+                compareAtPrice: updatedItem.compareAtPrice,
+                purchasePrice: updatedItem.purchasePrice,
+                wholesalePrice: updatedItem.wholesalePrice,
+                // We don't update stock here as stock is handled during checkout,
+                // but we update the display info.
+            }).catch(console.error);
+        }
+
+        return updatedItem;
       }
       return item;
     }));
@@ -430,11 +537,11 @@ const AdminPOSOrders = () => {
     // --- Header ---
     doc.setFontSize(16);
     doc.setFont("helvetica", "bold");
-    doc.text("GEETA", 14, 20);
+    doc.text(settings?.appName || "GEETA", 14, 20);
 
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    const address = "Q7WM+92M, Q7WM+92M, , Indore Division,\nNagda, Madhya Pradesh, India - 454001\n7898111456";
+    const address = settings ? `${settings.companyAddress || ""}\n${settings.companyCity || ""}, ${settings.companyState || ""} ${settings.companyPincode || ""}\n${settings.contactPhone || ""}` : "Q7WM+92M, Q7WM+92M, , Indore Division,\nNagda, Madhya Pradesh, India - 454001\n7898111456";
     doc.text(address, 14, 26);
 
     doc.line(14, 40, 196, 40);
@@ -448,7 +555,7 @@ const AdminPOSOrders = () => {
     doc.setFont("helvetica", "normal");
     doc.text(invoiceNum, 196, 48, { align: 'right' });
     doc.text(`${dateStr} ${timeStr}`, 196, 53, { align: 'right' });
-    doc.text("Cash", 196, 58, { align: 'right' });
+    doc.text(paymentMethod, 196, 58, { align: 'right' });
 
     doc.setLineWidth(0.5);
     doc.line(14, 63, 196, 63);
@@ -793,16 +900,50 @@ const AdminPOSOrders = () => {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-full flex flex-col overflow-hidden">
 
             {/* Top Bar (Filters) */}
-            <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row gap-3 bg-white z-10">
-               <select
-                 className="border border-gray-300 rounded px-3 py-2 text-sm w-full sm:w-1/3 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                 value={selectedSeller}
-                 onChange={(e) => setSelectedSeller(e.target.value)}
-               >
-                 <option value="">-- Select Seller --</option>
-                 <option value="seller1">Seller 1</option>
-                 <option value="seller2">Seller 2</option>
-               </select>
+            <div className="p-4 border-b border-gray-100 flex flex-col gap-3 bg-white z-10">
+                <div className="flex flex-col sm:flex-row gap-3">
+                    <select
+                      className="border border-gray-300 rounded px-3 py-2 text-sm w-full sm:w-1/3 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      value={selectedSeller}
+                      onChange={(e) => {
+                          setSelectedSeller(e.target.value);
+                          setCurrentPage(1); // Reset page on seller change
+                      }}
+                    >
+                      <option value="">-- All Sellers --</option>
+                      {sellers.map(s => (
+                          <option key={s._id} value={s._id}>{s.sellerName} ({s.storeName})</option>
+                      ))}
+                    </select>
+
+                    <select
+                      className="border border-gray-300 rounded px-3 py-2 text-sm w-full sm:w-1/3 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      value={selectedCategory}
+                      onChange={(e) => {
+                          setSelectedCategory(e.target.value);
+                          setCurrentPage(1);
+                      }}
+                    >
+                      <option value="">-- All Categories --</option>
+                      {categories.map(c => (
+                          <option key={c._id} value={c._id}>{c.name}</option>
+                      ))}
+                    </select>
+
+                    <select
+                      className="border border-gray-300 rounded px-3 py-2 text-sm w-full sm:w-1/3 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      value={selectedBrand}
+                      onChange={(e) => {
+                          setSelectedBrand(e.target.value);
+                          setCurrentPage(1);
+                      }}
+                    >
+                      <option value="">-- All Brands --</option>
+                      {brands.map(b => (
+                          <option key={b._id} value={b._id}>{b.name}</option>
+                      ))}
+                    </select>
+                </div>
 
                <div className="flex w-full">
                    <input
@@ -844,7 +985,10 @@ const AdminPOSOrders = () => {
                                     )}
                                 </div>
                                 <h3 className="text-sm font-medium text-gray-800 line-clamp-2">{product.productName}</h3>
-                                <div className="mt-2 text-green-600 font-bold">₹{product.price}</div>
+                                <div className="mt-2 text-green-600 font-bold">
+                                    ₹{ (orderType === 'Wholesale' && product.wholesalePrice) ? product.wholesalePrice : product.price }
+                                    {orderType === 'Wholesale' && product.wholesalePrice && <span className="text-[10px] ml-1 text-gray-400 font-normal">(Wholesale)</span>}
+                                </div>
                                 <div className={`text-[10px] font-bold mt-1 px-2 py-0.5 rounded-full ${product.stock <= 0 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500'}`}>
                                     Stock: {product.stock}
                                 </div>
@@ -1207,7 +1351,7 @@ const AdminPOSOrders = () => {
                          <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">MRP (₹)</label>
                             <input
-                               type="number" min="0"
+                               type="number" min="0" step="0.01"
                                value={quickForm.mrp} onChange={e => setQuickForm({...quickForm, mrp: e.target.value})}
                                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none"
                                placeholder="0.00"
@@ -1216,8 +1360,26 @@ const AdminPOSOrders = () => {
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Selling Price (₹)</label>
                             <input
-                               type="number" required min="0"
+                               type="number" required min="0" step="0.01"
                                value={quickForm.price} onChange={e => setQuickForm({...quickForm, price: e.target.value})}
+                               className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none"
+                               placeholder="0.00"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Wholesale Price (₹)</label>
+                            <input
+                               type="number" min="0" step="0.01"
+                               value={quickForm.wholesalePrice} onChange={e => setQuickForm({...quickForm, wholesalePrice: e.target.value})}
+                               className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none"
+                               placeholder="0.00"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Purchase Price (₹)</label>
+                            <input
+                               type="number" min="0" step="0.01"
+                               value={quickForm.purchasePrice} onChange={e => setQuickForm({...quickForm, purchasePrice: e.target.value})}
                                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none"
                                placeholder="0.00"
                             />
@@ -1305,6 +1467,15 @@ const AdminPOSOrders = () => {
                             />
                         </div>
                         <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">New Wholesale Price/Piece</label>
+                            <input
+                               type="number" min="0" step="0.01"
+                               value={editForm.wholesalePrice} onChange={e => setEditForm({...editForm, wholesalePrice: e.target.value})}
+                               className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-900 focus:outline-none"
+                               placeholder="0.00"
+                            />
+                        </div>
+                        <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
                             <input
                                type="number" required min="1"
@@ -1314,8 +1485,12 @@ const AdminPOSOrders = () => {
                         </div>
                     </div>
                      <div className="flex items-center gap-2">
-                        <input type="checkbox" id="updateInventory" className="rounded border-gray-300 text-blue-900 focus:ring-blue-900" disabled />
-                        <label htmlFor="updateInventory" className="text-sm text-gray-500">Update in inventory (Coming Soon)</label>
+                        <input
+                            type="checkbox"
+                            id="updateInventory"
+                            className="rounded border-gray-300 text-blue-900 focus:ring-blue-900 cursor-pointer"
+                        />
+                        <label htmlFor="updateInventory" className="text-sm text-gray-700 font-medium cursor-pointer">Update product details in inventory</label>
                     </div>
                     <button type="submit" className="w-full bg-[#1e293b] hover:bg-slate-800 text-white font-medium py-2.5 rounded-lg transition-colors mt-2">
                         Update Item

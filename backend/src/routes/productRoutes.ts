@@ -12,13 +12,14 @@ import {
 } from "../modules/seller/controllers/productController";
 import { getBrands } from "../modules/admin/controllers/adminProductController";
 import { searchProductImage } from "../modules/seller/controllers/sellerToolsController";
-import { authenticate, requireUserType } from "../middleware/auth";
+import { authenticate, requireUserType, checkEnabled } from "../middleware/auth";
 
 const router = Router();
 
 // All routes require authentication and seller user type
 router.use(authenticate);
 router.use(requireUserType("Seller"));
+router.use(checkEnabled);
 
 // Get all brands - sellers need this for product creation
 router.get("/brands", getBrands);

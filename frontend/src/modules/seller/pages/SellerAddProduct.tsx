@@ -33,9 +33,14 @@ import { getAppSettings } from "../../../services/api/admin/adminSettingsService
 import ThemedDropdown from "../components/ThemedDropdown";
 import { Html5Qrcode } from "html5-qrcode";
 
+import { useAuth } from "../../../context/AuthContext";
+
 export default function SellerAddProduct() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { user } = useAuth();
+  const isEnabled = user?.isEnabled !== false; // Default to true if undefined
+
   const [formData, setFormData] = useState({
     productName: "",
     headerCategory: "",
@@ -756,6 +761,18 @@ export default function SellerAddProduct() {
       {/* Main Content */}
       <div className="flex-1">
         <form onSubmit={handleSubmit} className="space-y-6">
+          {!isEnabled && (
+            <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-r-lg">
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-red-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <span className="text-red-700 font-medium">
+                  Your account is currently disabled. You can view product details but cannot add or update products.
+                </span>
+              </div>
+            </div>
+          )}
           {/* Product Section */}
           {/* Product Section */}
           <div className="bg-white rounded-xl shadow-sm border border-neutral-200">
@@ -1689,9 +1706,9 @@ export default function SellerAddProduct() {
           <div className="flex justify-end pb-6">
             <button
               type="submit"
-              disabled={uploading}
+              disabled={uploading || !isEnabled}
               className={`px-8 py-3 rounded-lg font-medium text-lg transition-colors shadow-sm ${
-                uploading
+                uploading || !isEnabled
                   ? "bg-neutral-400 cursor-not-allowed text-white"
                   : "bg-teal-600 hover:bg-teal-700 text-white"
               }`}>

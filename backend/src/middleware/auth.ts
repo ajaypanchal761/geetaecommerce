@@ -100,3 +100,46 @@ export const requireUserType = (...userTypes: AuthUserType[]) => {
   };
 };
 
+/**
+ * Check if the user is enabled (specific to Sellers)
+ */
+export const checkEnabled = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  if (!req.user) {
+    next();
+    return;
+  }
+
+  // Only apply to Sellers
+  if (req.user.userType === 'Seller') {
+    try {
+      // Import Seller model dynamically to avoid circular dependencies if any
+      const Seller = (await import('../models/Seller')).default;
+      const seller = await Seller.findById(req.user.userId);
+
+      if (seller && !seller.isEnabled) {
+        // If disabled, block all write operations (POST, PUT, DELETE, PATCH)
+        if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
+          res.status(403).json({
+            success: false,
+            message: 'Your account is disabled. You can only view data but cannot perform any actions (Add/Update/Delete).',
+          });
+          return;
+        }
+
+        // Also block POS related routes for disabled sellers
+        if (req.originalUrl.includes('/pos')) {
+          res.status(403).json({
+            success: false,
+            message: 'Access denied. POS access is disabled for your account.',
+          });
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('Error checking seller status:', error);
+    }
+  }
+
+  next();
+};
+

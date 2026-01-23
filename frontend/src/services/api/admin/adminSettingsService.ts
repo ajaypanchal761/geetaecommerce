@@ -110,6 +110,10 @@ export interface AppSettings {
       canDelete?: boolean;
     }>;
   }>;
+  onlinePaymentDiscount?: {
+    enabled: boolean;
+    percentage: number;
+  };
   maintenanceMode: boolean;
   maintenanceMessage?: string;
   updatedBy?: string;

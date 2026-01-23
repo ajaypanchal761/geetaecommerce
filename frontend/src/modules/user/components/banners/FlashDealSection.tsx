@@ -14,7 +14,7 @@ import { bannerService } from '../../../../services/bannerService';
 export default function FlashDealSection() {
   const { activeCategory } = useThemeContext();
   const theme = getTheme(activeCategory || 'all');
-  const [config, setConfig] = useState<{flashDealTargetDate: string; flashDealImage?: string}>({ flashDealTargetDate: '' });
+  const [config, setConfig] = useState<{flashDealTargetDate: string; flashDealImage?: string; isActive?: boolean}>({ flashDealTargetDate: '', isActive: true });
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
@@ -61,6 +61,7 @@ export default function FlashDealSection() {
   };
 
   const [timeLeft, setTimeLeft] = useState<TimeLeft>(calculateTimeLeft());
+  const isExpired = timeLeft.days === 0 && timeLeft.hours === 0 && timeLeft.minutes === 0 && timeLeft.seconds === 0;
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -69,6 +70,10 @@ export default function FlashDealSection() {
 
     return () => clearInterval(timer);
   }, [targetDate]);
+
+  if (isLoaded && (config.isActive === false || isExpired)) {
+    return null;
+  }
 
   const TimerBox = ({ value, label }: { value: number; label: string }) => (
     <div className="flex flex-col items-center">

@@ -14,6 +14,10 @@ export interface AppConfig {
     appName?: string;
     contactPhone?: string;
     contactEmail?: string;
+    onlinePaymentDiscount?: {
+        enabled: boolean;
+        percentage: number;
+    };
 }
 
 // Default configuration (fallback)

@@ -231,7 +231,15 @@ export default function Checkout() {
   // Calculate tip amount (use custom tip if custom tip input is shown, otherwise use selected tip)
   const finalTipAmount = showCustomTipInput ? customTipAmount : (tipAmount || 0);
   const giftPackagingFee = giftPackaging ? 30 : 0;
-  const grandTotal = Math.max(0, discountedTotal + handlingCharge + deliveryCharge + finalTipAmount + giftPackagingFee - currentCouponDiscount);
+
+  const onlineDiscountConfig = config.onlinePaymentDiscount;
+  const onlineDiscountPercentage = onlineDiscountConfig?.enabled ? onlineDiscountConfig.percentage : 0;
+
+  // Base for online discount should be Subtotal + Handling + Delivery + Tip + Gift - Coupon
+  const baseTotalForDiscount = Math.max(0, discountedTotal + handlingCharge + deliveryCharge + finalTipAmount + giftPackagingFee - currentCouponDiscount);
+  const onlineDiscountAmount = (baseTotalForDiscount * onlineDiscountPercentage) / 100;
+
+  const grandTotal = baseTotalForDiscount;
 
   const handleApplyCoupon = async (coupon: ApiCoupon) => {
     setIsValidatingCoupon(true);
@@ -1208,6 +1216,22 @@ export default function Checkout() {
             <span className="text-sm font-bold text-neutral-900">Grand total</span>
             <span className="text-sm font-bold text-neutral-900">₹{Math.max(0, grandTotal)}</span>
           </div>
+
+          {/* Online Payment Discount Incentive */}
+          {onlineDiscountAmount > 0 && (
+            <div className="mt-2 bg-green-50 rounded-lg p-2.5 border border-dashed border-green-300">
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 bg-green-100 rounded-full flex items-center justify-center">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke="#16a34a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+                <p className="text-[11px] font-semibold text-green-700">
+                  Save ₹{onlineDiscountAmount.toFixed(2)} extra by paying online!
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1637,22 +1661,32 @@ export default function Checkout() {
                         <div className="space-y-3">
                             <button
                               onClick={() => handlePaymentSelection('Razorpay')}
-                              className="w-full group flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all"
+                              className="w-full group flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all text-left"
                             >
                                 <div className="flex items-center gap-3">
                                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold">R</div>
-                                   <span className="font-semibold text-gray-700 group-hover:text-blue-700">Razorpay</span>
+                                   <div>
+                                       <span className="block font-semibold text-gray-700 group-hover:text-blue-700">Razorpay</span>
+                                       {onlineDiscountAmount > 0 && (
+                                           <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-bold">₹{(grandTotal - onlineDiscountAmount).toFixed(2)} (-₹{onlineDiscountAmount.toFixed(2)})</span>
+                                       )}
+                                   </div>
                                 </div>
                                 <span className="text-gray-300 group-hover:text-blue-500">→</span>
                             </button>
 
                             <button
                               onClick={() => handlePaymentSelection('Cashfree')}
-                              className="w-full group flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all"
+                              className="w-full group flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all text-left"
                             >
                                 <div className="flex items-center gap-3">
                                    <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 font-bold">C</div>
-                                   <span className="font-semibold text-gray-700 group-hover:text-purple-700">Cashfree</span>
+                                   <div>
+                                       <span className="block font-semibold text-gray-700 group-hover:text-purple-700">Cashfree</span>
+                                       {onlineDiscountAmount > 0 && (
+                                           <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-bold">₹{(grandTotal - onlineDiscountAmount).toFixed(2)} (-₹{onlineDiscountAmount.toFixed(2)})</span>
+                                       )}
+                                   </div>
                                 </div>
                                 <span className="text-gray-300 group-hover:text-purple-500">→</span>
                             </button>
