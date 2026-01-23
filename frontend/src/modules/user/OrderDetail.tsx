@@ -477,6 +477,18 @@ export default function OrderDetail() {
   const [selectedTip, setSelectedTip] = useState<number | "other" | null>(null);
   const [customTip, setCustomTip] = useState("");
 
+  // Return/Replace states
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [showReplaceModal, setShowReplaceModal] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState("");
+  const [selectedQuantity, setSelectedQuantity] = useState(1);
+  const [returnReason, setReturnReason] = useState("Damaged");
+  const [replaceReason, setReplaceReason] = useState("Damaged");
+  const [requestComment, setRequestComment] = useState("");
+  const [replaceImage, setReplaceImage] = useState<File | null>(null);
+  const [returnRequestStatus, setReturnRequestStatus] = useState<string | null>(null);
+  const [replaceRequestStatus, setReplaceRequestStatus] = useState<string | null>(null);
+
   // Real-time delivery tracking via WebSocket
   const {
     deliveryLocation,
@@ -682,6 +694,54 @@ export default function OrderDetail() {
       console.error("Failed to save special requests:", error);
       alert("Failed to save special requests");
     }
+  };
+
+  const handleReturnSubmit = () => {
+    // Save to localStorage so Admin can see it
+    const newRequest = {
+      id: `RET-${Math.floor(Math.random() * 1000)}`,
+      orderId: order?.orderId || id,
+      user: order?.address?.name || "Current User",
+      product: selectedProduct || "Unknown Product",
+      quantity: 1,
+      reason: returnReason,
+      comment: requestComment,
+      status: "Pending",
+      date: new Date().toISOString().split('T')[0],
+    };
+
+    const existingRequests = JSON.parse(localStorage.getItem("geeta_return_requests") || "[]");
+    localStorage.setItem("geeta_return_requests", JSON.stringify([newRequest, ...existingRequests]));
+
+    setReturnRequestStatus("Pending");
+    setShowReturnModal(false);
+    alert("Return request submitted successfully. Admin will review it.");
+  };
+
+  const handleReplaceSubmit = () => {
+    if (!replaceImage && showReplaceModal) {
+      alert("Please upload an image for replacement request");
+      return;
+    }
+
+    // Save to localStorage so Admin can see it
+    const newRequest = {
+      id: `REP-${Math.floor(Math.random() * 1000)}`,
+      orderId: order?.orderId || id,
+      product: selectedProduct || "Unknown Product",
+      image: replaceImage ? URL.createObjectURL(replaceImage) : "https://via.placeholder.com/50", // Simplify for demo
+      reason: replaceReason,
+      comment: requestComment,
+      status: "Pending",
+      date: new Date().toISOString().split('T')[0],
+    };
+
+    const existingRequests = JSON.parse(localStorage.getItem("geeta_replace_requests") || "[]");
+    localStorage.setItem("geeta_replace_requests", JSON.stringify([newRequest, ...existingRequests]));
+
+    setReplaceRequestStatus("Pending");
+    setShowReplaceModal(false);
+    alert("Replacement request submitted successfully. Admin will review it.");
   };
 
   if (loading && !order) {
@@ -1176,7 +1236,189 @@ export default function OrderDetail() {
             </Button>
           </Link>
         </motion.div>
+
+        {/* Return/Replace Buttons */}
+        <motion.div
+            className="flex gap-3 mt-4"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.9 }}>
+            <Button
+            onClick={() => setShowReturnModal(true)}
+            className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 border-2 border-transparent"
+            >
+                Request Return
+            </Button>
+            <Button
+            onClick={() => setShowReplaceModal(true)}
+            className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 border-2 border-transparent"
+            >
+                Request Replacement
+            </Button>
+        </motion.div>
+
+        {/* Status Display */}
+        {(returnRequestStatus || replaceRequestStatus) && (
+            <div className="bg-blue-50 p-4 rounded-xl mt-4 border border-blue-100">
+                {returnRequestStatus && (
+                    <div className="flex justify-between items-center mb-2">
+                        <span className="text-gray-700 font-medium">Return Request:</span>
+                        <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-bold uppercase">{returnRequestStatus}</span>
+                    </div>
+                )}
+                 {replaceRequestStatus && (
+                    <div className="flex justify-between items-center">
+                        <span className="text-gray-700 font-medium">Measurement Request:</span>
+                        <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-bold uppercase">{replaceRequestStatus}</span>
+                    </div>
+                )}
+                 <p className="text-xs text-gray-500 mt-2">⏳ Request under review</p>
+            </div>
+        )}
       </div>
+
+      {/* Return Request Modal */}
+       <AnimatePresence>
+        {showReturnModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+            onClick={() => setShowReturnModal(false)}>
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">
+                Request Return
+              </h2>
+
+               <div className="mb-4">
+                 <label className="block text-sm font-medium text-gray-700 mb-1">Select Product</label>
+                 <select
+                    className="w-full border rounded-lg p-2"
+                    value={selectedProduct}
+                    onChange={(e) => setSelectedProduct(e.target.value)}
+                 >
+                     <option value="">Select a product...</option>
+                     {order?.items?.map((item: any, i:number) => (
+                         <option key={i} value={item.product?.name || item.productName}>{item.product?.name || item.productName} (Qty: {item.quantity})</option>
+                     ))}
+                 </select>
+               </div>
+
+                <div className="mb-4">
+                 <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
+                 <select
+                    className="w-full border rounded-lg p-2"
+                    value={returnReason}
+                    onChange={(e) => setReturnReason(e.target.value)}
+                 >
+                     <option value="Damaged">Damaged Product</option>
+                     <option value="Wrong Item">Wrong Item Received</option>
+                     <option value="Quality Issue">Quality Issue</option>
+                     <option value="Other">Other</option>
+                 </select>
+               </div>
+
+               <div className="mb-4">
+                 <label className="block text-sm font-medium text-gray-700 mb-1">Comment</label>
+                 <textarea
+                   className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-500"
+                   rows={3}
+                   placeholder="Additional details..."
+                   value={requestComment}
+                   onChange={(e) => setRequestComment(e.target.value)}
+                 />
+               </div>
+
+              <div className="flex gap-3">
+                <Button variant="outline" className="flex-1" onClick={() => setShowReturnModal(false)}>Cancel</Button>
+                <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white" onClick={handleReturnSubmit}>Submit Return</Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Replace Request Modal */}
+       <AnimatePresence>
+        {showReplaceModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+            onClick={() => setShowReplaceModal(false)}>
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">
+                Request Replacement
+              </h2>
+
+               <div className="mb-4">
+                 <label className="block text-sm font-medium text-gray-700 mb-1">Select Product</label>
+                 <select
+                    className="w-full border rounded-lg p-2"
+                    value={selectedProduct}
+                    onChange={(e) => setSelectedProduct(e.target.value)}
+                 >
+                     <option value="">Select a product...</option>
+                     {order?.items?.map((item: any, i:number) => (
+                         <option key={i} value={item.product?.name || item.productName}>{item.product?.name || item.productName} (Qty: {item.quantity})</option>
+                     ))}
+                 </select>
+               </div>
+
+                <div className="mb-4">
+                 <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
+                 <select
+                    className="w-full border rounded-lg p-2"
+                    value={replaceReason}
+                    onChange={(e) => setReplaceReason(e.target.value)}
+                 >
+                     <option value="Damaged">Damaged Product</option>
+                     <option value="Wrong Item">Wrong Item Received</option>
+                     <option value="Size Issue">Size Issue</option>
+                 </select>
+               </div>
+
+               <div className="mb-4">
+                 <label className="block text-sm font-medium text-gray-700 mb-1">Upload Image (Mandatory) 📸</label>
+                 <input
+                   type="file"
+                   accept="image/*"
+                   className="w-full border rounded-lg p-2"
+                   onChange={(e) => setReplaceImage(e.target.files ? e.target.files[0] : null)}
+                 />
+               </div>
+
+               <div className="mb-4">
+                 <label className="block text-sm font-medium text-gray-700 mb-1">Comment</label>
+                 <textarea
+                   className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-500"
+                   rows={3}
+                   placeholder="Describe the issue..."
+                   value={requestComment}
+                   onChange={(e) => setRequestComment(e.target.value)}
+                 />
+               </div>
+
+              <div className="flex gap-3">
+                <Button variant="outline" className="flex-1" onClick={() => setShowReplaceModal(false)}>Cancel</Button>
+                <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white" onClick={handleReplaceSubmit}>Submit Replacement</Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Cancel Order Modal */}
       <AnimatePresence>

@@ -74,6 +74,7 @@ const menuSections: MenuSection[] = [
       },
     ],
   },
+
   {
     title: "Product Section",
     items: [
@@ -281,6 +282,7 @@ const menuSections: MenuSection[] = [
       },
     ],
   },
+
   {
     title: "Delivery Section",
     items: [
@@ -390,6 +392,7 @@ const menuSections: MenuSection[] = [
       },
     ],
   },
+
   {
     title: "Miscellaneous",
     items: [
@@ -478,6 +481,7 @@ const menuSections: MenuSection[] = [
       },
     ],
   },
+
   {
     title: "Order Section",
     items: [
@@ -674,6 +678,34 @@ const menuSections: MenuSection[] = [
             ),
           },
         ],
+      },
+    ],
+  },
+
+  {
+    title: "Requests",
+    items: [
+      {
+        label: "Return Requests",
+        path: "/admin/return-requests",
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 14 4 9 9 4"></polyline>
+            <path d="M20 20v-7a4 4 0 0 0-4-4H4"></path>
+          </svg>
+        ),
+      },
+      {
+        label: "Replace Requests",
+        path: "/admin/replace-requests",
+        icon: (
+           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 2v6h-6"></path>
+            <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
+            <path d="M3 22v-6h6"></path>
+            <path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+          </svg>
+        ),
       },
     ],
   },
@@ -881,6 +913,7 @@ const menuSections: MenuSection[] = [
       },
     ],
   },
+
   {
     title: "Setting",
     items: [
@@ -1041,6 +1074,7 @@ const menuSections: MenuSection[] = [
       },
     ],
   },
+
 ];
 
 export default function AdminSidebar({ onClose }: AdminSidebarProps) {

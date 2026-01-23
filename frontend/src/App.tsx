@@ -149,6 +149,8 @@ const AdminBannerSetup = lazy(() => import("./modules/admin/pages/AdminBannerSet
 const AdminFlashDeal = lazy(() => import("./modules/admin/pages/AdminFlashDeal"));
 const AdminDealOfTheDay = lazy(() => import("./modules/admin/pages/AdminDealOfTheDay"));
 const AdminFeaturedDeal = lazy(() => import("./modules/admin/pages/AdminFeaturedDeal"));
+const AdminReturnRequests = lazy(() => import("./modules/admin/pages/AdminReturnRequests"));
+const AdminReplaceRequests = lazy(() => import("./modules/admin/pages/AdminReplaceRequests"));
 
 function App() {
   return (
@@ -368,6 +370,9 @@ function App() {
                             <Route path="promotion/flash-deals" element={<AdminFlashDeal />} />
                             <Route path="promotion/deal-of-the-day" element={<AdminDealOfTheDay />} />
                             <Route path="promotion/featured-deal" element={<AdminFeaturedDeal />} />
+
+                            <Route path="return-requests" element={<AdminReturnRequests />} />
+                            <Route path="replace-requests" element={<AdminReplaceRequests />} />
 
                             <Route path="banner-management" element={<AdminBannerSetup />} />
                           </Routes>

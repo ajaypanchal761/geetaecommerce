@@ -217,7 +217,7 @@ export default function DeliveryDashboard() {
           />
           <DashboardCard
             icon={returnOrderIcon}
-            title="Today's Return Order"
+            title="Return & Replace Tasks"
             value={stats?.returnOrders || 0}
             accentColor="#f97316"
             onClick={() => navigate('/delivery/orders/return')}
