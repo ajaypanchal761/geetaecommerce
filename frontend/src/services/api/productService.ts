@@ -23,6 +23,8 @@ export interface ProductVariation {
   status: "Available" | "Sold out" | "In stock"; // Added In stock
   sku?: string;
   barcode?: string;
+  offerPrice?: string;
+  tieredPrices?: { minQty: number; price: number }[];
 }
 
 export interface Product {

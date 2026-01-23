@@ -64,6 +64,8 @@ export default function Checkout() {
   const [gstin, setGstin] = useState<string>('');
   const [showCancellationPolicy, setShowCancellationPolicy] = useState(false);
   const [giftPackaging, setGiftPackaging] = useState<boolean>(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('Razorpay');
+  const [isPaymentDropdownOpen, setIsPaymentDropdownOpen] = useState(false);
 
   // Redirect if empty
   useEffect(() => {
@@ -500,7 +502,7 @@ export default function Checkout() {
       return;
     }
 
-    setShowPaymentModal(true);
+    handlePaymentSelection(selectedPaymentMethod);
   };
 
   const handleGoToOrders = () => {
@@ -1366,6 +1368,70 @@ export default function Checkout() {
             <span className="text-xs font-semibold text-green-600">₹30</span>
           )}
         </button>
+      </div>
+
+      {/* Payment Method */}
+      <div className="px-4 py-3 border-b border-neutral-200">
+        <h3 className="text-sm font-bold text-neutral-900 mb-2">Payment Method</h3>
+        <div className="relative">
+          <button
+            onClick={() => setIsPaymentDropdownOpen(!isPaymentDropdownOpen)}
+            className={`w-full flex items-center justify-between px-4 py-3 border rounded-xl transition-all ${
+              isPaymentDropdownOpen
+                ? 'border-blue-600 ring-1 ring-blue-600 bg-white'
+                : 'border-neutral-300 bg-white'
+            }`}
+          >
+            <span className="font-semibold text-neutral-900">
+              {selectedPaymentMethod === 'Cash' ? 'Cash' : selectedPaymentMethod}
+            </span>
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className={`text-neutral-500 transition-transform duration-200 ${isPaymentDropdownOpen ? 'rotate-180 text-blue-600' : ''}`}
+            >
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
+
+          <AnimatePresence>
+            {isPaymentDropdownOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -5, height: 0 }}
+                animate={{ opacity: 1, y: 0, height: 'auto' }}
+                exit={{ opacity: 0, y: -5, height: 0 }}
+                transition={{ duration: 0.2 }}
+                className="w-full mt-2 bg-white border border-neutral-200 rounded-xl shadow-sm overflow-hidden flex flex-col"
+              >
+                {[
+                  { id: 'Cash', label: 'Cash' },
+                  { id: 'Razorpay', label: 'Razorpay' },
+                  { id: 'Cashfree', label: 'Cashfree' }
+                ].map((method) => (
+                  <button
+                    key={method.id}
+                    onClick={() => {
+                      setSelectedPaymentMethod(method.id);
+                      setIsPaymentDropdownOpen(false);
+                    }}
+                    className="flex items-center justify-between px-4 py-3 hover:bg-neutral-50 border-b border-neutral-100 last:border-0 group text-left"
+                  >
+                    <span className={`text-sm font-medium ${selectedPaymentMethod === method.id ? 'text-blue-600' : 'text-neutral-700'}`}>
+                      {method.label}
+                    </span>
+                    <span className="text-neutral-300 group-hover:text-neutral-500 transition-colors">→</span>
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
       {/* Cancellation Policy */}

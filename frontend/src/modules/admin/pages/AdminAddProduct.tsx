@@ -95,6 +95,7 @@ export default function AdminAddProduct() {
     status: "Available" as "Available" | "Sold out",
     barcode: "",
     offerPrice: "",
+    tieredPrices: [] as { minQty: string, price: string }[],
   });
 
   interface GalleryItem {
@@ -155,31 +156,46 @@ export default function AdminAddProduct() {
     fetchFieldSettings();
   }, []);
 
-  const handlePrintBarcode = (barcodeVal: string, qty: number, name?: string, price?: number) => {
+  const handlePrintBarcode = (barcodeVal: string, qty: number, name?: string, sp?: number, mrp?: number) => {
     if(!barcodeVal) return;
 
-    // Get barcode size setting from localStorage
+    // Get barcode settings
+    const savedCustom = localStorage.getItem('barcode_printer_settings');
     const savedSize = localStorage.getItem('barcode_print_size') || 'medium';
 
-    // Define dimensions based on size setting
+    let customSettings = null;
     let containerWidth = 250;
     let barcodeHeight = 55;
     let fontSize = 14;
     let productNameSize = 14;
-    let storeNameSize = 15;
+    let showName = true;
+    let showPrice = true;
+    let isCustom = false;
 
-    if (savedSize === 'small') {
-        containerWidth = 200;
-        barcodeHeight = 40;
-        fontSize = 12;
-        productNameSize = 12;
-        storeNameSize = 13;
-    } else if (savedSize === 'large') {
-        containerWidth = 320;
-        barcodeHeight = 75;
-        fontSize = 16;
-        productNameSize = 16;
-        storeNameSize = 17;
+    if (savedCustom) {
+        try {
+            customSettings = JSON.parse(savedCustom);
+            isCustom = true;
+            barcodeHeight = customSettings.barcodeHeight;
+            fontSize = customSettings.fontSize;
+            productNameSize = customSettings.productNameSize;
+            showName = customSettings.showName ?? true;
+            showPrice = customSettings.showPrice ?? true;
+        } catch (e) { console.error(e); }
+    }
+
+    if (!isCustom) {
+        if (savedSize === 'small') {
+            containerWidth = 200;
+            barcodeHeight = 40;
+            fontSize = 12;
+            productNameSize = 12;
+        } else if (savedSize === 'large') {
+            containerWidth = 320;
+            barcodeHeight = 75;
+            fontSize = 16;
+            productNameSize = 16;
+        }
     }
 
     const printWindow = window.open('', '_blank');
@@ -188,26 +204,40 @@ export default function AdminAddProduct() {
         return;
     }
 
-    const htmlContent = `
-      <html>
-        <head>
-          <title>Print Barcodes</title>
-          <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
-            body {
-                font-family: 'Inter', sans-serif;
-                padding: 20px;
+    let styleContent = '';
+    if (isCustom && customSettings) {
+        styleContent = `
+            @page {
+              size: ${customSettings.width}mm ${customSettings.height}mm;
+              margin: 0;
             }
-            .barcode-grid {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 20px;
-                justify-content: flex-start;
+            body {
+                margin: 0;
+                padding: 0;
+                width: ${customSettings.width}mm;
             }
             .barcode-container {
+                width: ${customSettings.width}mm;
+                height: ${customSettings.height}mm;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
                 text-align: center;
-                border: 1.5px dashed #a0a0a0;
-                padding: 15px 25px;
+                overflow: hidden;
+                page-break-after: always;
+                box-sizing: border-box;
+                padding: 2px;
+            }
+        `;
+    } else {
+        styleContent = `
+            body { font-family: 'Inter', sans-serif; padding: 20px; }
+            .barcode-grid { display: flex; flex-wrap: wrap; gap: 20px; justify-content: flex-start; }
+            .barcode-container {
+                text-align: center;
+                border: 1px solid #ccc;
+                padding: 10px;
                 page-break-inside: avoid;
                 display: flex;
                 flex-direction: column;
@@ -217,49 +247,62 @@ export default function AdminAddProduct() {
                 height: auto;
                 background: white;
                 box-sizing: border-box;
-            }
-            .store-name {
-                font-size: ${storeNameSize}px;
-                font-weight: 800;
-                text-transform: uppercase;
-                margin-bottom: 4px;
-                color: #000;
-                letter-spacing: 0.5px;
-            }
-            .product-name {
-                font-size: ${productNameSize}px;
-                font-weight: 600;
-                margin-bottom: 15px;
-                color: #000;
-                line-height: 1.3;
-                text-transform: capitalize;
-            }
-            .price {
-                font-size: ${fontSize + 4}px;
-                font-weight: 800;
-                margin-bottom: 5px;
-                color: #000;
-            }
-            svg.barcode {
-                width: 100%;
-                height: ${barcodeHeight}px;
-                max-width: ${containerWidth - 50}px;
+                border-radius: 8px;
             }
             @media print {
               @page { margin: 0.5cm; }
               body { padding: 0; }
-              .barcode-container { break-inside: avoid; border: 1.5px dashed #a0a0a0; }
+              .barcode-container { break-inside: avoid; border: 1px solid #ccc; }
+            }
+        `;
+    }
+
+    const htmlContent = `
+      <html>
+        <head>
+          <title>Print Barcodes</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+            body { font-family: 'Inter', sans-serif; }
+            ${styleContent}
+            .product-name {
+                font-size: ${productNameSize}px;
+                font-weight: 600;
+                margin-bottom: 2px;
+                color: #000;
+                line-height: 1.1;
+                text-transform: capitalize;
+                max-width: 100%;
+                word-wrap: break-word;
+                display: ${showName ? 'block' : 'none'};
+            }
+            .price-row {
+                display: ${showPrice ? 'flex' : 'none'};
+                gap: 10px;
+                margin-top: 2px;
+                font-size: ${fontSize}px;
+                font-weight: 700;
+                color: #000;
+                justify-content: center;
+            }
+            .price-item {
+                display: flex;
+                align-items: center;
+            }
+            svg.barcode {
+                width: 100%;
+                height: ${barcodeHeight}px;
+                max-width: 100%;
+                display: block;
             }
           </style>
           <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
         </head>
         <body>
-          <div class="barcode-grid">
+          <div class="${isCustom ? '' : 'barcode-grid'}">
           ${Array(qty).fill(0).map(() => `
             <div class="barcode-container">
-              <div class="store-name">GEETA STORES</div>
               <div class="product-name">${name || ''}</div>
-              ${price ? `<div class="price">Price: ₹${price.toFixed(2)}</div>` : ''}
               <svg class="barcode"
                 jsbarcode-format="CODE128"
                 jsbarcode-value="${barcodeVal}"
@@ -269,14 +312,19 @@ export default function AdminAddProduct() {
                 jsbarcode-fontoptions="bold"
                 jsbarcode-displayValue="true"
                 jsbarcode-fontSize="${fontSize}"
-                jsbarcode-marginBottom="5">
+                jsbarcode-marginBottom="2"
+                jsbarcode-marginTop="2">
               </svg>
+              <div class="price-row">
+                  ${mrp ? `<div class="price-item">MRP:${mrp}</div>` : ''}
+                  ${sp ? `<div class="price-item">SP:${sp}</div>` : ''}
+              </div>
             </div>
           `).join('')}
           </div>
           <script>
             JsBarcode(".barcode").init();
-            // Auto print after a short delay to ensure rendering
+            // Auto print after a short delay
             setTimeout(() => {
                 window.print();
             }, 800);
@@ -602,6 +650,10 @@ export default function AdminAddProduct() {
       status: variationForm.status,
       barcode: variationForm.barcode,
       offerPrice,
+      tieredPrices: variationForm.tieredPrices.map(t => ({
+        minQty: parseInt(t.minQty) || 0,
+        price: parseFloat(t.price) || 0
+      })).filter(t => t.minQty > 1 && t.price > 0)
     };
 
     setVariations([...variations, newVariation]);
@@ -613,8 +665,31 @@ export default function AdminAddProduct() {
       status: "Available",
       barcode: "",
       offerPrice: "",
+      tieredPrices: [],
     });
     setUploadError("");
+  };
+
+  const handleAddTier = () => {
+    setVariationForm(prev => ({
+        ...prev,
+        tieredPrices: [...prev.tieredPrices, { minQty: "", price: "" }]
+    }));
+  };
+
+  const handleRemoveTier = (index: number) => {
+    setVariationForm(prev => ({
+        ...prev,
+        tieredPrices: prev.tieredPrices.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleTierChange = (index: number, field: 'minQty' | 'price', value: string) => {
+    setVariationForm(prev => {
+        const newTiers = [...prev.tieredPrices];
+        newTiers[index] = { ...newTiers[index], [field]: value };
+        return { ...prev, tieredPrices: newTiers };
+    });
   };
 
   const removeVariation = (index: number) => {
@@ -1220,7 +1295,7 @@ export default function AdminAddProduct() {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
-                      Discount Price
+                      Offer Price
                     </label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400">₹</span>
@@ -1247,7 +1322,7 @@ export default function AdminAddProduct() {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
-                      Offer Price
+                      Secondary Offer (Optional)
                     </label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400">₹</span>
@@ -1259,6 +1334,53 @@ export default function AdminAddProduct() {
                         className="w-full pl-7 pr-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
                       />
                     </div>
+                  </div>
+
+                  {/* Tiered Pricing Section */}
+                  <div className="md:col-span-5 bg-gray-50 p-4 rounded-lg border border-dashed border-gray-300">
+                      <div className="flex justify-between items-center mb-3">
+                          <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+                              Tiered Pricing (Buy X get for Y)
+                          </label>
+                          <button
+                            type="button"
+                            onClick={handleAddTier}
+                            className="text-xs font-bold text-teal-600 hover:text-teal-700"
+                          >
+                            + Add Tier
+                          </button>
+                      </div>
+
+                      {variationForm.tieredPrices.length === 0 && (
+                          <p className="text-xs text-center text-gray-400 italic py-2">No tiered pricing added.</p>
+                      )}
+
+                      <div className="space-y-3">
+                          {variationForm.tieredPrices.map((tier, idx) => (
+                              <div key={idx} className="flex gap-3 items-center">
+                                  <div className="flex-1">
+                                      <input
+                                          type="number"
+                                          placeholder="Min Qty (e.g. 2)"
+                                          className="w-full px-3 py-2 border border-neutral-300 rounded text-sm"
+                                          value={tier.minQty}
+                                          onChange={e => handleTierChange(idx, 'minQty', e.target.value)}
+                                      />
+                                  </div>
+                                  <div className="flex-1 relative">
+                                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">₹</span>
+                                      <input
+                                          type="number"
+                                          placeholder="Price/Unit"
+                                          className="w-full pl-6 pr-3 py-2 border border-neutral-300 rounded text-sm"
+                                          value={tier.price}
+                                          onChange={e => handleTierChange(idx, 'price', e.target.value)}
+                                      />
+                                  </div>
+                                  <button onClick={() => handleRemoveTier(idx)} className="text-red-500 hover:text-red-700">✕</button>
+                              </div>
+                          ))}
+                      </div>
                   </div>
                   <div className="md:col-span-5 grid grid-cols-1 md:grid-cols-2 gap-4">
                      <div className="flex-1">
@@ -1322,6 +1444,15 @@ export default function AdminAddProduct() {
                             <span className="font-medium text-teal-600">₹{variation.price}</span>
                             {variation.discPrice > 0 && (
                                <span className="text-xs text-neutral-400 line-through ml-2">₹{variation.discPrice}</span>
+                            )}
+                            {variation.tieredPrices && variation.tieredPrices.length > 0 && (
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                    {variation.tieredPrices.map((t, idx) => (
+                                        <span key={idx} className="text-[10px] bg-teal-50 text-teal-700 px-1.5 py-0.5 rounded border border-teal-100">
+                                            {t.minQty}+ @ ₹{t.price}
+                                        </span>
+                                    ))}
+                                </div>
                             )}
                           </div>
                           <div>
@@ -1555,30 +1686,33 @@ export default function AdminAddProduct() {
                          <select
                            className="w-full px-3 py-2.5 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
                            value={selectedPrintBarcode}
-                           onChange={(e) => {
+                             onChange={(e) => {
                              const selectedVal = e.target.value;
                              setSelectedPrintBarcode(selectedVal);
 
                              if(selectedVal) {
                                 let name = formData.productName;
-                                let price: number | undefined;
+                                let sp: number | undefined;
+                                let mrp: number | undefined;
 
                                 // Check if variation
                                 const variation = variations.find(v => v.barcode === selectedVal);
                                 if (variation) {
                                     name = `${formData.productName} - ${variation.title}`;
-                                    price = variation.price;
+                                    // Logic: Price is MRP, DiscPrice is SP (if exists)
+                                    mrp = variation.price;
+                                    sp = variation.discPrice > 0 ? variation.discPrice : variation.price;
                                 } else if (selectedVal === (formData as any).barcode) {
-                                    // Main product - try to get price from first variation or purchasePrice if relevant?
-                                    // For now preferring first variation price as it's often the selling price
+                                    // Main product - try to get price from first variation if possible
                                     if (variations.length > 0) {
-                                        price = variations[0].price;
-                                    } else if (variationForm.price) {
-                                         price = parseFloat(variationForm.price);
+                                        mrp = variations[0].price;
+                                        sp = variations[0].discPrice > 0 ? variations[0].discPrice : variations[0].price;
+                                    } else {
+                                        // Fallback logic could be added here if main fields existed
                                     }
                                 }
 
-                                handlePrintBarcode(selectedVal, parseInt(printQuantity) || 1, name, price);
+                                handlePrintBarcode(selectedVal, parseInt(printQuantity) || 1, name, sp, mrp);
                              }
                            }}
                          >

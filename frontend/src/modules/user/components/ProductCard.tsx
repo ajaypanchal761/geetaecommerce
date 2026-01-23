@@ -10,7 +10,7 @@ import { addToWishlist, removeFromWishlist, getWishlist } from '../../../service
 import Button from '../../../components/ui/button';
 import Badge from '../../../components/ui/badge';
 import StarRating from '../../../components/ui/StarRating';
-import { calculateProductPrice } from '../../../utils/priceUtils';
+import { calculateProductPrice, getApplicableUnitPrice } from '../../../utils/priceUtils';
 
 interface ProductCardProps {
   product: Product;
@@ -124,6 +124,26 @@ export default function ProductCard({
 
   // Get Price and MRP using utility
   const { displayPrice, mrp, discount } = calculateProductPrice(product);
+
+  // --- STATIC TIER PRICING DEMO LOGIC ---
+  const realTiers = product.variations?.[0]?.tieredPrices || [];
+  // Use static if no real tiers exist (Demo Mode) - Always true for now if price > 0 per request
+  const useStaticTiers = realTiers.length === 0 && displayPrice > 0;
+
+  const tieredPrices = useStaticTiers ? [
+      { minQty: 2, price: Math.floor(displayPrice * 0.96) }, // ~4% off for 2+
+      { minQty: 4, price: Math.floor(displayPrice * 0.92) }  // ~8% off for 4+
+  ].filter(t => t.price < displayPrice) : realTiers;
+
+  // Calculate dynamic unit price based on cart quantity
+  let currentUnitPrice = getApplicableUnitPrice(product, undefined, Math.max(1, inCartQty));
+
+   // If showing static demo tiers, manually override price
+  if (useStaticTiers && inCartQty > 1) {
+      const match = [...tieredPrices].sort((a,b) => b.minQty - a.minQty).find(t => inCartQty >= t.minQty);
+      if (match) currentUnitPrice = match.price;
+  }
+  // -------------------------------------
 
   const handleCardClick = () => {
     navigate(`/product/${((product as any).id || product._id) as string}`);
@@ -398,18 +418,41 @@ export default function ProductCard({
                 <span>14 MINS</span>
               </p>
 
-              {/* 4. % OFF */}
-              {discount > 0 && (
-                <p className="text-[9px] font-semibold text-green-600 mb-0.5 leading-tight">
-                  {discount}% OFF
-                </p>
+              {/* 4. Tiered Pricing Static Display (First Image Style) */}
+              {tieredPrices.length > 0 ? (
+                 <div className="flex flex-col gap-0.5 mb-1 mt-auto w-full">
+                    {/* Line 1: Base Price */}
+                    <div className="flex justify-between items-center text-[9px] leading-tight">
+                       <span className="text-gray-500 font-medium">1 unit(s)</span>
+                       <div className="flex items-center gap-1">
+                         <span className="font-semibold text-gray-700">₹{displayPrice}</span>
+                         {discount > 0 && <span className="text-green-600 font-bold">({discount}% OFF)</span>}
+                       </div>
+                    </div>
+                    {/* Line 2: Tier 1 (Highlighted) */}
+                    <div className="flex justify-between items-center text-[9px] leading-tight">
+                       <span className="text-red-600 font-bold">{tieredPrices[0].minQty}+ unit(s)</span>
+                       <div className="flex items-center gap-1">
+                         <span className="font-bold text-gray-900">₹{tieredPrices[0].price}</span>
+                         <span className="text-green-600 font-bold">
+                           ({Math.round(((mrp - tieredPrices[0].price) / mrp) * 100)}% OFF)
+                         </span>
+                       </div>
+                    </div>
+                 </div>
+              ) : (
+                 discount > 0 && (
+                  <p className="text-[9px] font-semibold text-green-600 mb-0.5 leading-tight">
+                    {discount}% OFF
+                  </p>
+                 )
               )}
 
               {/* 5. Price with discount */}
               <div className="mt-auto">
                 <div className="flex items-baseline gap-1 flex-wrap">
                   <span className="text-[11px] font-bold text-neutral-900 leading-tight">
-                    ₹{displayPrice.toLocaleString('en-IN')}
+                    ₹{currentUnitPrice.toLocaleString('en-IN')}
                   </span>
                   {mrp && mrp > displayPrice && (
                     <span className="text-[8px] text-neutral-500 line-through leading-tight">
@@ -441,6 +484,32 @@ export default function ProductCard({
                   showCount={true}
                 />
               </div>
+
+              {/* Tiered Pricing Display */}
+              {product.variations?.[0]?.tieredPrices && product.variations[0].tieredPrices.length > 0 && (
+                  <div className="mb-2 space-y-1">
+                      {/* Base Price Tier */}
+                      <div className="flex justify-between items-center bg-gray-50 px-2 py-1 rounded text-[10px]">
+                          <span className="font-medium text-gray-600">Buy 1</span>
+                          <div className="flex items-center gap-1">
+                              <span className="font-bold text-gray-800">₹{displayPrice}</span>
+                          </div>
+                      </div>
+                      {/* Additional Tiers */}
+                      {product.variations[0].tieredPrices.map((tier, idx) => {
+                          const tierDiscount = mrp ? Math.round(((mrp - tier.price) / mrp) * 100) : 0;
+                          return (
+                              <div key={idx} className="flex justify-between items-center bg-teal-50 px-2 py-1 rounded text-[10px] border border-teal-100">
+                                  <span className="font-bold text-teal-800">Buy {tier.minQty}+</span>
+                                  <div className="flex items-center gap-1">
+                                      <span className="font-bold text-teal-700">₹{tier.price}</span>
+                                      {tierDiscount > 0 && <span className="text-[9px] text-teal-600 font-bold">({tierDiscount}% OFF)</span>}
+                                  </div>
+                              </div>
+                          );
+                      })}
+                  </div>
+              )}
 
               {showStockInfo && (
                 <p className="text-xs text-green-600 mb-2 font-medium">

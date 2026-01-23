@@ -140,6 +140,7 @@ const AdminPOSOrders = lazy(() => import("./modules/admin/pages/AdminPOSOrders")
 const AdminPOSReport = lazy(() => import("./modules/admin/pages/AdminPOSReport"));
 const AdminVideoManagement = lazy(() => import("./modules/admin/pages/AdminVideoManagement"));
 const AdminProductDisplaySettings = lazy(() => import("./modules/admin/pages/AdminProductDisplaySettings"));
+const AdminBarcodeSettings = lazy(() => import("./modules/admin/pages/AdminBarcodeSettings"));
 const AdminDeliverySettings = lazy(() => import("./modules/admin/pages/AdminDeliverySettings"));
 const AdminSalesSummary = lazy(() => import("./modules/admin/pages/AdminSalesSummary"));
 const AdminPOSCustomers = lazy(() => import("./modules/admin/pages/AdminPOSCustomers"));
@@ -358,6 +359,7 @@ function App() {
                             <Route path="orders/:id" element={<AdminOrderDetail />} />
                             <Route path="video-finds" element={<AdminVideoManagement />} />
                             <Route path="product-display-settings" element={<AdminProductDisplaySettings />} />
+                            <Route path="barcode-settings" element={<AdminBarcodeSettings />} />
                             <Route path="delivery-settings" element={<AdminDeliverySettings />} />
                             <Route path="sales-summary" element={<AdminSalesSummary />} />
 

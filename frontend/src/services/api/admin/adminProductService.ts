@@ -157,6 +157,7 @@ export interface Product {
   createdAt?: string;
   updatedAt?: string;
   discPrice?: number;
+  wholesalePrice?: number;
   pack?: string;
   isShopByStoreOnly?: boolean;
   shopId?: string | { _id: string; name: string };

@@ -27,6 +27,7 @@ export interface Product {
     stock?: number;
     status?: string;
     _id?: { $oid: string } | string;
+    tieredPrices?: { minQty: number; price: number }[]; // Added
   }>;
   imageUrl?: string;
   mainImage?: string;

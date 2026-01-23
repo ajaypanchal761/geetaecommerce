@@ -22,6 +22,7 @@ export interface IProduct extends Document {
 
   // Pricing & Inventory
   price: number;
+  wholesalePrice?: number;
   discPrice?: number;
   compareAtPrice?: number;
   stock: number;
@@ -44,6 +45,7 @@ export interface IProduct extends Document {
     stock?: number;
     sku?: string;
     status?: string;
+    tieredPrices?: { minQty: number; price: number }[];
   }>;
 
   // Status Flags
@@ -168,6 +170,11 @@ const ProductSchema = new Schema<IProduct>(
       required: [true, "Price is required"],
       min: [0, "Price cannot be negative"],
     },
+    wholesalePrice: {
+      type: Number,
+      default: 0,
+      min: [0, "Wholesale price cannot be negative"],
+    },
     discPrice: {
       type: Number,
       default: 0,
@@ -234,6 +241,10 @@ const ProductSchema = new Schema<IProduct>(
             default: "Available",
           },
           sku: String,
+          tieredPrices: {
+             type: [{ minQty: Number, price: Number }],
+             default: []
+          }
         },
       ],
       default: [],

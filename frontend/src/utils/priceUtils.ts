@@ -37,7 +37,7 @@ export const calculateProductPrice = (product: any, variationSelector?: number |
     ? product.discPrice
     : (variation?.price || product.price || 0);
 
-  const mrp = variation?.price || product.mrp || product.compareAtPrice || product.price || 0;
+  const mrp = variation?.compareAtPrice || variation?.mrp || product.compareAtPrice || product.mrp || variation?.price || product.price || 0;
 
   const hasDiscount = mrp > displayPrice;
   const discount = hasDiscount ? Math.round(((mrp - displayPrice) / mrp) * 100) : 0;
@@ -48,4 +48,59 @@ export const calculateProductPrice = (product: any, variationSelector?: number |
     discount,
     hasDiscount
   };
+};
+
+/**
+ * Calculates the applicable unit price based on quantity and tiered pricing.
+ * @param product The product object
+ * @param variationSelector The selected variation (index, ID, or object)
+ * @param quantity The quantity to check against tiers
+ * @returns The calculated price per unit
+ */
+export const getApplicableUnitPrice = (product: any, variationSelector?: number | string | any, quantity: number = 1): number => {
+  if (!product) return 0;
+
+  // Resolve variation
+  let variation = typeof variationSelector === 'object' ? variationSelector : undefined;
+
+  if (!variation) {
+      if (typeof variationSelector === 'number') {
+        variation = product.variations?.[variationSelector];
+      } else if (typeof variationSelector === 'string') {
+        variation = product.variations?.find((v: any) => (v._id === variationSelector || v.id === variationSelector));
+      }
+  }
+
+  // Fallback to first variation if needed (standard logic)
+  if (!variation && product.variations?.length > 0 && variationSelector === undefined) {
+    variation = product.variations[0];
+  }
+
+  // 1. Check for tiered pricing in variation
+  if (variation?.tieredPrices && Array.isArray(variation.tieredPrices) && variation.tieredPrices.length > 0) {
+      // Find the highest tier where quantity >= minQty
+      const applicableTier = variation.tieredPrices
+          .filter((t: any) => quantity >= (t.minQty || 0))
+          .sort((a: any, b: any) => b.minQty - a.minQty)[0];
+
+      if (applicableTier) {
+          return parseFloat(applicableTier.price);
+      }
+  }
+
+  // 2. Check for tiered pricing in main product (if schema supports it, though currently usually on variation)
+  if (product.tieredPrices && Array.isArray(product.tieredPrices) && product.tieredPrices.length > 0) {
+       const applicableTier = product.tieredPrices
+          .filter((t: any) => quantity >= (t.minQty || 0))
+          .sort((a: any, b: any) => b.minQty - a.minQty)[0];
+
+        if (applicableTier) {
+            return parseFloat(applicableTier.price);
+        }
+  }
+
+  // 3. Fallback to standard price logic
+  // Use calculateProductPrice to get the standard selling price (discounted or regular)
+  const { displayPrice } = calculateProductPrice(product, variationSelector);
+  return displayPrice;
 };

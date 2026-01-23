@@ -48,6 +48,7 @@ interface ProductVariation {
   deliveryTime: string; // 19
   // stock is 20
   offerPrice: number; // 21 (Online Offer Price)
+  wholesalePrice: number; // New Wholesale Price
   lowStockQuantity: number; // 22
   brand: string; // 23
   valueMrp: number; // 24
@@ -217,6 +218,7 @@ export default function AdminStockManagement() {
                 price: product.price,
                 stock: product.stock,
                 publish: product.publish,
+                discPrice: product.offerPrice,
             };
 
             await updateProduct(productId, updateData);
@@ -292,6 +294,7 @@ export default function AdminStockManagement() {
         compareAtPrice: Number(p.compareAtPrice) || 0, // MRP (17)
         price: Number(p.price) || 0, // Selling Price (18),
         deliveryTime: p.deliveryTime || "-",
+        wholesalePrice: Number((p as any).wholesalePrice) || 0,
         lowStockQuantity: Number(p.lowStockQuantity) || 5,
         brand: brandName,
         publish: product.publish,
@@ -310,7 +313,7 @@ export default function AdminStockManagement() {
             variation: `${v.name}: ${v.value}`,
             stock: currentStock,
             price: Number(v.price) || baseVariation.price,
-            offerPrice: Number(v.discPrice) || 0,
+            offerPrice: Number(v.discPrice) || Number((p as any).discPrice) || 0,
             status: product.publish ? "Published" : "Unpublished",
             // Variation specific overrides
             sku: v.sku || baseVariation.sku,
@@ -697,6 +700,7 @@ export default function AdminStockManagement() {
                   <th className="p-4 whitespace-nowrap">19. Del. Time</th>
                   <th className="p-4 whitespace-nowrap">20. Stock</th>
                   <th className="p-4 whitespace-nowrap">21. Offer Price</th>
+                  <th className="p-4 whitespace-nowrap">Wholesale Price</th>
                   <th className="p-4 whitespace-nowrap">22. Low Stock</th>
                   <th className="p-4 whitespace-nowrap">23. Brand</th>
                   <th className="p-4 whitespace-nowrap">24. Val (MRP)</th>
@@ -771,6 +775,7 @@ export default function AdminStockManagement() {
                       <td className="p-4 align-middle text-sm text-neutral-600">{product.deliveryTime}</td>
                       <td className="p-4 align-middle text-sm font-bold text-neutral-800 text-right">{product.stock}</td>
                       <td className="p-4 align-middle text-sm text-green-600 text-right">{product.offerPrice > 0 ? product.offerPrice : "-"}</td>
+                      <td className="p-4 align-middle text-sm text-neutral-800 text-right">{product.wholesalePrice > 0 ? product.wholesalePrice : "-"}</td>
                       <td className="p-4 align-middle text-sm text-neutral-600 text-center">{product.lowStockQuantity}</td>
                       <td className="p-4 align-middle text-sm text-neutral-600">{product.brand}</td>
                       <td className="p-4 align-middle text-sm text-neutral-600 text-right">{product.valueMrp.toLocaleString()}</td>

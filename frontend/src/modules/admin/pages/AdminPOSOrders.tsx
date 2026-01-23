@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getPOSProducts, Product } from '../../../services/api/admin/adminProductService';
+import { getProducts, Product } from '../../../services/api/admin/adminProductService';
 import { createPOSOrder, initiatePOSOnlineOrder, verifyPOSPayment } from '../../../services/api/admin/adminOrderService';
 import { getAllCustomers, Customer } from '../../../services/api/admin/adminCustomerService';
 import { useToast } from '../../../context/ToastContext';
@@ -13,6 +13,7 @@ interface CartItem extends Product {
   originalProductId?: string; // To store parent ID for variations
   variationId?: string;
   isVariation?: boolean;
+  wholesalePrice?: number;
 }
 
 interface Bill {
@@ -245,7 +246,7 @@ const AdminPOSOrders = () => {
       }
       setLoading(true);
       try {
-        const response = await getPOSProducts({
+        const response = await getProducts({
           search: searchQuery,
           limit: 1000 // Fetch all for client-side pagination
         });
@@ -267,13 +268,15 @@ const AdminPOSOrders = () => {
                          stock: variation.stock,
                          sku: variation.sku || product.sku, // Use variation SKU
                          isVariation: true,
-                         variationId: variation._id
+                         variationId: variation._id,
+                         wholesalePrice: Number(product.wholesalePrice || 0)
                      });
                  });
              } else {
                  expandedProducts.push({
                      ...product,
-                     originalProductId: product._id
+                     originalProductId: product._id,
+                     wholesalePrice: product.wholesalePrice || 0
                  });
              }
           });
@@ -357,9 +360,28 @@ const AdminPOSOrders = () => {
     }));
   };
 
+  /*
+   * Helper to get effective price based on Order Type
+   * Retail -> item.price
+   * Wholesale -> item.wholesalePrice (if > 0) else item.price
+   */
+  const getEffectivePrice = (item: CartItem) => {
+      // If manually edited (customPrice), prioritize it?
+      // User request implies automatic switching.
+      // We will allow customPrice to override ONLY if strictly needed,
+      // but for "Billing" tab switching, we usually want the standard rate to apply unless specifically locked.
+      // However, typical behavior: Custom Price > Mode Price.
+      if (item.customPrice !== undefined) return item.customPrice;
+
+      if (orderType === 'Wholesale' && item.wholesalePrice && item.wholesalePrice > 0) {
+          return item.wholesalePrice;
+      }
+      return item.price;
+  };
+
   const calculateTotal = () => {
     return cart.reduce((acc, item) => {
-        const price = item.customPrice !== undefined ? item.customPrice : item.price;
+        const price = getEffectivePrice(item);
         return acc + (price * item.qty);
     }, 0);
   };
@@ -593,7 +615,7 @@ const AdminPOSOrders = () => {
                 productId: item.originalProductId || item._id, // Send PARENT ID if available
                 name: item.productName,
                 quantity: item.qty,
-                price: item.customPrice !== undefined ? item.customPrice : item.price,
+                price: getEffectivePrice(item),
                 variationId: item.variationId
             })),
             gateway: method
@@ -693,7 +715,7 @@ const AdminPOSOrders = () => {
                 productId: item.originalProductId || item._id, // Use valid ID or custom
                 name: item.productName,
                 quantity: item.qty,
-                price: item.customPrice !== undefined ? item.customPrice : item.price,
+                price: getEffectivePrice(item),
                 variationId: item.variationId
             })),
             paymentMethod: 'Cash',
@@ -729,7 +751,7 @@ const AdminPOSOrders = () => {
                     productId: item.originalProductId || item._id, // Use valid ID
                     name: item.productName,
                     quantity: item.qty,
-                    price: item.customPrice !== undefined ? item.customPrice : item.price,
+                    price: getEffectivePrice(item),
                     variationId: item.variationId
                 })),
                 paymentMethod: 'Credit',
@@ -891,7 +913,7 @@ const AdminPOSOrders = () => {
 
         {/* RIGHT COLUMN - CART */}
         <div className="lg:col-span-5 flex flex-col gap-4">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col h-[calc(100vh-2rem)] sticky top-4">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col min-h-[calc(100vh-2rem)] sticky top-4">
             <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 rounded-t-lg">
               <h2 className="text-lg font-semibold text-gray-700">Billing</h2>
               <button
@@ -935,7 +957,7 @@ const AdminPOSOrders = () => {
               </button>
             </div>
 
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 flex flex-col">
 
               {/* Payment Method & Order Type Controls */}
               <div className="px-4 pt-4 pb-2">
@@ -1029,7 +1051,7 @@ const AdminPOSOrders = () => {
                                      }}
                                      onClick={() => selectCustomer(c)}
                                      className="p-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0"
-                                  >
+                                   >
                                       <div className="font-medium text-sm text-gray-800">{c.name}</div>
                                       <div className="text-xs text-gray-500">{c.phone} | {c.email}</div>
                                   </div>
@@ -1044,7 +1066,7 @@ const AdminPOSOrders = () => {
               </div>
 
               {/* Cart Items List */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              <div className="flex-1 overflow-y-auto p-4 space-y-2 min-h-[50vh]">
                   {cart.length === 0 ? (
                       <div className="h-full flex flex-col items-center justify-center text-gray-400">
                           <svg className="w-12 h-12 mb-2 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
@@ -1052,7 +1074,7 @@ const AdminPOSOrders = () => {
                       </div>
                   ) : (
                       cart.map((item, index) => {
-                          const sp = item.customPrice !== undefined ? item.customPrice : item.price;
+                          const sp = getEffectivePrice(item);
                           const mrp = item.compareAtPrice || sp; // Default to SP if no MRP
                           const purchasePrice = item.purchasePrice || 0;
                           const profit = sp - purchasePrice;
@@ -1084,7 +1106,9 @@ const AdminPOSOrders = () => {
                                    <div className="flex-1">
                                        <div className="flex items-center gap-2 text-xs mb-1">
                                            <span className="text-gray-500">MRP: <span className="line-through decoration-gray-400">₹{mrp}</span></span>
-                                           <span className="font-bold text-green-600">SP: ₹{sp}</span>
+                                           <span className="font-bold text-green-600">
+                                               {orderType === 'Wholesale' && (item.wholesalePrice || 0) > 0 ? 'WSP' : 'SP'}: ₹{sp}
+                                           </span>
                                        </div>
                                        {purchasePrice > 0 ? (
                                            <div className={`text-xs font-medium ${parseFloat(profitPercent) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
@@ -1384,33 +1408,35 @@ const AdminPOSOrders = () => {
       {/* --- SUCCESS / PRINT MODAL --- */}
       {showSuccessModal && lastBillDetails && (
         <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 backdrop-blur-sm print:hidden">
-            <div className="bg-[#f3f4f6] w-full max-w-[350px] rounded-[30px] overflow-hidden shadow-2xl relative">
+            <div className="bg-[#f3f4f6] w-full max-w-[320px] rounded-[24px] overflow-hidden shadow-2xl relative">
                 {/* Header */}
-                <div className="bg-[#f3f4f6] px-6 pt-6 pb-2">
-                   <div className="flex justify-between items-center mb-6">
-                       <h2 className="text-xl font-bold tracking-widest text-slate-800">BILLINGFAST</h2>
-                       <button onClick={() => setShowSuccessModal(false)} className="bg-black text-white px-4 py-1.5 rounded-full text-xs font-bold">Close</button>
-                   </div>
-                   <div className="flex justify-center mb-6">
-                       <div className="bg-green-500 rounded-full p-2">
-                           <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
-                       </div>
-                   </div>
-                   <div className="text-center mb-8">
-                       <h3 className="font-bold text-slate-800 tracking-wider mb-2">ORDER COMPLETED</h3>
-                       <p className="text-gray-400 text-xs">{new Date().toLocaleString()}</p>
+                <div className="bg-[#f3f4f6] px-5 pt-5 pb-2">
+                   <div className="flex justify-between items-center mb-4">
+                       <h2 className="text-lg font-bold tracking-widest text-slate-800">BILLINGFAST</h2>
+                       <button onClick={() => setShowSuccessModal(false)} className="bg-black text-white px-3 py-1 rounded-full text-[10px] font-bold">Close</button>
                    </div>
 
-                   <div className="text-center mb-8">
-                       <p className="text-gray-500 text-xs font-bold tracking-widest mb-2">TOTAL AMOUNT</p>
-                       <h1 className="text-5xl font-bold text-slate-900">₹{lastBillDetails.total}</h1>
-                       <p className="text-gray-400 text-xs mt-2">Bill No: {lastBillDetails.invoiceNum}</p>
+                   <div className="flex justify-center mb-4">
+                       <div className="bg-green-500 rounded-full p-1.5">
+                           <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+                       </div>
+                   </div>
+
+                   <div className="text-center mb-5">
+                       <h3 className="font-bold text-slate-800 tracking-wider mb-1 text-sm">ORDER COMPLETED</h3>
+                       <p className="text-gray-400 text-[10px]">{new Date().toLocaleString()}</p>
+                   </div>
+
+                   <div className="text-center mb-5">
+                       <p className="text-gray-500 text-[10px] font-bold tracking-widest mb-1">TOTAL AMOUNT</p>
+                       <h1 className="text-4xl font-bold text-slate-900">₹{lastBillDetails.total}</h1>
+                       <p className="text-gray-400 text-[10px] mt-1">Bill No: {lastBillDetails.invoiceNum}</p>
                    </div>
 
                    <div className="flex justify-center mb-2">
                        <button
                          onClick={() => setShowModalBreakdown(!showModalBreakdown)}
-                         className="bg-white border border-gray-200 rounded-full px-6 py-2 text-[10px] font-bold text-gray-500 tracking-wider shadow-sm hover:bg-gray-50 mb-2"
+                         className="bg-white border border-gray-200 rounded-full px-4 py-1.5 text-[10px] font-bold text-gray-500 tracking-wider shadow-sm hover:bg-gray-50 mb-1"
                        >
                            [ {showModalBreakdown ? 'HIDE BREAKDOWN' : 'TAP FOR BREAKDOWN'} ]
                        </button>
@@ -1418,15 +1444,15 @@ const AdminPOSOrders = () => {
 
                    {/* Breakdown List */}
                    {showModalBreakdown && (
-                     <div className="mb-6 bg-white rounded-xl p-4 shadow-inner text-left max-h-48 overflow-y-auto">
+                     <div className="mb-4 bg-white rounded-xl p-3 shadow-inner text-left max-h-32 overflow-y-auto">
                         <div className="grid grid-cols-4 gap-2 text-[10px] font-bold text-gray-400 mb-2 border-b border-gray-100 pb-1">
                             <div className="col-span-2">Item</div>
                             <div className="text-right">Qty</div>
                             <div className="text-right">Price</div>
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-1">
                             {cart.map((item, idx) => {
-                                const sp = item.customPrice !== undefined ? item.customPrice : item.price;
+                                const sp = getEffectivePrice(item);
                                 return (
                                     <div key={idx} className="grid grid-cols-4 gap-2 text-[10px] text-gray-700">
                                         <div className="col-span-2 truncate font-medium">{item.productName}</div>
@@ -1444,38 +1470,38 @@ const AdminPOSOrders = () => {
                    )}
 
                    {/* Mock QR */}
-                   <div className="flex justify-center mb-2">
-                       <div className="w-32 h-32 bg-white p-2 rounded-lg">
+                   <div className="flex justify-center mb-1">
+                       <div className="w-24 h-24 bg-white p-1.5 rounded-lg border border-gray-200">
                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=Invoice:${lastBillDetails.invoiceNum}`} alt="QR" className="w-full h-full" />
                        </div>
                    </div>
-                   <div className="text-center mb-6">
-                        <p className="text-[10px] text-gray-400 tracking-wider font-bold mb-4">SCAN TO PAY</p>
-                        <button className="bg-[#f3f4f6] border border-gray-300 rounded-full px-6 py-2 text-[10px] font-bold text-gray-500 tracking-wider shadow-sm">
+                   <div className="text-center mb-4">
+                        <p className="text-[9px] text-gray-400 tracking-wider font-bold mb-2">SCAN TO PAY</p>
+                        <button className="bg-[#f3f4f6] border border-gray-300 rounded-full px-4 py-1.5 text-[9px] font-bold text-gray-500 tracking-wider shadow-sm">
                            [ STATUS: {paymentMethod.toUpperCase()} ]<br/>(TAP TO CHANGE)
                        </button>
                    </div>
                 </div>
 
                 {/* Footer Actions */}
-                <div className="bg-[#f3f4f6] px-4 pb-6 space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                        <button onClick={downloadPDF} className="bg-white border border-black text-black font-bold py-3 text-xs tracking-widest hover:bg-gray-50 uppercase">
+                <div className="bg-[#f3f4f6] px-4 pb-5 space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                        <button onClick={downloadPDF} className="bg-white border border-black text-black font-bold py-2 text-[10px] tracking-widest hover:bg-gray-50 uppercase rounded">
                             [ Share ]
                         </button>
-                        <button onClick={handlePrintBill} className="bg-black text-white font-bold py-3 text-xs tracking-widest hover:bg-gray-900 uppercase">
+                        <button onClick={handlePrintBill} className="bg-black text-white font-bold py-2 text-[10px] tracking-widest hover:bg-gray-900 uppercase rounded">
                             [ Print ]
                         </button>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                         <button className="bg-white border border-gray-200 text-gray-500 font-bold py-3 text-xs tracking-widest uppercase">
+                    <div className="grid grid-cols-2 gap-2">
+                         <button className="bg-white border border-gray-200 text-gray-500 font-bold py-2 text-[10px] tracking-widest uppercase rounded">
                             [ Edit ]
                         </button>
-                        <button onClick={() => setShowSuccessModal(false)} className="bg-white border border-gray-200 text-gray-500 font-bold py-3 text-xs tracking-widest uppercase">
+                        <button onClick={() => setShowSuccessModal(false)} className="bg-white border border-gray-200 text-gray-500 font-bold py-2 text-[10px] tracking-widest uppercase rounded">
                             [ Home ]
                         </button>
                     </div>
-                    <button onClick={() => { createNewBill(); setShowSuccessModal(false); }} className="w-full bg-black text-white font-bold py-4 text-xs tracking-widest hover:bg-gray-900 uppercase mt-2">
+                    <button onClick={() => { createNewBill(); setShowSuccessModal(false); }} className="w-full bg-black text-white font-bold py-3 text-[10px] tracking-widest hover:bg-gray-900 uppercase mt-1 rounded">
                         [ + NEW BILL ]
                     </button>
                 </div>
@@ -1517,7 +1543,7 @@ const AdminPOSOrders = () => {
 
               <div className="space-y-1">
                   {cart.map((item, idx) => {
-                      const sp = item.customPrice !== undefined ? item.customPrice : item.price;
+                      const sp = getEffectivePrice(item);
                       const mrp = item.compareAtPrice || sp;
                       return (
                        <div key={idx}>

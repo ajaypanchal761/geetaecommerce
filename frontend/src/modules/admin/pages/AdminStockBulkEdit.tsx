@@ -45,6 +45,7 @@ interface EditableProduct {
   deliveryTime: string;
   lowStockQuantity: number;
   subCategoryId?: string; // Add this
+  wholesalePrice: number;
   // Read-only/Display fields (not editable in bulk edit for now or just text)
   subSubCategory: string;
   brand: string; // Display name
@@ -141,6 +142,7 @@ export default function AdminStockBulkEdit({
         purchasePrice: (p as any).purchasePrice || 0,
         deliveryTime: (p as any).deliveryTime || "",
         lowStockQuantity: (p as any).lowStockQuantity || 5,
+        wholesalePrice: (p as any).wholesalePrice || 0,
         subSubCategory: (p as any).subSubCategory || "",
         subCategoryId: subCategoryId, // Add this
         brand: typeof p.brand === "object" ? (p.brand as any).name : "-",
@@ -244,11 +246,10 @@ export default function AdminStockBulkEdit({
           publish: p.publish,
           mainImage: mainImage,
           galleryImages: galleryImages,
-          // New fields update
-          sku: p.itemCode, // mapped to sku
-          itemCode: p.itemCode,
+          sku: p.itemCode,
+          // itemCode: p.itemCode, // Commenting out to avoid duplication issues if backend doesn't expect it
           rackNumber: p.rackNumber,
-          smallDescription: p.description, // using smallDescription as primary desc
+          smallDescription: p.description,
           description: p.description,
           barcode: p.barcode,
           hsnCode: p.hsnCode,
@@ -256,20 +257,27 @@ export default function AdminStockBulkEdit({
           purchasePrice: p.purchasePrice,
           deliveryTime: p.deliveryTime,
           lowStockQuantity: p.lowStockQuantity,
-          subcategory: p.subCategoryId,
-          subSubCategory: p.subSubCategory,
-          brand: p.brandId,
-          tax: p.tax,
           discPrice: p.offerPrice,
+          wholesalePrice: p.wholesalePrice,
+          // Conditionally add relations if they exist
+          // ...(p.tax ? { tax: p.tax } : {}), // Exclude tax because it causes CastError (text input vs ObjectId)
+          ...(p.subCategoryId ? { subcategory: p.subCategoryId } : {}),
+          ...(p.subSubCategory ? { subSubCategory: p.subSubCategory } : {}),
+          ...(p.brandId ? { brand: p.brandId } : {}),
+          // Propagate offer price to all variations to ensure consistency
+          variations: p.original.variations?.map((v: any) => ({
+             ...v,
+             discPrice: p.offerPrice
+          })) || [],
         } as any);
       });
 
       await Promise.all(updatePromises);
       onSave(); // Trigger refresh in parent
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to save bulk edits", error);
-      alert("Failed to save changes. Please try again.");
+      alert(`Failed to save changes: ${error.response?.data?.message || error.message}`);
     } finally {
       setSaving(false);
     }
@@ -368,10 +376,11 @@ export default function AdminStockBulkEdit({
                 <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-32 whitespace-nowrap">19. Del. Time</th>
                 <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">20. Stock</th>
                 <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">21. Offer Price</th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">22. Low Stock</th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">23. Brand</th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">24. Val (MRP)</th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">25. Val (Pur)</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">22. Wholesale Price</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">23. Low Stock</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">24. Brand</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">25. Val (MRP)</th>
+                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">26. Val (Pur)</th>
                 <th className="p-3 border-b border-neutral-300 text-xs font-bold text-neutral-700 w-32 text-center whitespace-nowrap">Status</th>
               </tr>
             </thead>
@@ -571,6 +580,10 @@ export default function AdminStockBulkEdit({
                    {/* 21. Offer Price */}
                    <td className="p-0 border-r border-neutral-200">
                      <input type="number" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm text-right" value={product.offerPrice} onChange={(e) => handleFieldChange(originalIndex, 'offerPrice', parseFloat(e.target.value) || 0)} />
+                   </td>
+                   {/* 22. Wholesale Price */}
+                   <td className="p-0 border-r border-neutral-200">
+                     <input type="number" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm text-right" value={product.wholesalePrice} onChange={(e) => handleFieldChange(originalIndex, 'wholesalePrice', parseFloat(e.target.value) || 0)} />
                    </td>
                    {/* 22. Low Stock */}
                     <td className="p-0 border-r border-neutral-200">
