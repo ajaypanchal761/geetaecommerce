@@ -107,6 +107,7 @@ export interface Product {
   description?: string;
   category: string | Category;
   subcategory?: string | SubCategory;
+  subSubCategory?: string; // or Check type
   brand?: string | Brand;
   seller: string | { sellerName: string; storeName: string };
   mainImage?: string;
@@ -124,11 +125,14 @@ export interface Product {
   deliveryTime?: string;
   variationType?: string;
   variations?: Array<{
-    name: string;
-    value: string;
+    name?: string;
+    value?: string;
     price?: number;
+    discPrice?: number;
     stock?: number;
     sku?: string;
+    status?: string;
+    barcode?: string;
   }>;
   publish: boolean;
   popular: boolean;
@@ -153,13 +157,25 @@ export interface Product {
   createdAt?: string;
   updatedAt?: string;
   discPrice?: number;
+  pack?: string;
+  isShopByStoreOnly?: boolean;
+  shopId?: string | { _id: string; name: string };
+  // Legacy/Alias fields
+  headerCategoryId?: string | any;
+  categoryId?: string;
+  subcategoryId?: string;
+  brandId?: string;
+  taxId?: string;
+  mainImageUrl?: string;
+  galleryImageUrls?: string[];
 }
 
 export interface CreateProductData {
   productName: string;
   smallDescription?: string;
   description?: string;
-  category: string;
+  headerCategoryId?: string;
+  category?: string;
   subcategory?: string;
   subSubCategory?: string; // string or objectId
   brand?: string;
@@ -180,18 +196,22 @@ export interface CreateProductData {
   deliveryTime?: string;
   variationType?: string;
   variations?: Array<{
-    name: string;
-    value: string;
+    name?: string;
+    value?: string;
     price?: number;
+    discPrice?: number;
     stock?: number;
     sku?: string;
+    status?: string;
+    barcode?: string;
   }>;
   publish?: boolean;
   popular?: boolean;
   dealOfDay?: boolean;
   manufacturer?: string;
   madeIn?: string;
-  tax?: string;
+  tax?: string; // taxId in schema
+  taxId?: string; // Frontend uses taxId
   fssaiLicNo?: string;
   totalAllowedQuantity?: number;
   isReturnable?: boolean;
@@ -203,6 +223,8 @@ export interface CreateProductData {
   tags?: string[];
   commission?: number;
   discPrice?: number;
+  isShopByStoreOnly?: boolean;
+  shopId?: string;
 }
 
 export interface GetProductsParams {

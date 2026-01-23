@@ -359,21 +359,19 @@ export default function AdminAddProduct() {
             setFormData({
               productName: product.productName,
               headerCategory:
-                (product.headerCategoryId as any)?._id ||
-                (product as any).headerCategoryId ||
-                "",
+                (typeof product.headerCategoryId === 'object' ? product.headerCategoryId?._id : product.headerCategoryId) || "",
               category:
-                (product.category as any)?._id || product.categoryId || "",
+                (typeof product.category === 'object' ? product.category?._id : product.category) || product.categoryId || "",
               subcategory:
-                (product.subcategory as any)?._id ||
+                (typeof product.subcategory === 'object' ? product.subcategory?._id : product.subcategory) ||
                 product.subcategoryId ||
                 "",
               subSubCategory:
-                (product as any).subSubCategory || "",
+                product.subSubCategory || "",
               publish: product.publish ? "Yes" : "No",
               popular: product.popular ? "Yes" : "No",
               dealOfDay: product.dealOfDay ? "Yes" : "No",
-              brand: (product.brand as any)?._id || product.brandId || "",
+              brand: (typeof product.brand === 'object' ? product.brand?._id : product.brand) || product.brandId || "",
               tags: product.tags.join(", "),
               smallDescription: product.smallDescription || "",
               seoTitle: product.seoTitle || "",
@@ -383,7 +381,7 @@ export default function AdminAddProduct() {
               variationType: product.variationType || "",
               manufacturer: product.manufacturer || "",
               madeIn: product.madeIn || "",
-              tax: (product.tax as any)?._id || product.taxId || "",
+              tax: (typeof product.tax === 'object' ? product.tax?._id : product.tax) || product.taxId || "",
               isReturnable: product.isReturnable ? "Yes" : "No",
               maxReturnDays: product.maxReturnDays?.toString() || "",
               fssaiLicNo: product.fssaiLicNo || "",
@@ -391,18 +389,24 @@ export default function AdminAddProduct() {
                 product.totalAllowedQuantity?.toString() || "10",
               mainImageUrl: product.mainImageUrl || product.mainImage || "",
               galleryImageUrls: product.galleryImageUrls || [],
-              isShopByStoreOnly: (product as any).isShopByStoreOnly ? "Yes" : "No",
-              shopId: (product as any).shopId?._id || (product as any).shopId || "",
-              pack: (product as any).pack || "",
-              barcode: (product as any).barcode || "",
-              itemCode: (product as any).sku || (product as any).itemCode || "",
-              rackNumber: (product as any).rackNumber || "",
-              hsnCode: (product as any).hsnCode || "",
-              purchasePrice: (product as any).purchasePrice?.toString() || "",
-              lowStockQuantity: (product as any).lowStockQuantity?.toString() || "5",
-              deliveryTime: (product as any).deliveryTime || "",
+              isShopByStoreOnly: product.isShopByStoreOnly ? "Yes" : "No",
+              shopId: typeof product.shopId === 'object' ? product.shopId?._id : product.shopId || "",
+              pack: product.pack || "",
+              barcode: product.barcode || "",
+              itemCode: product.sku || product.itemCode || "",
+              rackNumber: product.rackNumber || "",
+              hsnCode: product.hsnCode || "",
+              purchasePrice: product.purchasePrice?.toString() || "",
+              lowStockQuantity: product.lowStockQuantity?.toString() || "5",
+              deliveryTime: product.deliveryTime || "",
             });
-            setVariations(product.variations);
+            setVariations((product.variations || []).map((v: any) => ({
+              ...v,
+              price: v.price || 0,
+              discPrice: v.discPrice || 0,
+              stock: v.stock || 0,
+              status: (v.status as "Available" | "Sold out" | "In stock") || "Available"
+            })));
             if (product.mainImageUrl || product.mainImage) {
               setMainImagePreview(
                 product.mainImageUrl || product.mainImage || ""

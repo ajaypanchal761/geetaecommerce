@@ -154,9 +154,9 @@ const AdminPOSOrders = () => {
   const [editingItem, setEditingItem] = useState<CartItem | null>(null);
 
   // Quick Add Form
-  const [quickForm, setQuickForm] = useState({ name: '', price: '', qty: '1', mrp: '', purchasePrice: '' });
+  const [quickForm, setQuickForm] = useState({ name: '', price: '', qty: '1', mrp: '', addToInventory: false });
   // Edit Item Form
-  const [editForm, setEditForm] = useState({ name: '', price: '', qty: '' });
+  const [editForm, setEditForm] = useState({ name: '', price: '', qty: '', mrp: '', purchasePrice: '' });
 
   // Customer Search State
   // const [customerSearch, setCustomerSearch] = useState(''); // Removed global
@@ -233,8 +233,10 @@ const AdminPOSOrders = () => {
                          ...product,
                          _id: `${product._id}-${variation.sku || Math.random().toString(36).substr(2, 5)}`,
                          originalProductId: product._id, // Store parent ID
-                         productName: `${product.productName} - ${variation.variationName}`,
+                         productName: `${product.productName} - ${variation.title || variation.name || variation.variationName || 'Variation'}`,
                          price: variation.price,
+                         compareAtPrice: variation.compareAtPrice || product.compareAtPrice, // Fallback to product MRP if variation doesn't have one
+                         purchasePrice: variation.purchasePrice || product.purchasePrice, // Fallback to product PP
                          stock: variation.stock,
                          sku: variation.sku || product.sku, // Use variation SKU
                          isVariation: true,
@@ -344,14 +346,14 @@ const AdminPOSOrders = () => {
       productName: quickForm.name,
       price: parseFloat(quickForm.price) || 0,
       compareAtPrice: parseFloat(quickForm.mrp) || 0,
-      purchasePrice: parseFloat(quickForm.purchasePrice) || 0,
       qty: parseInt(quickForm.qty) || 1,
       mainImage: '', // Placeholder
-      originalProductId: null
+      originalProductId: null,
+      addToInventory: quickForm.addToInventory // Store flag
     };
     setCart(prev => [...prev, newItem]);
     setShowQuickAdd(false);
-    setQuickForm({ name: '', price: '', qty: '1', mrp: '', purchasePrice: '' });
+    setQuickForm({ name: '', price: '', qty: '1', mrp: '', addToInventory: false });
   };
 
   const openEditModal = (item: CartItem) => {
@@ -360,7 +362,9 @@ const AdminPOSOrders = () => {
     setEditForm({
       name: item.productName,
       price: currentPrice.toString(),
-      qty: item.qty.toString()
+      qty: item.qty.toString(),
+      mrp: (item.compareAtPrice || 0).toString(),
+      purchasePrice: (item.purchasePrice || 0).toString()
     });
   };
 
@@ -374,6 +378,8 @@ const AdminPOSOrders = () => {
           ...item,
           productName: editForm.name,
           customPrice: parseFloat(editForm.price),
+          compareAtPrice: parseFloat(editForm.mrp) || 0,
+          purchasePrice: parseFloat(editForm.purchasePrice) || 0,
           qty: parseInt(editForm.qty) || 1
         };
       }
@@ -960,33 +966,88 @@ const AdminPOSOrders = () => {
                           <span className="text-sm">Cart is empty</span>
                       </div>
                   ) : (
-                      cart.map((item, index) => (
-                          <div key={index} className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-lg hover:border-blue-200 transition-colors shadow-sm">
-                              <div className="flex-1">
-                                  <div className="flex items-center gap-2">
-                                     <h4 className="text-sm font-medium text-gray-800 line-clamp-1">{item.productName}</h4>
-                                     <button
-                                        onClick={() => openEditModal(item)}
-                                        className="text-gray-400 hover:text-blue-600 transition-colors" title="Edit Price"
-                                     >
-                                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-                                     </button>
-                                  </div>
-                                  <div className="flex items-center gap-2 mt-1">
-                                      <span className="text-xs text-gray-500">₹{item.customPrice !== undefined ? item.customPrice : item.price} x</span>
-                                      <div className="flex items-center border border-gray-200 rounded">
-                                          <button onClick={() => updateQuantity(item._id, -1)} className="px-1.5 py-0.5 hover:bg-gray-100 text-gray-600">-</button>
-                                          <span className="px-2 text-xs font-medium">{item.qty}</span>
-                                          <button onClick={() => updateQuantity(item._id, 1)} className="px-1.5 py-0.5 hover:bg-gray-100 text-gray-600">+</button>
-                                      </div>
-                                  </div>
+                      cart.map((item, index) => {
+                          const sp = item.customPrice !== undefined ? item.customPrice : item.price;
+                          const mrp = item.compareAtPrice || sp; // Default to SP if no MRP
+                          const purchasePrice = item.purchasePrice || 0;
+                          const profit = sp - purchasePrice;
+                          const profitPercent = purchasePrice > 0 ? ((profit / purchasePrice) * 100).toFixed(2) : '0.00';
+
+                          return (
+                          <div key={index} className="bg-white border border-gray-200 rounded-xl p-3 shadow-sm hover:shadow-md transition-all mb-3 relative overflow-hidden group">
+                              {/* Top Row: Rank, Title, Total */}
+                              <div className="flex justify-between items-start mb-2">
+                                   <div className="flex items-start gap-2 max-w-[70%]">
+                                       <span className="bg-gray-100 text-gray-500 text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0 mt-0.5">#{index + 1}</span>
+                                       <h4 className="text-sm font-semibold text-gray-800 leading-tight line-clamp-2">{item.productName}</h4>
+                                   </div>
+                                   <div className="text-right">
+                                       <div className="font-bold text-gray-900 text-base">₹{sp * item.qty}</div>
+                                       {mrp > sp && <div className="text-[10px] text-gray-400 line-through">₹{mrp * item.qty}</div>}
+                                   </div>
                               </div>
-                              <div className="text-right">
-                                  <div className="font-semibold text-gray-900">₹{(item.customPrice !== undefined ? item.customPrice : item.price) * item.qty}</div>
-                                  <button onClick={() => removeFromCart(item._id)} className="text-xs text-red-500 hover:text-red-700 mt-1">Remove</button>
+
+                              {/* Middle Row: Image & Details */}
+                              <div className="flex items-center gap-3 mb-3">
+                                   <div className="w-12 h-12 flex-shrink-0 bg-gray-50 rounded-lg border border-gray-100 flex items-center justify-center p-1 overflow-hidden">
+                                       {item.mainImage ? (
+                                           <img src={item.mainImage} alt="" className="w-full h-full object-contain" />
+                                       ) : (
+                                           <span className="text-xs text-gray-300">Img</span>
+                                       )}
+                                   </div>
+                                   <div className="flex-1">
+                                       <div className="flex items-center gap-2 text-xs mb-1">
+                                           <span className="text-gray-500">MRP: <span className="line-through decoration-gray-400">₹{mrp}</span></span>
+                                           <span className="font-bold text-green-600">SP: ₹{sp}</span>
+                                       </div>
+                                       {purchasePrice > 0 ? (
+                                           <div className={`text-xs font-medium ${parseFloat(profitPercent) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                               Profit: {profitPercent}%
+                                           </div>
+                                       ) : (
+                                          <div className="text-xs text-gray-400">Profit: -</div>
+                                       )}
+                                   </div>
+                              </div>
+
+                              {/* Bottom Row: Actions */}
+                              <div className="flex items-center justify-between gap-2">
+                                   <div className="flex items-center gap-2">
+                                       <button
+                                          onClick={() => removeFromCart(item._id)}
+                                          className="w-8 h-8 flex items-center justify-center bg-red-50 text-red-500 rounded-lg hover:bg-red-100 transition-colors border border-red-100"
+                                          title="Remove"
+                                       >
+                                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                       </button>
+                                       <button
+                                          onClick={() => openEditModal(item)}
+                                          className="px-3 py-1.5 flex items-center gap-1.5 bg-white border border-gray-300 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
+                                       >
+                                           <svg className="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                           Edit
+                                       </button>
+                                   </div>
+
+                                   {/* Quantity Control matches image: [-] [ Input ] [+] */}
+                                   <div className="flex items-center bg-gray-50 rounded-lg p-0.5 border border-gray-200">
+                                        <button
+                                          onClick={() => updateQuantity(item._id, -1)}
+                                          className="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-white hover:shadow-sm rounded transition-all font-bold"
+                                        >−</button>
+                                        <div className="w-8 flex items-center justify-center text-sm font-bold text-gray-800">
+                                            {item.qty}
+                                        </div>
+
+                                        <button
+                                          onClick={() => updateQuantity(item._id, 1)}
+                                          className="w-7 h-7 flex items-center justify-center text-green-600 hover:bg-white hover:shadow-sm rounded transition-all font-bold"
+                                        >+</button>
+                                   </div>
                               </div>
                           </div>
-                      ))
+                      )})
                   )}
               </div>
 
@@ -1068,15 +1129,6 @@ const AdminPOSOrders = () => {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Purchase Price (₹)</label>
-                            <input
-                               type="number" min="0"
-                               value={quickForm.purchasePrice} onChange={e => setQuickForm({...quickForm, purchasePrice: e.target.value})}
-                               className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none"
-                               placeholder="0.00"
-                            />
-                        </div>
-                        <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Selling Price (₹)</label>
                             <input
                                type="number" required min="0"
@@ -1094,6 +1146,25 @@ const AdminPOSOrders = () => {
                             />
                         </div>
                     </div>
+
+                     {/* Add to Inventory Checkbox */}
+                    <div className="flex items-center p-3 border border-gray-200 rounded-lg bg-gray-50/50">
+                        <label className="flex items-center gap-3 cursor-pointer w-full">
+                            <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${quickForm.addToInventory ? 'bg-[#1e293b] border-[#1e293b]' : 'bg-white border-gray-300'}`}>
+                                {quickForm.addToInventory && (
+                                    <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+                                )}
+                            </div>
+                            <input
+                               type="checkbox"
+                               className="hidden"
+                               checked={quickForm.addToInventory}
+                               onChange={(e) => setQuickForm({...quickForm, addToInventory: e.target.checked})}
+                            />
+                            <span className="text-sm font-medium text-gray-700">Add to Inventory</span>
+                        </label>
+                    </div>
+
                     <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2.5 rounded-lg transition-colors mt-2">
                         Add to Cart
                     </button>
@@ -1106,28 +1177,45 @@ const AdminPOSOrders = () => {
       {editingItem && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
             <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
-                <div className="bg-blue-600 px-6 py-4 text-white flex justify-between items-center">
+                <div className="bg-[#1e293b] px-6 py-4 text-white flex justify-between items-center">
                     <h3 className="font-semibold text-lg">Edit Item</h3>
                     <button onClick={() => setEditingItem(null)} className="text-white/80 hover:text-white">✕</button>
                 </div>
                 <form onSubmit={handleEditItemSubmit} className="p-6 space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Item Name</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
                         <input
                            type="text" required
                            value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})}
-                           className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                           className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-900 focus:outline-none"
                            placeholder="Enter item name"
-                           autoFocus
                         />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
+                         <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">New MRP/Piece</label>
+                            <input
+                               type="number" min="0" step="0.01"
+                               value={editForm.mrp} onChange={e => setEditForm({...editForm, mrp: e.target.value})}
+                               className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-900 focus:outline-none"
+                               placeholder="0.00"
+                            />
+                        </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Price (₹)</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">New Price/Piece</label>
                             <input
                                type="number" required min="0" step="0.01"
                                value={editForm.price} onChange={e => setEditForm({...editForm, price: e.target.value})}
-                               className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                               className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-900 focus:outline-none"
+                               placeholder="0.00"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">New Purchase Price/Piece</label>
+                            <input
+                               type="number" min="0" step="0.01"
+                               value={editForm.purchasePrice} onChange={e => setEditForm({...editForm, purchasePrice: e.target.value})}
+                               className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-900 focus:outline-none"
                                placeholder="0.00"
                             />
                         </div>
@@ -1136,11 +1224,15 @@ const AdminPOSOrders = () => {
                             <input
                                type="number" required min="1"
                                value={editForm.qty} onChange={e => setEditForm({...editForm, qty: e.target.value})}
-                               className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                               className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-900 focus:outline-none"
                             />
                         </div>
                     </div>
-                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg transition-colors mt-2">
+                     <div className="flex items-center gap-2">
+                        <input type="checkbox" id="updateInventory" className="rounded border-gray-300 text-blue-900 focus:ring-blue-900" disabled />
+                        <label htmlFor="updateInventory" className="text-sm text-gray-500">Update in inventory (Coming Soon)</label>
+                    </div>
+                    <button type="submit" className="w-full bg-[#1e293b] hover:bg-slate-800 text-white font-medium py-2.5 rounded-lg transition-colors mt-2">
                         Update Item
                     </button>
                 </form>
