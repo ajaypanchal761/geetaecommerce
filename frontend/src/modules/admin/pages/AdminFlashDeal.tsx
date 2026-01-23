@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { bannerService } from '../../../services/bannerService';
 
 export default function AdminFlashDeal() {
-  const [config, setConfig] = useState<{flashDealTargetDate: string; flashDealImage?: string}>({ flashDealTargetDate: '' });
+  const [config, setConfig] = useState<any>({ flashDealTargetDate: '', isActive: true });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -23,6 +23,34 @@ export default function AdminFlashDeal() {
     };
     fetchConfig();
   }, []);
+
+  const getLocalDate = (isoString: string) => {
+    if (!isoString) return '';
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return '';
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  const getLocalTime = (isoString: string) => {
+    if (!isoString) return '';
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return '';
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
+
+  const handleDateChange = (date: string) => {
+    const time = getLocalTime(config.flashDealTargetDate) || '00:00';
+    if (date) {
+        setConfig({ ...config, flashDealTargetDate: new Date(`${date}T${time}`).toISOString() });
+    }
+  };
+
+  const handleTimeChange = (time: string) => {
+    const date = getLocalDate(config.flashDealTargetDate) || getLocalDate(new Date().toISOString());
+    if (time) {
+        setConfig({ ...config, flashDealTargetDate: new Date(`${date}T${time}`).toISOString() });
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -50,7 +78,8 @@ export default function AdminFlashDeal() {
 
     bannerService.updateDealsConfig({
         flashDealTargetDate: config.flashDealTargetDate,
-        flashDealImage: imageUrl
+        flashDealImage: imageUrl,
+        isActive: config.isActive
     });
 
     setTimeout(() => {
@@ -68,15 +97,36 @@ export default function AdminFlashDeal() {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-6 max-w-3xl">
-        <label className="block mb-6">
-            <span className="text-gray-700 font-medium mb-2 block">Flash Deal End Date/Time</span>
+        <label className="flex items-center gap-3 mb-6 p-3 bg-neutral-50 rounded-lg cursor-pointer hover:bg-neutral-100 transition-colors">
             <input
-                type="datetime-local"
-                className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-[#E65100] outline-none"
-                value={config.flashDealTargetDate ? new Date(config.flashDealTargetDate).toISOString().slice(0, 16) : ''}
-                onChange={(e) => setConfig({ ...config, flashDealTargetDate: new Date(e.target.value).toISOString() })}
+                type="checkbox"
+                className="w-5 h-5 accent-[#E65100]"
+                checked={config.isActive ?? true}
+                onChange={(e) => setConfig({ ...config, isActive: e.target.checked })}
             />
+            <span className="text-gray-700 font-semibold uppercase tracking-wider text-sm">Enable Flash Deal Section</span>
         </label>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <label className="block">
+                <span className="text-gray-700 font-medium mb-2 block">Flash Deal End Date</span>
+                <input
+                    type="date"
+                    className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-[#E65100] outline-none"
+                    value={getLocalDate(config.flashDealTargetDate)}
+                    onChange={(e) => handleDateChange(e.target.value)}
+                />
+            </label>
+            <label className="block">
+                <span className="text-gray-700 font-medium mb-2 block">Flash Deal End Time</span>
+                <input
+                    type="time"
+                    className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-[#E65100] outline-none"
+                    value={getLocalTime(config.flashDealTargetDate)}
+                    onChange={(e) => handleTimeChange(e.target.value)}
+                />
+            </label>
+        </div>
 
         <label className="block mb-6">
             <span className="text-gray-700 font-medium mb-2 block">Deal Image</span>

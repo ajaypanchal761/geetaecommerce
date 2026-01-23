@@ -4,6 +4,7 @@ import { Banner, BannerPosition } from '../types/banner';
 export interface DealsConfig {
   flashDealTargetDate: string;
   flashDealImage?: string;
+  isActive?: boolean;
   featuredDealProductId?: string;
   featuredDealProductIds?: string[];
   dealOfTheDayProductId?: string;

@@ -2,8 +2,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useThemeContext } from '../../context/ThemeContext';
 import { motion, AnimatePresence, useInView } from 'framer-motion';
-import { getVideoFinds, VideoFind } from '../../services/api/user/videoFindService';
-import { useToast } from '../../context/ToastContext'; // Assuming ToastContext exists
+import { getVideoFinds, VideoFind, toggleLikeVideo, incrementShareCount } from '../../services/api/user/videoFindService';
+import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 
 // --- Sub-components ---
 
@@ -76,9 +77,27 @@ const ReelItem = ({
   setIsMuted: (muted: boolean) => void;
   isSidePreview?: boolean;
 }) => {
+  const { user, isAuthenticated } = useAuth();
+  const { showToast } = useToast();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isLiked, setIsLiked] = useState(false);
+  const [likesCount, setLikesCount] = useState(0);
+  const [sharesCount, setSharesCount] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+
+  useEffect(() => {
+    if (product.likes) {
+      setLikesCount(product.likes.length);
+      if (user && product.likes.includes(user.userId || user.id)) {
+        setIsLiked(true);
+      } else {
+        setIsLiked(false);
+      }
+    }
+    if (product.shares !== undefined) {
+      setSharesCount(product.shares);
+    }
+  }, [product, user]);
 
   useEffect(() => {
     if (videoRef.current) {
@@ -128,7 +147,35 @@ const ReelItem = ({
     }
   };
 
+  const handleLike = async () => {
+    if (!isAuthenticated) {
+      showToast('Please login to like videos', 'error');
+      return;
+    }
+
+    try {
+      const response = await toggleLikeVideo(product._id);
+      if (response.success) {
+        setIsLiked(response.isLiked);
+        setLikesCount(response.data.likes.length);
+      }
+    } catch (err) {
+      console.error('Error toggling like:', err);
+      showToast('Failed to update like', 'error');
+    }
+  };
+
   const handleShare = async () => {
+    // Increment share count on backend
+    try {
+      const response = await incrementShareCount(product._id);
+      if (response.success) {
+        setSharesCount(response.data.shares);
+      }
+    } catch (err) {
+      console.error('Error incrementing share count:', err);
+    }
+
     if (navigator.share) {
       try {
         await navigator.share({
@@ -141,7 +188,7 @@ const ReelItem = ({
       }
     } else {
       navigator.clipboard.writeText(window.location.href);
-      alert('Link copied to clipboard!');
+      showToast('Link copied to clipboard!', 'success');
     }
   };
 
@@ -209,19 +256,19 @@ const ReelItem = ({
             {/* Like */}
             <div className="flex flex-col items-center gap-1">
               <button
-                onClick={(e) => { e.stopPropagation(); setIsLiked(!isLiked); }}
+                onClick={(e) => { e.stopPropagation(); handleLike(); }}
                 className="p-2.5 rounded-full bg-black/20 backdrop-blur-md active:scale-90 transition-transform hover:bg-black/30"
               >
                  <svg
                    width="24" height="24" viewBox="0 0 24 24"
-                   fill={isLiked ? "#ef4444" : "rgba(255,255,255,0.2)"}
+                   fill={isLiked ? "#ef4444" : "none"}
                    stroke={isLiked ? "#ef4444" : "white"}
                    strokeWidth="2"
                  >
                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                  </svg>
               </button>
-              <span className="text-xs text-white drop-shadow font-medium">Like</span>
+              <span className="text-xs text-white drop-shadow font-medium">{likesCount}</span>
             </div>
 
             {/* Share */}
@@ -232,7 +279,7 @@ const ReelItem = ({
               >
                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
               </button>
-              <span className="text-xs text-white drop-shadow font-medium">Share</span>
+              <span className="text-xs text-white drop-shadow font-medium">{sharesCount}</span>
             </div>
           </div>
 

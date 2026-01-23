@@ -65,6 +65,7 @@ export interface ISeller extends Document {
   balance: number;
   categories: string[];
   logo?: string;
+  isEnabled: boolean;
 
   createdAt: Date;
   updatedAt: Date;
@@ -273,6 +274,10 @@ const SellerSchema = new Schema<ISeller>(
     logo: {
       type: String,
       trim: true,
+    },
+    isEnabled: {
+      type: Boolean,
+      default: true,
     },
   },
   {

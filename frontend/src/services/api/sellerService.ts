@@ -38,6 +38,7 @@ export interface Seller {
   addressProof?: string;
   requireProductApproval?: boolean;
   viewCustomerDetails?: boolean;
+  isEnabled?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -137,5 +138,19 @@ export const updateSeller = async (
  */
 export const deleteSeller = async (id: string): Promise<ApiResponse<void>> => {
   const response = await api.delete<ApiResponse<void>>(`/sellers/${id}`);
+  return response.data;
+};
+
+/**
+ * Toggle seller enabled status
+ */
+export const updateSellerEnabled = async (
+  id: string,
+  isEnabled: boolean
+): Promise<ApiResponse<Seller>> => {
+  const response = await api.patch<ApiResponse<Seller>>(
+    `/admin/sellers/${id}/toggle-status`,
+    { isEnabled }
+  );
   return response.data;
 };

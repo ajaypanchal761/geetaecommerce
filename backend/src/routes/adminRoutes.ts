@@ -314,6 +314,7 @@ router.delete("/policies/:id", policyController.deletePolicy);
 
 // ==================== Seller Routes ====================
 router.get("/sellers", sellerController.getAllSellers);
+router.patch("/sellers/:id/toggle-status", sellerController.toggleSellerEnabled);
 
 // ==================== Shop Management ====================
 // Legacy routes (keep for backward compatibility)

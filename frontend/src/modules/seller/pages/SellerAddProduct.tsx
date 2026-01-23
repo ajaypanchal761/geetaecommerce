@@ -33,9 +33,14 @@ import { getAppSettings } from "../../../services/api/admin/adminSettingsService
 import ThemedDropdown from "../components/ThemedDropdown";
 import { Html5Qrcode } from "html5-qrcode";
 
+import { useAuth } from "../../../context/AuthContext";
+
 export default function SellerAddProduct() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { user } = useAuth();
+  const isEnabled = user?.isEnabled !== false; // Default to true if undefined
+
   const [formData, setFormData] = useState({
     productName: "",
     headerCategory: "",
@@ -756,27 +761,117 @@ export default function SellerAddProduct() {
       {/* Main Content */}
       <div className="flex-1">
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Product Section */}
-          {/* Product Section */}
-          <div className="bg-white rounded-xl shadow-sm border border-neutral-200">
-            <div className="bg-teal-600 text-white px-6 py-4 rounded-t-xl">
-              <h2 className="text-lg font-semibold tracking-wide">Product Details</h2>
+          {!isEnabled && (
+            <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-r-lg">
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-red-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <span className="text-red-700 font-medium">
+                  Your account is currently disabled. You can view product details but cannot add or update products.
+                </span>
+              </div>
             </div>
-            <div className="p-6 space-y-6 border-x border-b border-neutral-200 rounded-b-xl">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold text-neutral-700 mb-2">
-                    Product Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    name="productName"
-                    value={formData.productName}
-                    onChange={handleChange}
-                    placeholder="Enter Product Name"
-                    className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
-                  />
+          )}
+          {/* Product Section */}
+          {/* Top Image & Name Section */}
+          <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-6 space-y-6">
+
+            {/* 1. Image Upload - Compact Square */}
+            <div>
+                 <div className="flex flex-col items-center">
+                    <label className="w-32 h-32 border-2 border-blue-500 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-blue-50 transition-colors">
+                        {mainImagePreview ? (
+                            <img src={mainImagePreview} className="w-full h-full object-cover rounded-lg" alt="Main" />
+                        ) : (
+                            <>
+                                <svg className="w-8 h-8 text-blue-500 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                                <span className="text-xs text-blue-600 font-bold">Image</span>
+                            </>
+                        )}
+                        <input type="file" accept="image/*" onChange={handleMainImageChange} className="hidden" />
+                    </label>
+                    <p className="text-xs text-gray-400 mt-2">You can add max 6 images</p>
+                 </div>
+            </div>
+
+            {/* 2. Product Name */}
+            <div>
+               <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                 Name <span className="text-red-500">*</span>
+               </label>
+               <input
+                 type="text"
+                 name="productName"
+                 value={formData.productName}
+                 onChange={handleChange}
+                 className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+               />
+            </div>
+
+            {/* 3. Prices (Simulating Variation Form for consistency) */}
+            <div className="grid grid-cols-2 gap-4">
+                 <div>
+                    <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                      Selling Price <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₹</span>
+                        <input
+                           type="number"
+                           value={variationForm.discPrice}
+                           onChange={(e) => setVariationForm({ ...variationForm, discPrice: e.target.value })}
+                           className="w-full pl-7 pr-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                        />
+                    </div>
+                 </div>
+                 <div>
+                    <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                      Maximum Retail...
+                    </label>
+                    <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₹</span>
+                        <input
+                           type="number"
+                           value={variationForm.price}
+                           onChange={(e) => setVariationForm({ ...variationForm, price: e.target.value })} // Setup Main Price
+                           className="w-full pl-7 pr-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                        />
+                    </div>
+                 </div>
+            </div>
+
+             {/* Purchase Price */}
+             {shouldShowField('purchase_price') && (
+                <div>
+                   <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                    Purchase Price
+                   </label>
+                   <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₹</span>
+                       <input
+                         type="number"
+                         name="purchasePrice"
+                         value={(formData as any).purchasePrice}
+                         onChange={handleChange}
+                         className="w-full pl-7 pr-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                       />
+                   </div>
                 </div>
+             )}
+          </div>
+
+          {/* Product Section Details */}
+          <div className="bg-white rounded-xl shadow-sm border border-neutral-200">
+            {/* Header Removed for Mobile Look */}
+            {/* <div className="bg-teal-600 text-white px-6 py-4 rounded-t-xl">
+               <h2 className="text-lg font-semibold tracking-wide">Product Details</h2>
+             </div> */}
+            <div className="p-6 space-y-6 rounded-b-xl">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                {/* Product Name was here, removed */}
+                {/* <div className="md:col-span-2"> ... </div> */}
 
                 {shouldShowField('pack') && (
                 <div className="md:col-span-2">
@@ -1489,157 +1584,7 @@ export default function SellerAddProduct() {
               </div>
           </div>
 
-          {/* Add Images Section */}
-          <div className="bg-white rounded-lg shadow-sm border border-neutral-200">
-            <div className="bg-teal-600 text-white px-4 sm:px-6 py-3 rounded-t-lg">
-              <h2 className="text-lg font-semibold">Add Images</h2>
-            </div>
-            <div className="p-4 sm:p-6 space-y-6">
-              {uploadError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-                  {uploadError}
-                </div>
-              )}
-              {successMessage && (
-                <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
-                  {successMessage}
-                </div>
-              )}
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-2">
-                  Product Main Image <span className="text-red-500">*</span>
-                </label>
-                <label className="block border-2 border-dashed border-neutral-300 rounded-lg p-8 text-center hover:border-teal-500 transition-colors cursor-pointer">
-                  {mainImagePreview ? (
-                    <div className="space-y-2">
-                      <img
-                        src={mainImagePreview}
-                        alt="Main product preview"
-                        className="max-h-48 mx-auto rounded-lg object-cover"
-                      />
-                      <p className="text-sm text-neutral-600">
-                        {mainImageFile?.name}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setMainImageFile(null);
-                          setMainImagePreview("");
-                        }}
-                        className="text-sm text-red-600 hover:text-red-700">
-                        Remove
-                      </button>
-                    </div>
-                  ) : (
-                    <div>
-                      <svg
-                        width="48"
-                        height="48"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="mx-auto mb-2 text-neutral-400">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="17 8 12 3 7 8"></polyline>
-                        <line x1="12" y1="3" x2="12" y2="15"></line>
-                      </svg>
-                      <p className="text-sm text-neutral-600 font-medium">
-                        Upload Main Image
-                      </p>
-                      <p className="text-xs text-neutral-500 mt-1">
-                        Max 5MB, JPG/PNG/WEBP
-                      </p>
-                    </div>
-                  )}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleMainImageChange}
-                    className="hidden"
-                    disabled={uploading}
-                  />
-                </label>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-2">
-                  Product Gallery Images (Optional)
-                </label>
-                <label className="block border-2 border-dashed border-neutral-300 rounded-lg p-8 text-center hover:border-teal-500 transition-colors cursor-pointer">
-                  {galleryImagePreviews.length > 0 ? (
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {galleryImagePreviews.map((preview, index) => (
-                          <div key={index} className="relative">
-                            <img
-                              src={preview}
-                              alt={`Gallery ${index + 1}`}
-                              className="w-full h-32 object-cover rounded-lg"
-                            />
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                removeGalleryImage(index);
-                              }}
-                              className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 hover:bg-red-700">
-                              <svg
-                                width="16"
-                                height="16"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2">
-                                <line x1="18" y1="6" x2="6" y2="18"></line>
-                                <line x1="6" y1="6" x2="18" y2="18"></line>
-                              </svg>
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                      <p className="text-sm text-neutral-600">
-                        {galleryImageFiles.length} image(s) selected
-                      </p>
-                    </div>
-                  ) : (
-                    <div>
-                      <svg
-                        width="48"
-                        height="48"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="mx-auto mb-2 text-neutral-400">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="17 8 12 3 7 8"></polyline>
-                        <line x1="12" y1="3" x2="12" y2="15"></line>
-                      </svg>
-                      <p className="text-sm text-neutral-600 font-medium">
-                        Upload Other Product Images Here
-                      </p>
-                      <p className="text-xs text-neutral-500 mt-1">
-                        Max 5MB per image, up to 10 images
-                      </p>
-                    </div>
-                  )}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={handleGalleryImagesChange}
-                    className="hidden"
-                    disabled={uploading}
-                  />
-                </label>
-              </div>
-            </div>
-          </div>
+
 
           {/* Shop by Store Section */}
           <div className="bg-white rounded-xl shadow-sm border border-neutral-200">
@@ -1689,9 +1634,9 @@ export default function SellerAddProduct() {
           <div className="flex justify-end pb-6">
             <button
               type="submit"
-              disabled={uploading}
+              disabled={uploading || !isEnabled}
               className={`px-8 py-3 rounded-lg font-medium text-lg transition-colors shadow-sm ${
-                uploading
+                uploading || !isEnabled
                   ? "bg-neutral-400 cursor-not-allowed text-white"
                   : "bg-teal-600 hover:bg-teal-700 text-white"
               }`}>

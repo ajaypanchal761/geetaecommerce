@@ -60,6 +60,28 @@ export default function AdminDeliverySettings() {
           options: ['Delivery', 'Pickup', 'Delivery + Pickup']
         }
       ]
+    },
+    {
+      id: 'payment_discount',
+      title: 'Online Payment Discount',
+      fields: [
+        {
+          id: 'discount_enabled',
+          label: 'Enable Discount',
+          description: 'Enable discount for online payments (Razorpay/Cashfree).',
+          type: 'select',
+          value: 'No',
+          options: ['Yes', 'No']
+        },
+        {
+          id: 'discount_percentage',
+          label: 'Discount Percentage',
+          description: 'Set the discount percentage for online payments.',
+          type: 'number',
+          value: 0,
+          suffix: '%'
+        }
+      ]
     }
   ]);
 
@@ -87,6 +109,21 @@ export default function AdminDeliverySettings() {
                     return { ...field, value: settings.freeDeliveryThreshold || 0 };
                   case 'service_type':
                     return { ...field, value: settings.serviceType || 'Delivery + Pickup' };
+                  default:
+                    return field;
+                }
+              })
+            };
+          }
+          if (section.id === 'payment_discount') {
+            return {
+              ...section,
+              fields: section.fields.map(field => {
+                switch (field.id) {
+                  case 'discount_enabled':
+                    return { ...field, value: settings.onlinePaymentDiscount?.enabled ? 'Yes' : 'No' };
+                  case 'discount_percentage':
+                    return { ...field, value: settings.onlinePaymentDiscount?.percentage || 0 };
                   default:
                     return field;
                 }
@@ -125,13 +162,18 @@ export default function AdminDeliverySettings() {
 
       // Extract values from state
       const fields = sections[0].fields;
-      const getFieldValue = (id: string) => fields.find(f => f.id === id)?.value;
+      const getFieldValue = (id: string, sId: string = 'delivery_config') =>
+        sections.find(s => s.id === sId)?.fields.find(f => f.id === id)?.value;
 
       const updateData = {
         deliveryRadius: Number(getFieldValue('delivery_radius')),
         deliveryCharges: Number(getFieldValue('delivery_fee')),
         freeDeliveryThreshold: Number(getFieldValue('free_delivery_above')),
-        serviceType: String(getFieldValue('service_type'))
+        serviceType: String(getFieldValue('service_type')),
+        onlinePaymentDiscount: {
+          enabled: getFieldValue('discount_enabled', 'payment_discount') === 'Yes',
+          percentage: Number(getFieldValue('discount_percentage', 'payment_discount'))
+        }
       };
 
       const response = await updateAppSettings(updateData);

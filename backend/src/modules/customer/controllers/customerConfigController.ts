@@ -44,7 +44,8 @@ export const getPublicConfig = asyncHandler(
         estimatedDeliveryTime: defaultConfig.estimatedDeliveryTime,
         appName: settings.appName ?? defaultConfig.appName,
         contactPhone: settings.contactPhone,
-        contactEmail: settings.contactEmail
+        contactEmail: settings.contactEmail,
+        onlinePaymentDiscount: settings.onlinePaymentDiscount || { enabled: false, percentage: 0 }
       };
 
       return res.status(200).json({

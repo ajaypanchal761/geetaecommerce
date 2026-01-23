@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getAllSellers, updateSellerStatus, deleteSeller, Seller as SellerType, updateSeller } from '../../../services/api/sellerService';
+import { getAllSellers, updateSellerStatus, deleteSeller, Seller as SellerType, updateSeller, updateSellerEnabled } from '../../../services/api/sellerService';
 import SellerServiceMap from '../components/SellerServiceMap';
 
 interface Seller {
@@ -80,7 +80,7 @@ const mapSellerToFrontend = (seller: SellerType): Seller => {
         addressProof: seller.addressProof,
         requireProductApproval: seller.requireProductApproval,
         viewCustomerDetails: seller.viewCustomerDetails,
-        isEnabled: true, // Default to true for frontend-only feature
+        isEnabled: seller.isEnabled ?? true, // Use backend state or default to true
     };
 };
 
@@ -362,17 +362,34 @@ export default function AdminManageSellerList() {
         setSelectedSeller(null);
     };
 
-    const handleToggleStatus = (id: number | string) => {
+    const handleToggleStatus = async (id: number | string) => {
         const sellerId = typeof id === 'number' ? sellers.find(s => s.id === id)?._id : id;
         if (!sellerId) return;
 
-        setSellers(prevSellers =>
-            prevSellers.map(seller =>
-                seller._id === sellerId
-                    ? { ...seller, isEnabled: !seller.isEnabled }
-                    : seller
-            )
-        );
+        const seller = sellers.find(s => s._id === sellerId);
+        if (!seller) return;
+
+        const newStatus = !seller.isEnabled;
+
+        try {
+            const response = await updateSellerEnabled(sellerId, newStatus);
+            if (response.success) {
+                setSellers(prevSellers =>
+                    prevSellers.map(s =>
+                        s._id === sellerId
+                            ? { ...s, isEnabled: newStatus }
+                            : s
+                    )
+                );
+                setSuccessMessage(`Seller ${newStatus ? 'enabled' : 'disabled'} successfully.`);
+                setTimeout(() => setSuccessMessage(''), 3000);
+            } else {
+                setError('Failed to update seller status.');
+            }
+        } catch (err: any) {
+            console.error('Error toggling seller status:', err);
+            setError(err.response?.data?.message || 'Failed to toggle status.');
+        }
     };
 
     return (
