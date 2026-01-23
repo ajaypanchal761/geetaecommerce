@@ -188,6 +188,7 @@ const AdminPOSOrders = () => {
 
   // Success/Print Modal
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showModalBreakdown, setShowModalBreakdown] = useState(false);
   const [lastBillDetails, setLastBillDetails] = useState<{total: number, invoiceNum: string, date: string, time: string} | null>(null);
 
   // Search Customers
@@ -543,6 +544,7 @@ const AdminPOSOrders = () => {
         time: new Date().toLocaleTimeString('en-US', { hour12: false })
     });
 
+    setShowModalBreakdown(false);
     setShowSuccessModal(true);
   };
 
@@ -1402,13 +1404,44 @@ const AdminPOSOrders = () => {
                    <div className="text-center mb-8">
                        <p className="text-gray-500 text-xs font-bold tracking-widest mb-2">TOTAL AMOUNT</p>
                        <h1 className="text-5xl font-bold text-slate-900">₹{lastBillDetails.total}</h1>
+                       <p className="text-gray-400 text-xs mt-2">Bill No: {lastBillDetails.invoiceNum}</p>
                    </div>
 
                    <div className="flex justify-center mb-2">
-                       <button className="bg-white border border-gray-200 rounded-full px-6 py-2 text-[10px] font-bold text-gray-500 tracking-wider shadow-sm">
-                           [ TAP FOR BREAKDOWN ]
+                       <button
+                         onClick={() => setShowModalBreakdown(!showModalBreakdown)}
+                         className="bg-white border border-gray-200 rounded-full px-6 py-2 text-[10px] font-bold text-gray-500 tracking-wider shadow-sm hover:bg-gray-50 mb-2"
+                       >
+                           [ {showModalBreakdown ? 'HIDE BREAKDOWN' : 'TAP FOR BREAKDOWN'} ]
                        </button>
                    </div>
+
+                   {/* Breakdown List */}
+                   {showModalBreakdown && (
+                     <div className="mb-6 bg-white rounded-xl p-4 shadow-inner text-left max-h-48 overflow-y-auto">
+                        <div className="grid grid-cols-4 gap-2 text-[10px] font-bold text-gray-400 mb-2 border-b border-gray-100 pb-1">
+                            <div className="col-span-2">Item</div>
+                            <div className="text-right">Qty</div>
+                            <div className="text-right">Price</div>
+                        </div>
+                        <div className="space-y-2">
+                            {cart.map((item, idx) => {
+                                const sp = item.customPrice !== undefined ? item.customPrice : item.price;
+                                return (
+                                    <div key={idx} className="grid grid-cols-4 gap-2 text-[10px] text-gray-700">
+                                        <div className="col-span-2 truncate font-medium">{item.productName}</div>
+                                        <div className="text-right text-gray-500">{item.qty}</div>
+                                        <div className="text-right font-bold">₹{sp * item.qty}</div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                        <div className="border-t border-gray-100 mt-2 pt-2 flex justify-between text-xs font-bold text-slate-800">
+                            <span>Total</span>
+                            <span>₹{lastBillDetails.total}</span>
+                        </div>
+                     </div>
+                   )}
 
                    {/* Mock QR */}
                    <div className="flex justify-center mb-2">
