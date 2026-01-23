@@ -22,6 +22,7 @@ interface Bill {
   selectedCustomer: Customer | null;
   customerSearch: string;
   paymentMethod: string;
+  orderType: 'Retail' | 'Wholesale';
   createdAt: number;
 }
 
@@ -54,6 +55,7 @@ const AdminPOSOrders = () => {
       selectedCustomer: null,
       customerSearch: '',
       paymentMethod: 'Cash',
+      orderType: 'Retail',
       createdAt: Date.now()
     }];
   });
@@ -82,6 +84,7 @@ const AdminPOSOrders = () => {
       selectedCustomer: null,
       customerSearch: '',
       paymentMethod: 'Cash',
+      orderType: 'Retail',
       createdAt: Date.now()
     };
     setBills(prev => {
@@ -136,7 +139,23 @@ const AdminPOSOrders = () => {
 
   const setPaymentMethod = (method: string) => {
       updateActiveBill({ paymentMethod: method });
+      setShowPaymentDropdown(false);
   };
+
+  const setOrderType = (type: 'Retail' | 'Wholesale') => {
+      updateActiveBill({ orderType: type });
+  };
+
+  const setCustomerSearch = (search: string) => {
+      updateActiveBill({ customerSearch: search });
+  };
+
+  const setSelectedCustomer = (customer: Customer | null) => {
+      updateActiveBill({ selectedCustomer: customer });
+  };
+
+  // Derived state for new controls
+  const orderType = activeBill.orderType || 'Retail';
 
   useEffect(() => {
     localStorage.setItem('pos_active_bill', activeBillId);
@@ -158,11 +177,18 @@ const AdminPOSOrders = () => {
   // Edit Item Form
   const [editForm, setEditForm] = useState({ name: '', price: '', qty: '', mrp: '', purchasePrice: '' });
 
+  // New UI States
+  const [showPaymentDropdown, setShowPaymentDropdown] = useState(false);
+
   // Customer Search State
   // const [customerSearch, setCustomerSearch] = useState(''); // Removed global
   const [customers, setCustomers] = useState<Customer[]>([]);
   // const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null); // Removed global
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+
+  // Success/Print Modal
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [lastBillDetails, setLastBillDetails] = useState<{total: number, invoiceNum: string, date: string, time: string} | null>(null);
 
   // Search Customers
   useEffect(() => {
@@ -388,13 +414,17 @@ const AdminPOSOrders = () => {
     setEditingItem(null);
   };
 
-  const handleGenerateBill = () => {
-    if (cart.length === 0) {
-        showToast("Cart is empty", "error");
-        return;
-    }
+  /*
+   * PDF Generation (Kept for 'Share' or background use)
+   * Renamed from handleGenerateBill to downloadPDF
+   */
+  const downloadPDF = () => {
+    if (cart.length === 0) return;
 
     const doc = new jsPDF();
+    const invoiceNum = lastBillDetails?.invoiceNum || Math.floor(10000 + Math.random() * 90000).toString();
+    const dateStr = lastBillDetails?.date || new Date().toLocaleDateString();
+    const timeStr = lastBillDetails?.time || new Date().toLocaleTimeString();
 
     // --- Header ---
     doc.setFontSize(16);
@@ -406,25 +436,19 @@ const AdminPOSOrders = () => {
     const address = "Q7WM+92M, Q7WM+92M, , Indore Division,\nNagda, Madhya Pradesh, India - 454001\n7898111456";
     doc.text(address, 14, 26);
 
-    // Line
     doc.line(14, 40, 196, 40);
 
     // --- Invoice Details ---
-    const invoiceNum = Math.floor(10000 + Math.random() * 90000);
-    const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' });
-    const timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-
     doc.setFont("helvetica", "bold");
     doc.text("Invoice Number:", 14, 48);
     doc.text("Invoice Date:", 14, 53);
     doc.text("Payment Status:", 14, 58);
 
     doc.setFont("helvetica", "normal");
-    doc.text(invoiceNum.toString(), 196, 48, { align: 'right' });
+    doc.text(invoiceNum, 196, 48, { align: 'right' });
     doc.text(`${dateStr} ${timeStr}`, 196, 53, { align: 'right' });
     doc.text("Cash", 196, 58, { align: 'right' });
 
-    // Line
     doc.setLineWidth(0.5);
     doc.line(14, 63, 196, 63);
 
@@ -439,12 +463,10 @@ const AdminPOSOrders = () => {
     doc.text("MRP", 125, y);
     doc.text("Sp.", 155, y);
     doc.text("Total", 196, y, { align: 'right' });
-
     y += 4;
 
     // --- Table Body ---
     doc.setFont("helvetica", "normal");
-
     let totalQty = 0;
     let totalMRP = 0;
     let totalBillAmount = 0;
@@ -453,7 +475,6 @@ const AdminPOSOrders = () => {
         const qty = item.qty;
         const sp = item.customPrice !== undefined ? item.customPrice : item.price;
         const itemMrp = item.compareAtPrice && item.compareAtPrice > sp ? item.compareAtPrice : sp;
-
         const rowTotal = sp * qty;
         const rowMrpTotal = itemMrp * qty;
 
@@ -462,10 +483,7 @@ const AdminPOSOrders = () => {
         totalBillAmount += rowTotal;
 
         y += 6;
-        if (y > 280) {
-            doc.addPage();
-            y = 20;
-        }
+        if (y > 280) { doc.addPage(); y = 20; }
 
         const name = `(${index + 1}) ${item.productName}`;
         const truncatedName = name.length > 40 ? name.substring(0, 37) + "..." : name;
@@ -478,7 +496,6 @@ const AdminPOSOrders = () => {
     });
 
     y += 8;
-    // Line
     doc.line(14, y, 196, y);
     y += 6;
 
@@ -486,17 +503,13 @@ const AdminPOSOrders = () => {
     doc.setFont("helvetica", "normal");
     doc.text(`Total Qty.: ${totalQty}`, 14, y);
     doc.text(`Total MRP: Rs ${totalMRP}`, 196, y, { align: 'right' });
-
     y += 4;
 
-    // Savings
     const savings = totalMRP - totalBillAmount;
     if (savings > 0) {
         doc.setFillColor(200, 200, 200);
         doc.rect(14, y, 182, 8, 'F');
-
         const savingPercent = ((savings / totalMRP) * 100).toFixed(1);
-
         doc.setFont("helvetica", "bold");
         doc.text(`You Saved ${savingPercent} %`, 16, y + 5.5);
         doc.text(savings.toString(), 194, y + 5.5, { align: 'right' });
@@ -505,17 +518,36 @@ const AdminPOSOrders = () => {
     y += 12;
     doc.setLineWidth(0.3);
     doc.line(14, y, 196, y);
-
     y += 6;
     doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
     doc.text("Total bill amount:", 14, y);
     doc.text(totalBillAmount.toString(), 196, y, { align: 'right' });
-
     y += 2;
     doc.line(14, y + 2, 196, y + 2);
 
     doc.save(`Invoice_${invoiceNum}.pdf`);
+  };
+
+  const handleGenerateBill = () => {
+    if (cart.length === 0) {
+        showToast("Cart is empty", "error");
+        return;
+    }
+
+    // Set bill details for display and printing
+    setLastBillDetails({
+        total: calculateTotal(),
+        invoiceNum: Math.floor(10000 + Math.random() * 90000).toString(),
+        date: new Date().toLocaleDateString('en-IN'),
+        time: new Date().toLocaleTimeString('en-US', { hour12: false })
+    });
+
+    setShowSuccessModal(true);
+  };
+
+  const handlePrintBill = () => {
+     window.print();
   };
 
   const handleAccessPayment = () => {
@@ -902,8 +934,59 @@ const AdminPOSOrders = () => {
             </div>
 
             <div className="flex-1 flex flex-col overflow-hidden">
+
+              {/* Payment Method & Order Type Controls */}
+              <div className="px-4 pt-4 pb-2">
+                   {/* Payment Method Dropdown */}
+                   <div className="relative mb-3">
+                       <button
+                           onClick={() => setShowPaymentDropdown(!showPaymentDropdown)}
+                           className="w-full flex items-center justify-between bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                       >
+                           <span className="font-medium">{paymentMethod || 'Cash'}</span>
+                           <svg className={`w-4 h-4 text-gray-400 transition-transform ${showPaymentDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                       </button>
+
+                       {showPaymentDropdown && (
+                           <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden">
+                               {['Cash', 'Razorpay', 'Cashfree', 'Credit'].map((method) => (
+                                   <div
+                                       key={method}
+                                       onClick={() => setPaymentMethod(method)}
+                                       className="flex items-center justify-between px-4 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-50 last:border-0"
+                                   >
+                                       <span className="text-sm font-medium text-gray-700">{method === 'Credit' ? 'Credit (Udhaar)' : method}</span>
+                                       <span className="text-gray-300">→</span>
+                                   </div>
+                               ))}
+                           </div>
+                       )}
+                   </div>
+
+                   {/* Retail / Wholesale Toggle */}
+                   <div className="bg-gray-100 p-1 rounded-lg flex relative">
+                        {/* Sliding Background */}
+                        <div
+                            className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-[#1e293b] rounded-md transition-all duration-300 ease-in-out shadow-sm ${orderType === 'Wholesale' ? 'left-[calc(50%+2px)]' : 'left-1'}`}
+                        ></div>
+
+                        <button
+                            onClick={() => setOrderType('Retail')}
+                            className={`flex-1 relative z-10 text-center text-sm font-medium py-1.5 transition-colors duration-300 ${orderType === 'Retail' ? 'text-white' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            Retail
+                        </button>
+                        <button
+                            onClick={() => setOrderType('Wholesale')}
+                            className={`flex-1 relative z-10 text-center text-sm font-medium py-1.5 transition-colors duration-300 ${orderType === 'Wholesale' ? 'text-white' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            Wholesale
+                        </button>
+                   </div>
+              </div>
+
               {/* Customer Selection */}
-              <div className="p-4 border-b border-gray-100">
+              <div className="px-4 pb-4 border-b border-gray-100">
                 <div className="flex gap-2">
                   <div className="relative flex-1">
                       <input
@@ -1296,6 +1379,145 @@ const AdminPOSOrders = () => {
             </div>
         </div>
       )}
+      {/* --- SUCCESS / PRINT MODAL --- */}
+      {showSuccessModal && lastBillDetails && (
+        <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 backdrop-blur-sm print:hidden">
+            <div className="bg-[#f3f4f6] w-full max-w-[350px] rounded-[30px] overflow-hidden shadow-2xl relative">
+                {/* Header */}
+                <div className="bg-[#f3f4f6] px-6 pt-6 pb-2">
+                   <div className="flex justify-between items-center mb-6">
+                       <h2 className="text-xl font-bold tracking-widest text-slate-800">BILLINGFAST</h2>
+                       <button onClick={() => setShowSuccessModal(false)} className="bg-black text-white px-4 py-1.5 rounded-full text-xs font-bold">Close</button>
+                   </div>
+                   <div className="flex justify-center mb-6">
+                       <div className="bg-green-500 rounded-full p-2">
+                           <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+                       </div>
+                   </div>
+                   <div className="text-center mb-8">
+                       <h3 className="font-bold text-slate-800 tracking-wider mb-2">ORDER COMPLETED</h3>
+                       <p className="text-gray-400 text-xs">{new Date().toLocaleString()}</p>
+                   </div>
+
+                   <div className="text-center mb-8">
+                       <p className="text-gray-500 text-xs font-bold tracking-widest mb-2">TOTAL AMOUNT</p>
+                       <h1 className="text-5xl font-bold text-slate-900">₹{lastBillDetails.total}</h1>
+                   </div>
+
+                   <div className="flex justify-center mb-2">
+                       <button className="bg-white border border-gray-200 rounded-full px-6 py-2 text-[10px] font-bold text-gray-500 tracking-wider shadow-sm">
+                           [ TAP FOR BREAKDOWN ]
+                       </button>
+                   </div>
+
+                   {/* Mock QR */}
+                   <div className="flex justify-center mb-2">
+                       <div className="w-32 h-32 bg-white p-2 rounded-lg">
+                           <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=Invoice:${lastBillDetails.invoiceNum}`} alt="QR" className="w-full h-full" />
+                       </div>
+                   </div>
+                   <div className="text-center mb-6">
+                        <p className="text-[10px] text-gray-400 tracking-wider font-bold mb-4">SCAN TO PAY</p>
+                        <button className="bg-[#f3f4f6] border border-gray-300 rounded-full px-6 py-2 text-[10px] font-bold text-gray-500 tracking-wider shadow-sm">
+                           [ STATUS: {paymentMethod.toUpperCase()} ]<br/>(TAP TO CHANGE)
+                       </button>
+                   </div>
+                </div>
+
+                {/* Footer Actions */}
+                <div className="bg-[#f3f4f6] px-4 pb-6 space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                        <button onClick={downloadPDF} className="bg-white border border-black text-black font-bold py-3 text-xs tracking-widest hover:bg-gray-50 uppercase">
+                            [ Share ]
+                        </button>
+                        <button onClick={handlePrintBill} className="bg-black text-white font-bold py-3 text-xs tracking-widest hover:bg-gray-900 uppercase">
+                            [ Print ]
+                        </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                         <button className="bg-white border border-gray-200 text-gray-500 font-bold py-3 text-xs tracking-widest uppercase">
+                            [ Edit ]
+                        </button>
+                        <button onClick={() => setShowSuccessModal(false)} className="bg-white border border-gray-200 text-gray-500 font-bold py-3 text-xs tracking-widest uppercase">
+                            [ Home ]
+                        </button>
+                    </div>
+                    <button onClick={() => { createNewBill(); setShowSuccessModal(false); }} className="w-full bg-black text-white font-bold py-4 text-xs tracking-widest hover:bg-gray-900 uppercase mt-2">
+                        [ + NEW BILL ]
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* --- HIDDEN THERMAL RECEIPT (VISIBLE ONLY ON PRINT) --- */}
+      <div className="hidden print:block fixed inset-0 bg-white z-[200] p-0 m-0">
+          {/* We use a specific width/style for thermal printing */}
+          <div className="w-[80mm] p-2 font-mono text-xs text-black mx-auto">
+              <div className="text-center mb-2">
+                  <h1 className="text-lg font-bold">GSN</h1>
+                  <p>Village Nagda, Tehs Badnawar, Dist Dhar</p>
+              </div>
+
+              <div className="border-b border-black border-dashed my-2"></div>
+
+              <div className="flex justify-between mb-1">
+                  <span>MEMO</span>
+                  <span>{lastBillDetails?.time}</span>
+              </div>
+              <div className="flex justify-between mb-1">
+                  <span>{lastBillDetails?.date}</span>
+                  <span>Bill No: {lastBillDetails?.invoiceNum}</span>
+              </div>
+
+              <div className="border-b border-black border-dashed my-2"></div>
+
+              <div className="grid grid-cols-12 gap-1 font-bold mb-1">
+                  <div className="col-span-12">Item Name</div>
+                  <div className="col-span-3 text-right">Qty</div>
+                  <div className="col-span-3 text-right">MRP</div>
+                  <div className="col-span-3 text-right">SP</div>
+                  <div className="col-span-3 text-right">Amt</div>
+              </div>
+
+              <div className="border-b border-black border-dashed my-2"></div>
+
+              <div className="space-y-1">
+                  {cart.map((item, idx) => {
+                      const sp = item.customPrice !== undefined ? item.customPrice : item.price;
+                      const mrp = item.compareAtPrice || sp;
+                      return (
+                       <div key={idx}>
+                           <div>{idx + 1}. {item.productName}</div>
+                           <div className="grid grid-cols-12 gap-1">
+                               <div className="col-span-12"></div> {/* Spacer for name line */}
+                               <div className="col-span-3 text-right">{item.qty}PC</div>
+                               <div className="col-span-3 text-right">{mrp.toFixed(2)}</div>
+                               <div className="col-span-3 text-right">{sp.toFixed(2)}</div>
+                               <div className="col-span-3 text-right">{(sp * item.qty).toFixed(2)}</div>
+                           </div>
+                       </div>
+                   )})}
+              </div>
+
+              <div className="border-b border-black border-dashed my-2"></div>
+
+              <div className="flex justify-between font-bold text-sm">
+                  <span>Total Payable Amount</span>
+                  <span>{lastBillDetails?.total.toFixed(2)}</span>
+              </div>
+               <div className="flex justify-between mt-1">
+                  <span>Cash Paid</span>
+                  <span>{lastBillDetails?.total.toFixed(2)}</span>
+              </div>
+
+              <div className="border-b border-black border-dashed my-2"></div>
+
+              <div className="text-center mt-4">
+                  <p>Thank You. Come Again!</p>
+              </div>
+          </div>
+      </div>
 
     </div>
   );
