@@ -43,29 +43,30 @@ const AdminPOSCustomers = () => {
 
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-gray-900">
-            {/* Header */}
-            <div className="bg-white shadow-sm p-4 sticky top-0 z-10 flex items-center gap-3">
-                <button onClick={() => navigate('/admin/pos/orders')} className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-full">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
-                    </svg>
-                </button>
-                <h1 className="text-xl font-bold">Customers</h1>
-            </div>
+            {/* Header Section */}
+            <div className="bg-white shadow-sm">
+                <div className="p-4 flex items-center gap-3">
+                    <button onClick={() => navigate('/admin/pos/orders')} className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-full">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+                        </svg>
+                    </button>
+                    <h1 className="text-xl font-bold">Customers</h1>
+                </div>
 
-            {/* Search */}
-            <div className="p-4 bg-white border-b border-gray-100 sticky top-[60px] z-10">
-                <div className="relative">
-                    <input
-                        type="text"
-                        placeholder="Search by name or phone"
-                        className="w-full bg-gray-100 border-none rounded-lg px-4 py-3 pl-10 text-base focus:ring-2 focus:ring-blue-500 outline-none"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                    <svg className="w-5 h-5 text-gray-500 absolute left-3 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
+                <div className="px-4 pb-4">
+                    <div className="relative">
+                        <input
+                            type="text"
+                            placeholder="Search by name or phone"
+                            className="w-full bg-gray-100 border-none rounded-lg px-4 py-3 pl-10 text-base focus:ring-2 focus:ring-blue-500 outline-none"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                        <svg className="w-5 h-5 text-gray-500 absolute left-3 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </div>
                 </div>
             </div>
 

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '../../../context/ToastContext';
+import * as adminSettingsService from '../../../services/api/admin/adminSettingsService';
 
 interface BarcodeSettings {
     width: number;
@@ -25,19 +26,26 @@ export default function AdminBarcodeSettings() {
     const { showToast } = useToast();
     const [settings, setSettings] = useState<BarcodeSettings>(DEFAULT_SETTINGS);
     const [saving, setSaving] = useState(false);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Load settings from localStorage
-        const saved = localStorage.getItem('barcode_printer_settings');
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                setSettings({ ...DEFAULT_SETTINGS, ...parsed });
-            } catch (e) {
-                console.error("Failed to parse barcode settings", e);
-            }
-        }
+        fetchSettings();
     }, []);
+
+    const fetchSettings = async () => {
+        setLoading(true);
+        try {
+            const response = await adminSettingsService.getAppSettings();
+            if (response.success && response.data.barcodeSettings) {
+                setSettings(response.data.barcodeSettings);
+            }
+        } catch (error) {
+            console.error("Failed to fetch barcode settings", error);
+            showToast('Failed to load settings', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value, type, checked } = e.target;
@@ -47,19 +55,31 @@ export default function AdminBarcodeSettings() {
         }));
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         setSaving(true);
         try {
-            localStorage.setItem('barcode_printer_settings', JSON.stringify(settings));
-            // Also update the old legacy setting if needed, or just leave it.
-            // We'll update AdminAddProduct to prefer 'barcode_printer_settings'.
-            showToast('Barcode settings saved successfully', 'success');
+            const response = await adminSettingsService.updateAppSettings({
+                barcodeSettings: settings
+            });
+            if (response.success) {
+                showToast('Barcode settings saved successfully', 'success');
+            } else {
+                showToast(response.message || 'Failed to save settings', 'error');
+            }
         } catch (e) {
             showToast('Failed to save settings', 'error');
         } finally {
             setSaving(false);
         }
     };
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-full bg-neutral-50">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col h-full bg-neutral-50 relative">

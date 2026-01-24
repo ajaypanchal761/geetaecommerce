@@ -43,10 +43,10 @@ export interface IProduct extends Document {
     price?: number;
     wholesalePrice?: number;
     discPrice?: number;
-    compareAtPrice?: number;
-    stock: number;
+    stock?: number;
     sku?: string;
     status?: string;
+    barcode?: string;
     tieredPrices?: { minQty: number; price: number }[];
   }>;
 
@@ -122,139 +122,138 @@ export interface IProduct extends Document {
         trim: true,
       },
 
-      // Categorization
-      category: {
-        type: Schema.Types.ObjectId,
-        ref: "Category",
-        required: [
-          function (this: any) {
-            return !this.isShopByStoreOnly;
+    // Categorization
+    category: {
+      type: Schema.Types.ObjectId,
+      ref: "Category",
+      required: [
+        function (this: any) {
+          return !this.isShopByStoreOnly;
+        },
+        "Category is required",
+      ],
+    },
+    subcategory: {
+      type: Schema.Types.ObjectId,
+      ref: "SubCategory",
+    },
+    subSubCategory: {
+      type: String,
+      trim: true,
+    },
+    headerCategoryId: {
+      type: Schema.Types.ObjectId,
+      ref: "HeaderCategory",
+    },
+    brand: {
+      type: Schema.Types.ObjectId,
+      ref: "Brand",
+    },
+
+    // Seller Info
+    seller: {
+      type: Schema.Types.ObjectId,
+      ref: "Seller",
+      required: [true, "Seller is required"],
+    },
+
+    // Images
+    mainImage: {
+      type: String,
+      trim: true,
+    },
+    galleryImages: {
+      type: [String],
+      default: [],
+    },
+
+    // Pricing & Inventory
+    price: {
+      type: Number,
+      required: [true, "Price is required"],
+      min: [0, "Price cannot be negative"],
+    },
+    wholesalePrice: {
+      type: Number,
+      default: 0,
+      min: [0, "Wholesale price cannot be negative"],
+    },
+    discPrice: {
+      type: Number,
+      default: 0,
+      min: [0, "Discounted price cannot be negative"],
+    },
+    compareAtPrice: {
+      type: Number,
+      min: [0, "Compare at price cannot be negative"],
+    },
+    stock: {
+      type: Number,
+      required: [true, "Stock is required"],
+      default: 0,
+      min: [0, "Stock cannot be negative"],
+    },
+    sku: {
+      type: String,
+      trim: true,
+      unique: true,
+      sparse: true,
+    },
+    barcode: {
+      type: String,
+      trim: true,
+    },
+    rackNumber: {
+      type: String,
+      trim: true,
+    },
+    hsnCode: {
+      type: String,
+      trim: true,
+    },
+    purchasePrice: {
+      type: Number,
+      min: [0, "Purchase price cannot be negative"],
+    },
+    lowStockQuantity: {
+      type: Number,
+      min: [0, "Low stock quantity cannot be negative"],
+      default: 5,
+    },
+    deliveryTime: {
+      type: String,
+      trim: true,
+    },
+
+    // Variations
+    variationType: {
+      type: String,
+      trim: true,
+    },
+    variations: {
+      type: [
+        {
+          name: String,
+          value: String,
+          price: Number,
+          wholesalePrice: { type: Number, default: 0 },
+          discPrice: { type: Number, default: 0 },
+          stock: Number,
+          status: {
+            type: String,
+            enum: ["Available", "Sold out", "In stock"],
+            default: "Available",
           },
-          "Category is required",
-        ],
-      },
-      subcategory: {
-        type: Schema.Types.ObjectId,
-        ref: "SubCategory",
-      },
-      subSubCategory: {
-        type: String,
-        trim: true,
-      },
-      headerCategoryId: {
-        type: Schema.Types.ObjectId,
-        ref: "HeaderCategory",
-      },
-      brand: {
-        type: Schema.Types.ObjectId,
-        ref: "Brand",
-      },
-
-      // Seller Info
-      seller: {
-        type: Schema.Types.ObjectId,
-        ref: "Seller",
-        required: [true, "Seller is required"],
-      },
-
-      // Images
-      mainImage: {
-        type: String,
-        trim: true,
-      },
-      galleryImages: {
-        type: [String],
-        default: [],
-      },
-
-      // Pricing & Inventory
-      price: {
-        type: Number,
-        required: [true, "Price is required"],
-        min: [0, "Price cannot be negative"],
-      },
-      wholesalePrice: {
-        type: Number,
-        default: 0,
-        min: [0, "Wholesale price cannot be negative"],
-      },
-      discPrice: {
-        type: Number,
-        default: 0,
-        min: [0, "Discounted price cannot be negative"],
-      },
-      compareAtPrice: {
-        type: Number,
-        min: [0, "Compare at price cannot be negative"],
-      },
-      stock: {
-        type: Number,
-        required: [true, "Stock is required"],
-        default: 0,
-        min: [0, "Stock cannot be negative"],
-      },
-      sku: {
-        type: String,
-        trim: true,
-        unique: true,
-        sparse: true,
-      },
-      barcode: {
-        type: String,
-        trim: true,
-      },
-      rackNumber: {
-        type: String,
-        trim: true,
-      },
-      hsnCode: {
-        type: String,
-        trim: true,
-      },
-      purchasePrice: {
-        type: Number,
-        min: [0, "Purchase price cannot be negative"],
-      },
-      lowStockQuantity: {
-        type: Number,
-        min: [0, "Low stock quantity cannot be negative"],
-        default: 5,
-      },
-      deliveryTime: {
-        type: String,
-        trim: true,
-      },
-
-      // Variations
-      variationType: {
-        type: String,
-        trim: true,
-      },
-      variations: {
-        type: [
-          {
-            name: String,
-            value: String,
-            price: Number,
-            wholesalePrice: { type: Number, default: 0 },
-            discPrice: { type: Number, default: 0 },
-            stock: Number,
-            status: {
-              type: String,
-              enum: ["Available", "Sold out", "In stock"],
-              default: "Available",
-            },
-            sku: String,
-            barcode: String,
-            tieredPrices: {
-              type: [{ minQty: Number, price: Number }],
-              default: []
-            },
-          },
-        ],
-        default: [],
-      },
-
+          sku: String,
+          barcode: String,
+          tieredPrices: {
+             type: [{ minQty: Number, price: Number }],
+             default: []
+          }
+        },
+      ],
+      default: [],
+    },
 
     // Status Flags
     publish: {
@@ -343,7 +342,7 @@ export interface IProduct extends Document {
       default: [],
     },
 
-    // Approval (removed - all products are auto-published)
+    // Approval
     requiresApproval: {
       type: Boolean,
       default: false,
@@ -388,7 +387,7 @@ ProductSchema.virtual("mrp").get(function () {
 ProductSchema.pre("save", function (next) {
   // Sync price and stock from variations if they exist
   if (this.variations && this.variations.length > 0) {
-    // Set price to the price of the first variation if top-level price is not set or if we want to keep it in sync
+    // Set price to the price of the first variation if top-level price is not set
     if (this.variations[0].price !== undefined) {
       this.price = this.variations[0].price;
     }

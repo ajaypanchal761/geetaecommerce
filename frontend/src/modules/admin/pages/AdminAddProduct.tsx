@@ -10,9 +10,14 @@ import {
   updateProduct,
   getProductById,
   getSellers,
+  approveProductRequest,
+  bulkImportProducts,
+  bulkUpdateProducts,
+  updateProductOrder,
+  uploadImage as uploadImageLegacy,
   Product,
 } from "../../../services/api/admin/adminProductService";
-import { ProductVariation, Shop } from "../../../services/api/productService";
+import { ProductVariation, Shop, searchProductImage } from "../../../services/api/productService";
 import {
   getCategories,
   getSubcategories,
@@ -39,13 +44,35 @@ export default function AdminAddProduct() {
 
   // Dynamic Field Settings State
   const [fieldVisibility, setFieldVisibility] = useState<Record<string, boolean>>({
+    pack: true,
+    item_code: true,
+    rack_number: true,
+    header_category: true,
     category: true,
+    subcategory: true,
+    sub_subcategory: true,
     brand: true,
+    tags: true,
     summary: true,
     description: true,
-    video: true,
+    video: false,
+    manufacturer: true,
+    made_in: true,
+    fssai: true,
+    is_returnable: true,
+    total_allowed_quantity: true,
+    seo_title: true,
+    seo_keywords: true,
+    seo_description: true,
+    seo_image_alt: true,
     tax: true,
+    hsn_code: true,
     purchase_price: true,
+    delivery_time: true,
+    online_offer_price: false,
+    barcode: true,
+    shop_by_store_only: true,
+    select_store: true,
   });
 
   const [formData, setFormData] = useState({
@@ -114,6 +141,10 @@ export default function AdminAddProduct() {
   const [isScanning, setIsScanning] = useState(false);
   const [scanTarget, setScanTarget] = useState<"product" | "variation">("product");
   const scannerRef = React.useRef<Html5Qrcode | null>(null);
+   // Image Search State
+   const [imageSearchQuery, setImageSearchQuery] = useState("");
+   const [searchedImage, setSearchedImage] = useState("");
+   const [isSearchingImage, setIsSearchingImage] = useState(false);
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<SubCategory[]>([]);
@@ -128,42 +159,51 @@ export default function AdminAddProduct() {
   // Print Barcode State
   const [printQuantity, setPrintQuantity] = useState("1");
   const [selectedPrintBarcode, setSelectedPrintBarcode] = useState("");
+  const [barcodeSettings, setBarcodeSettings] = useState<any>(null);
 
   useEffect(() => {
-    const fetchFieldSettings = async () => {
+    const fetchSettings = async () => {
         try {
             const response = await getAppSettings();
-            if (response.success && response.data?.productDisplaySettings) {
-                const settings = response.data.productDisplaySettings;
-                const newVisibility: Record<string, boolean> = { ...fieldVisibility };
+            if (response.success) {
+                // Field Visibility Settings
+                if (response.data?.productDisplaySettings) {
+                    const settings = response.data.productDisplaySettings;
+                    const newVisibility: Record<string, boolean> = { ...fieldVisibility };
 
-                settings.forEach((section: any) => {
-                    if (section.fields) {
-                        section.fields.forEach((field: any) => {
-                            // Map settings IDs to local visibility keys
-                            if (Object.keys(newVisibility).includes(field.id)) {
-                                newVisibility[field.id] = field.isEnabled;
-                            }
-                        });
-                    }
-                });
-                setFieldVisibility(newVisibility);
+                    settings.forEach((section: any) => {
+                        if (section.fields) {
+                            section.fields.forEach((field: any) => {
+                                // Map settings IDs to local visibility keys
+                                if (Object.keys(newVisibility).includes(field.id)) {
+                                    newVisibility[field.id] = field.isEnabled;
+                                }
+                            });
+                        }
+                    });
+                    setFieldVisibility(newVisibility);
+                }
+
+                // Barcode Settings
+                if (response.data?.barcodeSettings) {
+                    setBarcodeSettings(response.data.barcodeSettings);
+                }
             }
         } catch (error) {
-            console.error("Failed to fetch product display settings", error);
+            console.error("Failed to fetch app settings", error);
         }
     };
-    fetchFieldSettings();
+    fetchSettings();
   }, []);
 
   const handlePrintBarcode = (barcodeVal: string, qty: number, name?: string, sp?: number, mrp?: number) => {
     if(!barcodeVal) return;
 
-    // Get barcode settings
+    // Use dynamic settings if available, else fallback to defaults/localStorage
     const savedCustom = localStorage.getItem('barcode_printer_settings');
     const savedSize = localStorage.getItem('barcode_print_size') || 'medium';
 
-    let customSettings = null;
+    let customSettings = barcodeSettings; // Prefer DB settings
     let containerWidth = 250;
     let barcodeHeight = 55;
     let fontSize = 14;
@@ -172,7 +212,14 @@ export default function AdminAddProduct() {
     let showPrice = true;
     let isCustom = false;
 
-    if (savedCustom) {
+    if (customSettings) {
+        isCustom = true;
+        barcodeHeight = customSettings.barcodeHeight;
+        fontSize = customSettings.fontSize;
+        productNameSize = customSettings.productNameSize;
+        showName = customSettings.showName ?? true;
+        showPrice = customSettings.showPrice ?? true;
+    } else if (savedCustom) {
         try {
             customSettings = JSON.parse(savedCustom);
             isCustom = true;
@@ -429,7 +476,7 @@ export default function AdminAddProduct() {
               variationType: product.variationType || "",
               manufacturer: product.manufacturer || "",
               madeIn: product.madeIn || "",
-              tax: (typeof product.tax === 'object' ? product.tax?._id : product.tax) || product.taxId || "",
+              tax: (product.tax as any)?._id || (product as any).taxId || (product as any).tax || "",
               isReturnable: product.isReturnable ? "Yes" : "No",
               maxReturnDays: product.maxReturnDays?.toString() || "",
               fssaiLicNo: product.fssaiLicNo || "",
@@ -442,11 +489,11 @@ export default function AdminAddProduct() {
               pack: product.pack || "",
               barcode: product.barcode || "",
               itemCode: product.sku || product.itemCode || "",
-              rackNumber: product.rackNumber || "",
-              hsnCode: product.hsnCode || "",
-              purchasePrice: product.purchasePrice?.toString() || "",
-              lowStockQuantity: product.lowStockQuantity?.toString() || "5",
-              deliveryTime: product.deliveryTime || "",
+              rackNumber: (product as any).rackNumber || "",
+              hsnCode: (product as any).hsnCode || "",
+              purchasePrice: (product as any).purchasePrice?.toString() || "",
+              lowStockQuantity: (product as any).lowStockQuantity?.toString() || "5",
+              deliveryTime: (product as any).deliveryTime || "",
             });
             setVariations((product.variations || []).map((v: any) => ({
               ...v,
@@ -884,6 +931,8 @@ export default function AdminAddProduct() {
         galleryImageUrls,
         variations: finalVariations,
         variationType: formData.variationType || undefined,
+        price: finalVariations[0]?.price || 0,
+        stock: finalVariations.reduce((acc, curr) => acc + (Number(curr.stock) || 0), 0),
         isShopByStoreOnly: formData.isShopByStoreOnly === "Yes",
         shopId: formData.shopId || undefined,
         pack: (formData as any).pack || undefined,
@@ -942,6 +991,12 @@ export default function AdminAddProduct() {
               shopId: "",
               pack: "",
               barcode: "",
+              itemCode: "",
+              rackNumber: "",
+              hsnCode: "",
+              purchasePrice: "",
+              lowStockQuantity: "5",
+              deliveryTime: "",
             });
             setVariations([]);
             setMainImageFile(null);
@@ -963,6 +1018,39 @@ export default function AdminAddProduct() {
       );
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleImageSearch = async () => {
+    if (!imageSearchQuery.trim()) {
+        setUploadError("Please enter a keyword to search");
+        return;
+    }
+    setIsSearchingImage(true);
+    setUploadError("");
+    try {
+        const res = await searchProductImage(imageSearchQuery);
+      if (res.success && res.data?.imageUrl) {
+          setSearchedImage(res.data.imageUrl);
+      } else {
+          setUploadError(res.message || "No image found for this keyword");
+      }
+    } catch (err: any) {
+        console.error(err);
+        setUploadError("Image search failed. Please try again.");
+    } finally {
+        setIsSearchingImage(false);
+    }
+};
+
+const applySearchedImage = () => {
+    if (searchedImage) {
+        setFormData(prev => ({ ...prev, mainImageUrl: searchedImage }));
+        setMainImagePreview(searchedImage);
+        setMainImageFile(null); // Clear file since using URL
+        setSearchedImage("");
+        setSuccessMessage("Image applied successfully!");
+        setTimeout(() => setSuccessMessage(""), 2000);
     }
   };
 
@@ -1180,7 +1268,58 @@ export default function AdminAddProduct() {
             </div>
           </div>
 
-          {/* SEO Content Section */}
+          {/* AI Image Search Section */}
+          <div className="bg-white rounded-lg shadow-sm border border-neutral-200">
+              <div className="bg-purple-600 text-white px-4 sm:px-6 py-3 rounded-t-lg flex justify-between items-center">
+                  <h2 className="text-lg font-semibold flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                    Live Image Search
+                  </h2>
+                  <span className="text-xs bg-white/20 px-2 py-0.5 rounded">AI Powered</span>
+              </div>
+              <div className="p-4 sm:p-6 space-y-4">
+                  <div className="flex gap-2">
+                       <input
+                          type="text"
+                          value={imageSearchQuery}
+                          onChange={(e) => setImageSearchQuery(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleImageSearch())}
+                          placeholder="e.g. Vaseline 200ml, Dove Soap"
+                          className="flex-1 px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                       />
+                       <button
+                          type="button"
+                          onClick={handleImageSearch}
+                          disabled={isSearchingImage}
+                          className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors disabled:opacity-70 flex items-center gap-2"
+                       >
+                           {isSearchingImage ? (
+                               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                           ) : (
+                               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                           )}
+                           Search
+                       </button>
+                  </div>
+
+                  {searchedImage && (
+                      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 flex flex-col sm:flex-row gap-4 items-center">
+                          <img src={searchedImage} alt="Analysis Result" className="w-24 h-24 object-cover rounded bg-white border border-gray-200" />
+                          <div className="flex-1 text-center sm:text-left">
+                              <h4 className="font-medium text-gray-800">Image Found</h4>
+                              <p className="text-sm text-gray-500">Web Search Result</p>
+                          </div>
+                          <button
+                              type="button"
+                              onClick={applySearchedImage}
+                              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
+                          >
+                              Use this Image
+                          </button>
+                      </div>
+                  )}
+              </div>
+          </div>
           <div className="bg-white rounded-xl shadow-sm border border-neutral-200">
             <div className="bg-teal-600 text-white px-6 py-4 rounded-t-xl">
               <h2 className="text-lg font-semibold tracking-wide">SEO Configuration</h2>
@@ -1295,7 +1434,7 @@ export default function AdminAddProduct() {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
-                      Offer Price
+                      Discount Price
                     </label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400">₹</span>
@@ -1320,6 +1459,23 @@ export default function AdminAddProduct() {
                       className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
                     />
                   </div>
+                  {fieldVisibility.online_offer_price && (
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
+                      Offer Price
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400">₹</span>
+                      <input
+                        type="number"
+                        value={variationForm.offerPrice}
+                        onChange={(e) => setVariationForm({ ...variationForm, offerPrice: e.target.value })}
+                        placeholder="Optional"
+                        className="w-full pl-7 pr-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                      />
+                    </div>
+                  </div>
+                  )}
                   <div>
                     <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
                       Secondary Offer (Optional)
@@ -1888,6 +2044,7 @@ export default function AdminAddProduct() {
           </div>
 
           {/* Shop by Store Section */}
+          {fieldVisibility.shop_by_store_only && (
           <div className="bg-white rounded-xl shadow-sm border border-neutral-200">
             <div className="bg-teal-600 text-white px-6 py-4 rounded-t-xl">
               <h2 className="text-lg font-semibold tracking-wide">Store Visibility</h2>
@@ -1910,6 +2067,7 @@ export default function AdminAddProduct() {
                     onChange={(val) => setFormData(prev => ({ ...prev, isShopByStoreOnly: val }))}
                   />
                 </div>
+                  {fieldVisibility.select_store && (
                   <div>
                     <label className="block text-sm font-semibold text-neutral-700 mb-2">
                       Select Store <span className="text-red-500">*</span>
@@ -1927,9 +2085,11 @@ export default function AdminAddProduct() {
                       </p>
                     )}
                   </div>
+                  )}
               </div>
             </div>
           </div>
+          )}
 
           {/* Submit Button */}
           <div className="flex justify-end pb-6">
