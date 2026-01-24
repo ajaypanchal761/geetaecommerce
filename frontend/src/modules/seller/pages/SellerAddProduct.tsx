@@ -1587,6 +1587,7 @@ export default function SellerAddProduct() {
 
 
           {/* Shop by Store Section */}
+          {shouldShowField('shop_by_store_only') && (
           <div className="bg-white rounded-xl shadow-sm border border-neutral-200">
             <div className="bg-teal-600 text-white px-6 py-4 rounded-t-xl">
               <h2 className="text-lg font-semibold tracking-wide">Store Visibility</h2>
@@ -1609,6 +1610,7 @@ export default function SellerAddProduct() {
                     onChange={(val) => setFormData(prev => ({ ...prev, isShopByStoreOnly: val }))}
                   />
                 </div>
+                  {shouldShowField('select_store') && (
                   <div>
                     <label className="block text-sm font-semibold text-neutral-700 mb-2">
                       Select Store <span className="text-red-500">*</span>
@@ -1626,9 +1628,11 @@ export default function SellerAddProduct() {
                       </p>
                     )}
                   </div>
+                  )}
               </div>
             </div>
           </div>
+          )}
 
           {/* Submit Button */}
           <div className="flex justify-end pb-6">

@@ -145,6 +145,17 @@ export interface IAppSettings extends Document {
       percentage: number;
   };
 
+  // Barcode Settings
+  barcodeSettings?: {
+      width: number;
+      height: number;
+      fontSize: number;
+      barcodeHeight: number;
+      productNameSize: number;
+      showPrice: boolean;
+      showName: boolean;
+  };
+
   // Updated By
   updatedBy?: mongoose.Types.ObjectId;
 
@@ -500,6 +511,17 @@ const AppSettingsSchema = new Schema<IAppSettings>(
         min: [0, "Discount percentage cannot be negative"],
         max: [100, "Discount percentage cannot exceed 100%"]
       }
+    },
+
+    // Barcode Settings
+    barcodeSettings: {
+        width: { type: Number, default: 38 },
+        height: { type: Number, default: 25 },
+        fontSize: { type: Number, default: 10 },
+        barcodeHeight: { type: Number, default: 40 },
+        productNameSize: { type: Number, default: 10 },
+        showPrice: { type: Boolean, default: true },
+        showName: { type: Boolean, default: true }
     },
 
     // Updated By

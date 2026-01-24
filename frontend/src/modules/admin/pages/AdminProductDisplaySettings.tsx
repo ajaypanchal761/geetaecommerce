@@ -129,6 +129,25 @@ const DEFAULT_SECTIONS: SettingSection[] = [
     ],
   },
   {
+    id: 'visibility',
+    title: 'Visibility & Stores',
+    description: 'Control where the product is visible.',
+    fields: [
+      {
+        id: 'shop_by_store_only',
+        label: 'Show in Shop by Store only?',
+        description: 'Restricts visibility to a specific store page',
+        isEnabled: true,
+      },
+      {
+        id: 'select_store',
+        label: 'Select Store dropdown',
+        description: 'Allow assigning product to a specific store',
+        isEnabled: true,
+      },
+    ],
+  },
+  {
       id: 'seo',
       title: 'SEO Settings',
       description: 'Search Engine Optimization',

@@ -114,6 +114,15 @@ export interface AppSettings {
     enabled: boolean;
     percentage: number;
   };
+  barcodeSettings?: {
+    width: number;
+    height: number;
+    fontSize: number;
+    barcodeHeight: number;
+    productNameSize: number;
+    showPrice: boolean;
+    showName: boolean;
+  };
   maintenanceMode: boolean;
   maintenanceMessage?: string;
   updatedBy?: string;
