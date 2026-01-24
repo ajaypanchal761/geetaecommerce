@@ -1317,11 +1317,7 @@ export const getPOSProducts = asyncHandler(
     }
 
     const products = await Product.find(query)
-<<<<<<< HEAD
       .select("productName mainImage price compareAtPrice wholesalePrice purchasePrice discPrice stock sku variations category barcode itemCode")
-=======
-      .select("productName mainImage price wholesalePrice compareAtPrice purchasePrice discPrice stock sku variations category barcode itemCode")
->>>>>>> 3033930b6f032a2eb2220566e6070ffac0907feb
       .populate("category", "name")
       .sort({ productName: 1 });
 

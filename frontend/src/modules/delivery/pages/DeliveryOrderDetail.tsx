@@ -660,14 +660,34 @@ export default function DeliveryOrderDetail() {
                         </span>
                     </div>
 
+                    {/* Free Gift Warning Banner */}
+                    {order.items?.some((i: any) => i.isFreeGift) && (
+                        <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-start gap-3">
+                            <span className="text-xl">🎁</span>
+                            <div>
+                                <p className="font-bold text-yellow-800 text-sm">Includes Free Gift</p>
+                                <p className="text-xs text-yellow-700">Please ensure the free gift is delivered.</p>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="space-y-3">
                         {order.items?.map((item: any, idx: number) => (
-                            <div key={idx} className="flex justify-between items-center py-2 border-b border-neutral-50 last:border-0">
+                            <div key={idx} className={`flex justify-between items-center py-2 border-b border-neutral-50 last:border-0 ${item.isFreeGift ? 'bg-green-50 p-2 rounded border border-green-100' : ''}`}>
                                 <div className="flex items-center gap-3">
-                                    <span className="w-6 h-6 rounded bg-neutral-100 flex items-center justify-center text-xs font-bold text-neutral-600">{item.quantity}x</span>
-                                    <span className="text-sm text-neutral-700 font-medium">{item.name}</span>
+                                    <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold ${item.isFreeGift ? 'bg-green-200 text-green-800' : 'bg-neutral-100 text-neutral-600'}`}>
+                                        {item.quantity}x
+                                    </span>
+                                    <div>
+                                        <span className={`text-sm font-medium ${item.isFreeGift ? 'text-green-900' : 'text-neutral-700'}`}>
+                                            {item.name || item.productName || item.product?.productName}
+                                        </span>
+                                        {item.isFreeGift && <span className="block text-[10px] text-green-600 font-bold uppercase tracking-wider">Free Gift</span>}
+                                    </div>
                                 </div>
-                                <span className="text-sm font-semibold text-neutral-900">₹{item.price * item.quantity}</span>
+                                <span className={`text-sm font-semibold ${item.isFreeGift ? 'text-green-700' : 'text-neutral-900'}`}>
+                                    {item.isFreeGift ? 'FREE' : `₹${item.price * item.quantity}`}
+                                </span>
                             </div>
                         ))}
                     </div>

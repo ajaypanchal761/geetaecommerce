@@ -1,0 +1,218 @@
+import React, { useState, useEffect } from 'react';
+import { getProducts, Product } from '../../../services/api/admin/adminProductService';
+import {
+  FreeGiftRule,
+  getFreeGiftRules,
+  addFreeGiftRule,
+  updateFreeGiftRule,
+  deleteFreeGiftRule
+} from '../../../services/freeGiftService';
+
+export default function AdminFreeGiftRules() {
+  const [rules, setRules] = useState<FreeGiftRule[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingRule, setEditingRule] = useState<FreeGiftRule | null>(null);
+
+  // Form State
+  const [minCartValue, setMinCartValue] = useState<number>(0);
+  const [selectedProductId, setSelectedProductId] = useState<string>('');
+  const [status, setStatus] = useState<'Active' | 'Inactive'>('Active');
+
+  // Data for Dropdown
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    loadRules();
+    loadProducts();
+  }, []);
+
+  const loadRules = () => {
+    setRules(getFreeGiftRules());
+  };
+
+  const loadProducts = async () => {
+    try {
+        const response = await getProducts({ limit: 1000, status: 'Active' });
+        if (response.success && response.data) {
+            setProducts(response.data);
+        }
+    } catch (error) {
+        console.error("Failed to load products for dropdown", error);
+    }
+  };
+
+  const handleOpenModal = (rule?: FreeGiftRule) => {
+    if (rule) {
+      setEditingRule(rule);
+      setMinCartValue(rule.minCartValue);
+      setSelectedProductId(rule.giftProductId);
+      setStatus(rule.status);
+    } else {
+      setEditingRule(null);
+      setMinCartValue(0);
+      setSelectedProductId('');
+      setStatus('Active');
+    }
+    setIsModalOpen(true);
+  };
+
+  const handleSave = () => {
+    if (!selectedProductId || minCartValue <= 0) {
+        alert("Please select a product and enter a valid minimum cart value.");
+        return;
+    }
+
+    const selectedProduct = products.find(p => p._id === selectedProductId);
+    if (!selectedProduct) {
+        alert("Invalid product selected.");
+        return;
+    }
+
+    const ruleData = {
+        minCartValue,
+        giftProductId: selectedProductId,
+        giftProduct: selectedProduct as any,
+        status
+    };
+
+    if (editingRule) {
+        updateFreeGiftRule({ ...editingRule, ...ruleData });
+    } else {
+        addFreeGiftRule(ruleData);
+    }
+
+    loadRules();
+    setIsModalOpen(false);
+  };
+
+  const handleDelete = (id: string) => {
+      if (confirm("Are you sure you want to delete this rule?")) {
+          deleteFreeGiftRule(id);
+          loadRules();
+      }
+  };
+
+  return (
+    <div className="p-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-gray-800">Free Gift Rules</h1>
+        <button
+          onClick={() => handleOpenModal()}
+          className="bg-teal-600 text-white px-4 py-2 rounded hover:bg-teal-700 transition flex items-center gap-2"
+        >
+          <span>+</span> Add New Rule
+        </button>
+      </div>
+
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <table className="w-full text-left border-collapse">
+          <thead className="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th className="px-6 py-4 text-xs font-semibold text-gray-600 uppercase">Min Cart Value</th>
+              <th className="px-6 py-4 text-xs font-semibold text-gray-600 uppercase">Gift Product</th>
+              <th className="px-6 py-4 text-xs font-semibold text-gray-600 uppercase">Status</th>
+              <th className="px-6 py-4 text-xs font-semibold text-gray-600 uppercase">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {rules.length === 0 ? (
+                <tr>
+                    <td colSpan={4} className="px-6 py-8 text-center text-gray-500">No rules found. Add one to get started.</td>
+                </tr>
+            ) : (
+                rules.map((rule) => (
+                    <tr key={rule.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 text-sm font-medium text-gray-900">₹{rule.minCartValue}</td>
+                        <td className="px-6 py-4 text-sm text-gray-700">
+                            <div className="flex items-center gap-3">
+                                {rule.giftProduct?.mainImage && (
+                                    <img src={rule.giftProduct.mainImage} alt="" className="w-10 h-10 object-cover rounded" />
+                                )}
+                                <span>{rule.giftProduct?.productName || 'Unknown Product'}</span>
+                            </div>
+                        </td>
+                        <td className="px-6 py-4">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${rule.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                                {rule.status}
+                            </span>
+                        </td>
+                        <td className="px-6 py-4 text-sm">
+                            <button onClick={() => handleOpenModal(rule)} className="text-blue-600 hover:text-blue-800 mr-3">Edit</button>
+                            <button onClick={() => handleDelete(rule.id)} className="text-red-600 hover:text-red-800">Delete</button>
+                        </td>
+                    </tr>
+                ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+                <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                    <h3 className="text-lg font-semibold">{editingRule ? 'Edit Rule' : 'Add Free Gift Rule'}</h3>
+                    <button onClick={() => setIsModalOpen(false)} className="text-gray-500 hover:text-gray-700">&times;</button>
+                </div>
+                <div className="p-6 space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Minimum Cart Value (₹)</label>
+                        <input
+                            type="number"
+                            className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                            value={minCartValue}
+                            onChange={(e) => setMinCartValue(parseFloat(e.target.value))}
+                            placeholder="e.g. 500"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Select Free Gift Product</label>
+                        <select
+                            className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                            value={selectedProductId}
+                            onChange={(e) => setSelectedProductId(e.target.value)}
+                        >
+                            <option value="">-- Select Product --</option>
+                            {products.map(p => (
+                                <option key={p._id} value={p._id}>{p.productName} (₹{p.price})</option>
+                            ))}
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">Product price will be treated as ₹0 automatically.</p>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                        <select
+                            className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                            value={status}
+                            onChange={(e) => setStatus(e.target.value as 'Active' | 'Inactive')}
+                        >
+                            <option value="Active">Active</option>
+                            <option value="Inactive">Inactive</option>
+                        </select>
+                        {status === 'Active' && (
+                            <p className="text-xs text-amber-600 mt-1">Note: Activating this rule will deactivate other rules.</p>
+                        )}
+                    </div>
+                </div>
+                <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end gap-3 rounded-b-lg">
+                    <button
+                        onClick={() => setIsModalOpen(false)}
+                        className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-100"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={handleSave}
+                        className="px-4 py-2 bg-teal-600 text-white rounded hover:bg-teal-700"
+                    >
+                        Save Rule
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+    </div>
+  );
+}

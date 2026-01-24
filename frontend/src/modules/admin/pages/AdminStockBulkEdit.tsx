@@ -285,6 +285,7 @@ export default function AdminStockBulkEdit({
 
   const [categorySearch, setCategorySearch] = useState("");
 
+  // Column Resizing Logic
   const filteredProducts = useMemo(() => {
      return editableProducts.filter(p => {
         const nameMatch = p.productName.toLowerCase().includes(searchTerm.toLowerCase());
@@ -296,6 +297,334 @@ export default function AdminStockBulkEdit({
         return nameMatch && catMatch;
      });
   }, [editableProducts, searchTerm, categorySearch, categories]);
+
+  // Column Resizing Logic
+
+  const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
+  const [activeMenuColumn, setActiveMenuColumn] = useState<string | null>(null);
+  const [columnOrder, setColumnOrder] = useState<string[]>([
+    "index", "image", "productName", "category", "subCategory", "subSubCategory",
+    "sku", "rackNumber", "description", "barcode", "hsnCode", "pack",
+    "size", "color", "attr", "tax", "gst", "purchasePrice", "compareAtPrice",
+    "price", "deliveryTime", "stock", "offerPrice", "wholesalePrice",
+    "lowStockQuantity", "brand", "valMrp", "valPur", "status"
+  ]);
+  const [draggedCol, setDraggedCol] = useState<string | null>(null);
+
+  const COLUMN_LABELS: Record<string, string> = {
+    index: "#",
+    image: "Image",
+    productName: "4. Product Name",
+    category: "1. Category",
+    subCategory: "2. Sub Cat",
+    subSubCategory: "3. Sub Sub Cat",
+    sku: "5. SKU",
+    rackNumber: "6. Rack",
+    description: "7. Desc",
+    barcode: "8. Barcode",
+    hsnCode: "9. HSN",
+    pack: "10. Unit",
+    size: "11. Size",
+    color: "12. Color",
+    attr: "13. Attr",
+    tax: "14. Tax Cat",
+    gst: "15. GST",
+    purchasePrice: "16. Pur. Price",
+    compareAtPrice: "17. MRP",
+    price: "18. Sell Price",
+    deliveryTime: "19. Del. Time",
+    stock: "20. Stock",
+    offerPrice: "21. Offer Price",
+    wholesalePrice: "22. Wholesale Price",
+    lowStockQuantity: "23. Low Stock",
+    brand: "24. Brand",
+    valMrp: "25. Val (MRP)",
+    valPur: "26. Val (Pur)",
+    status: "Status"
+  };
+
+  const handleHideColumn = (columnKey: string) => {
+    setHiddenColumns((prev) => [...prev, columnKey]);
+    setActiveMenuColumn(null);
+  };
+
+  const handleDragStart = (e: React.DragEvent, key: string) => {
+    setDraggedCol(key);
+    e.dataTransfer.effectAllowed = "move";
+    // Set a transparent drag image if desired, or let browser handle it
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDrop = (e: React.DragEvent, targetKey: string) => {
+    e.preventDefault();
+    if (!draggedCol || draggedCol === targetKey) return;
+
+    const newOrder = [...columnOrder];
+    const dragIndex = newOrder.indexOf(draggedCol);
+    const dropIndex = newOrder.indexOf(targetKey);
+
+    if (dragIndex > -1 && dropIndex > -1) {
+      newOrder.splice(dragIndex, 1);
+      newOrder.splice(dropIndex, 0, draggedCol);
+      setColumnOrder(newOrder);
+    }
+    setDraggedCol(null);
+  };
+
+  const renderHeader = (key: string) => {
+    if (hiddenColumns.includes(key)) return null;
+
+    let content: React.ReactNode = COLUMN_LABELS[key];
+    if (key === "category") {
+      content = (
+        <div className="flex flex-col gap-2 w-full">
+          <span>{COLUMN_LABELS[key]}</span>
+          <input
+            type="text"
+            placeholder="Search..."
+            className="w-full text-[11px] px-2 py-1 border border-gray-300 rounded font-normal focus:ring-1 focus:ring-teal-500 focus:outline-none"
+            value={categorySearch}
+            onChange={(e) => setCategorySearch(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()} // Prevent focus loss on drag start
+          />
+        </div>
+      );
+    }
+
+    return (
+      <th
+        key={key}
+        draggable
+        onDragStart={(e) => handleDragStart(e, key)}
+        onDragOver={handleDragOver}
+        onDrop={(e) => handleDrop(e, key)}
+        className={`p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 relative whitespace-nowrap group bg-neutral-100 align-top cursor-move transition-opacity ${draggedCol === key ? "opacity-50" : ""}`}
+        style={{ width: columnWidths[key] }}
+      >
+        <div className="flex items-start justify-between gap-1 w-full h-full">
+          <div className="flex-1 overflow-hidden text-center">{content}</div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveMenuColumn(activeMenuColumn === key ? null : key);
+            }}
+            className="p-1 hover:bg-gray-200 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        {activeMenuColumn === key && (
+          <div className="absolute right-0 top-8 bg-white shadow-lg border border-neutral-200 rounded z-50 w-32 py-1 cursor-default" onMouseDown={e => e.stopPropagation()}>
+            <button
+              className="w-full text-left px-3 py-2 hover:bg-gray-50 text-xs text-gray-700"
+              onClick={() => handleHideColumn(key)}
+            >
+              Hide column
+            </button>
+          </div>
+        )}
+        <ResizeHandle columnKey={key} />
+      </th>
+    );
+  };
+
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
+    index: 50,
+    image: 140,
+    productName: 200,
+    category: 150,
+    subCategory: 130,
+    subSubCategory: 130,
+    sku: 130,
+    rackNumber: 100,
+    description: 130,
+    barcode: 130,
+    hsnCode: 100,
+    pack: 100,
+    size: 80,
+    color: 80,
+    attr: 80,
+    tax: 80,
+    gst: 80,
+    purchasePrice: 100,
+    compareAtPrice: 100,
+    price: 100,
+    deliveryTime: 130,
+    stock: 100,
+    offerPrice: 100,
+    wholesalePrice: 120,
+    lowStockQuantity: 100,
+    brand: 100,
+    valMrp: 100,
+    valPur: 100,
+    status: 100,
+  });
+
+  const handleResizeStart = (e: React.MouseEvent, key: string) => {
+    e.preventDefault();
+    e.stopPropagation(); // Prevent sorting or other events
+    const startX = e.pageX;
+    const startWidth = columnWidths[key];
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const currentX = moveEvent.pageX;
+      const diff = currentX - startX;
+      setColumnWidths((prev) => ({
+        ...prev,
+        [key]: Math.max(50, startWidth + diff), // Enforce minimum width of 50px
+      }));
+    };
+
+    const onMouseUp = () => {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+      document.body.style.cursor = "default";
+    };
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+    document.body.style.cursor = "col-resize";
+  };
+
+  const ResizeHandle = ({ columnKey }: { columnKey: string }) => (
+    <div
+      className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-teal-500 z-20"
+      onMouseDown={(e) => handleResizeStart(e, columnKey)}
+      onClick={(e) => e.stopPropagation()}
+    />
+  );
+
+  const renderBodyCell = (key: string, product: EditableProduct, originalIndex: number, index: number) => {
+    if (hiddenColumns.includes(key)) return null;
+
+    switch (key) {
+      case "index":
+        return <td key={key} className="p-2 border-r border-neutral-200 text-center text-xs text-neutral-500">{index + 1}</td>;
+      case "image":
+        return (
+          <td key={key} className="p-1 border-r border-neutral-200 text-center align-middle">
+            <div className="flex flex-wrap justify-center items-center gap-2 p-1 min-w-[140px]">
+              {product.images.map((img, i) => (
+                <div key={img.id} className="relative group w-12 h-12 border border-gray-200 rounded overflow-hidden bg-white shrink-0">
+                  <img src={img.url} alt={`Img-${i}`} className="w-full h-full object-cover" />
+                  <button onClick={() => handleRemoveImage(originalIndex, img.id)} className="absolute top-0 right-0 bg-red-600 text-white w-4 h-4 flex items-center justify-center rounded-bl opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700 z-10" title="Remove">
+                    <span className="text-[10px] font-bold leading-none">&times;</span>
+                  </button>
+                  {i === 0 && <span className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[8px] py-[1px]">Main</span>}
+                </div>
+              ))}
+              <label htmlFor={`file-input-${originalIndex}`} className="w-10 h-10 border border-dashed border-gray-400 rounded flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 text-gray-500 hover:text-teal-600 transition-colors shrink-0" title="Add Images">
+                <span className="text-xl leading-none font-light">+</span>
+                <input id={`file-input-${originalIndex}`} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { handleImageChange(originalIndex, e.target.files); e.target.value = ""; }} />
+              </label>
+            </div>
+          </td>
+        );
+      case "productName":
+        return <td key={key} className="p-0 border-r border-neutral-200"><input type="text" className="w-full h-full px-3 py-2 bg-transparent border-none focus:ring-2 focus:ring-teal-500 focus:bg-white text-sm" value={product.productName} onChange={(e) => handleFieldChange(originalIndex, "productName", e.target.value)} /></td>;
+      case "category":
+        return (
+          <td key={key} className="p-0 border-r border-neutral-200">
+            <select className="w-full h-full px-3 py-2 bg-transparent border-none focus:ring-2 focus:ring-teal-500 focus:bg-white text-sm cursor-pointer" value={product.categoryId} onChange={(e) => handleFieldChange(originalIndex, "categoryId", e.target.value)}>
+              <option value="">Category</option>
+              {categories.map((cat) => <option key={cat._id} value={cat._id}>{cat.name}</option>)}
+            </select>
+          </td>
+        );
+      case "subCategory":
+        return (
+          <td key={key} className="p-0 border-r border-neutral-200">
+            <select className="w-full h-full px-2 py-2 bg-transparent border-none text-sm cursor-pointer" value={product.subCategoryId || ""} onChange={(e) => handleFieldChange(originalIndex, 'subCategoryId', e.target.value)}>
+              <option value="">-</option>
+              {subCategories.filter(sub => { const subCatObj = sub.category; const subCatId = (typeof subCatObj === 'string') ? subCatObj : subCatObj._id; return !product.categoryId || subCatId === product.categoryId; }).map(sub => <option key={sub._id} value={sub._id}>{sub.name}</option>)}
+            </select>
+          </td>
+        );
+      case "subSubCategory":
+        return <td key={key} className="p-0 border-r border-neutral-200"><input type="text" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm" value={product.subSubCategory} onChange={(e) => handleFieldChange(originalIndex, 'subSubCategory', e.target.value)} /></td>;
+      case "sku":
+        return <td key={key} className="p-0 border-r border-neutral-200"><input type="text" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm" value={product.itemCode} onChange={(e) => handleFieldChange(originalIndex, 'itemCode', e.target.value)} /></td>;
+      case "rackNumber":
+        return <td key={key} className="p-0 border-r border-neutral-200"><input type="text" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm" value={product.rackNumber} onChange={(e) => handleFieldChange(originalIndex, 'rackNumber', e.target.value)} /></td>;
+      case "description":
+        return <td key={key} className="p-0 border-r border-neutral-200"><input type="text" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm" value={product.description} onChange={(e) => handleFieldChange(originalIndex, 'description', e.target.value)} /></td>;
+      case "barcode":
+        return <td key={key} className="p-0 border-r border-neutral-200"><input type="text" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm" value={product.barcode} onChange={(e) => handleFieldChange(originalIndex, 'barcode', e.target.value)} /></td>;
+      case "hsnCode":
+        return <td key={key} className="p-0 border-r border-neutral-200"><input type="text" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm" value={product.hsnCode} onChange={(e) => handleFieldChange(originalIndex, 'hsnCode', e.target.value)} /></td>;
+      case "pack":
+        return <td key={key} className="p-0 border-r border-neutral-200"><input type="text" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm" value={product.pack} onChange={(e) => handleFieldChange(originalIndex, 'pack', e.target.value)} /></td>;
+      case "size":
+        return <td key={key} className="p-2 border-r border-neutral-200 text-sm text-neutral-600">-</td>;
+      case "color":
+        return <td key={key} className="p-2 border-r border-neutral-200 text-sm text-neutral-600">-</td>;
+      case "attr":
+        return <td key={key} className="p-2 border-r border-neutral-200 text-sm text-neutral-600">-</td>;
+      case "tax":
+        return <td key={key} className="p-0 border-r border-neutral-200"><input type="text" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm" value={product.tax} onChange={(e) => handleFieldChange(originalIndex, 'tax', e.target.value)} /></td>;
+      case "gst":
+        return <td key={key} className="p-2 border-r border-neutral-200 text-sm text-neutral-600">-</td>;
+      case "purchasePrice":
+        return <td key={key} className="p-0 border-r border-neutral-200"><input type="number" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm text-right" value={product.purchasePrice} onChange={(e) => handleFieldChange(originalIndex, 'purchasePrice', parseFloat(e.target.value))} /></td>;
+      case "compareAtPrice":
+        return <td key={key} className="p-0 border-r border-neutral-200"><input type="number" className="w-full h-full px-3 py-2 bg-transparent border-none focus:ring-2 focus:ring-teal-500 focus:bg-white text-sm text-right" value={product.compareAtPrice} onChange={(e) => handleFieldChange(originalIndex, "compareAtPrice", parseFloat(e.target.value) || 0)} /></td>;
+      case "price":
+        return <td key={key} className="p-0 border-r border-neutral-200"><input type="number" className="w-full h-full px-3 py-2 bg-transparent border-none focus:ring-2 focus:ring-teal-500 focus:bg-white text-sm text-right font-medium" value={product.price} onChange={(e) => handleFieldChange(originalIndex, "price", parseFloat(e.target.value) || 0)} /></td>;
+      case "deliveryTime":
+        return <td key={key} className="p-0 border-r border-neutral-200"><input type="text" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm" value={product.deliveryTime} onChange={(e) => handleFieldChange(originalIndex, 'deliveryTime', e.target.value)} /></td>;
+      case "stock":
+        return <td key={key} className="p-0 border-r border-neutral-200"><input type="number" className="w-full h-full px-3 py-2 bg-transparent border-none focus:ring-2 focus:ring-teal-500 focus:bg-white text-sm text-right" value={product.stock} onChange={(e) => handleFieldChange(originalIndex, "stock", parseInt(e.target.value) || 0)} /></td>;
+      case "offerPrice":
+        return <td key={key} className="p-0 border-r border-neutral-200"><input type="number" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm text-right" value={product.offerPrice} onChange={(e) => handleFieldChange(originalIndex, 'offerPrice', parseFloat(e.target.value) || 0)} /></td>;
+      case "wholesalePrice":
+        return <td key={key} className="p-0 border-r border-neutral-200"><input type="number" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm text-right" value={product.wholesalePrice} onChange={(e) => handleFieldChange(originalIndex, 'wholesalePrice', parseFloat(e.target.value) || 0)} /></td>;
+      case "lowStockQuantity":
+        return <td key={key} className="p-0 border-r border-neutral-200"><input type="number" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm text-right" value={product.lowStockQuantity} onChange={(e) => handleFieldChange(originalIndex, 'lowStockQuantity', parseInt(e.target.value))} /></td>;
+      case "brand":
+        return (
+          <td key={key} className="p-0 border-r border-neutral-200">
+            <select className="w-full h-full px-2 py-2 bg-transparent border-none text-sm cursor-pointer" value={product.brandId || ""} onChange={(e) => handleFieldChange(originalIndex, 'brandId', e.target.value)}>
+              <option value="">-Select Brand-</option>
+              {brands.map(brand => <option key={brand._id} value={brand._id}>{brand.name}</option>)}
+            </select>
+          </td>
+        );
+      case "valMrp":
+        return <td key={key} className="p-2 border-r border-neutral-200 text-sm text-neutral-600 text-right">{(product.compareAtPrice * product.stock).toLocaleString()}</td>;
+      case "valPur":
+        return <td key={key} className="p-2 border-r border-neutral-200 text-sm text-neutral-600 text-right">{(product.purchasePrice * product.stock).toLocaleString()}</td>;
+      case "status":
+        return (
+          <td key={key} className="p-2 text-center">
+            <label className="inline-flex items-center cursor-pointer">
+              <input type="checkbox" checked={product.publish} onChange={(e) => handleFieldChange(originalIndex, "publish", e.target.checked)} className="sr-only peer" />
+              <div className="relative w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-teal-300 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-teal-600"></div>
+              <span className="ms-2 text-xs font-medium text-gray-900">{product.publish ? "Active" : "Inactive"}</span>
+            </label>
+          </td>
+        );
+      default:
+        return <td key={key} className="p-2"></td>;
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -334,297 +663,24 @@ export default function AdminStockBulkEdit({
 
         {/* Content (Spreadsheet) */}
         <div className="flex-1 overflow-auto p-0">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse table-fixed">
             <thead className="bg-neutral-100 sticky top-0 z-10 shadow-sm">
               <tr>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-12 text-center">
-                  #
-                </th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 min-w-[140px] text-center">
-                  Image
-                </th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 min-w-[200px] whitespace-nowrap">4. Product Name</th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 min-w-[150px] whitespace-nowrap align-top">
-                  <div className="flex flex-col gap-2">
-                    <span>1. Category</span>
-                    <input
-                      type="text"
-                      placeholder="Search..."
-                      className="w-full text-[11px] px-2 py-1 border border-gray-300 rounded font-normal focus:ring-1 focus:ring-teal-500 focus:outline-none"
-                      value={categorySearch}
-                      onChange={(e) => setCategorySearch(e.target.value)}
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  </div>
-                </th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-32 whitespace-nowrap">2. Sub Cat</th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-32 whitespace-nowrap">3. Sub Sub Cat</th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-32 whitespace-nowrap">5. SKU</th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">6. Rack</th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-32 whitespace-nowrap">7. Desc</th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-32 whitespace-nowrap">8. Barcode</th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">9. HSN</th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">10. Unit</th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">11. Size</th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">12. Color</th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">13. Attr</th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">14. Tax Cat</th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">15. GST</th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">16. Pur. Price</th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">17. MRP</th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">18. Sell Price</th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-32 whitespace-nowrap">19. Del. Time</th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">20. Stock</th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">21. Offer Price</th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">22. Wholesale Price</th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">23. Low Stock</th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">24. Brand</th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">25. Val (MRP)</th>
-                <th className="p-3 border-b border-r border-neutral-300 text-xs font-bold text-neutral-700 w-24 whitespace-nowrap">26. Val (Pur)</th>
-                <th className="p-3 border-b border-neutral-300 text-xs font-bold text-neutral-700 w-32 text-center whitespace-nowrap">Status</th>
+                {columnOrder.map((key) => renderHeader(key))}
               </tr>
             </thead>
             <tbody>
               {filteredProducts.map((product, index) => {
-                 // Find original index in editableProducts to update correctly if we didn't use id-based update
-                 // Actually we can map back or just pass the id.
-                 // Better: update editableProducts based on id.
-                 const originalIndex = editableProducts.findIndex(p => p.id === product.id);
-
+                const originalIndex = editableProducts.findIndex(p => p.id === product.id);
                 return (
-                <tr
-                  key={product.id}
-                  className={`border-b border-neutral-200 hover:bg-neutral-50 ${
-                    product.isChanged ? "bg-yellow-50" : ""
-                  }`}
-                >
-                  <td className="p-2 border-r border-neutral-200 text-center text-xs text-neutral-500">
-                    {index + 1}
-                  </td>
-                  {/* Image (Modified) */}
-                  <td className="p-1 border-r border-neutral-200 text-center align-middle">
-                      <div className="flex flex-wrap justify-center items-center gap-2 p-1 min-w-[140px]">
-                          {product.images.map((img, i) => (
-                             <div key={img.id} className="relative group w-12 h-12 border border-gray-200 rounded overflow-hidden bg-white shrink-0">
-                                <img src={img.url} alt={`Img-${i}`} className="w-full h-full object-cover" />
-                                <button
-                                    onClick={() => handleRemoveImage(originalIndex, img.id)}
-                                    className="absolute top-0 right-0 bg-red-600 text-white w-4 h-4 flex items-center justify-center rounded-bl opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700 z-10"
-                                    title="Remove"
-                                >
-                                    <span className="text-[10px] font-bold leading-none">&times;</span>
-                                </button>
-                                {i === 0 && <span className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[8px] py-[1px]">Main</span>}
-                             </div>
-                          ))}
-
-                          {/* Add Button */}
-                          <label htmlFor={`file-input-${originalIndex}`} className="w-10 h-10 border border-dashed border-gray-400 rounded flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 text-gray-500 hover:text-teal-600 transition-colors shrink-0" title="Add Images">
-                              <span className="text-xl leading-none font-light">+</span>
-                              <input
-                                id={`file-input-${originalIndex}`}
-                                type="file"
-                                accept="image/*"
-                                multiple
-                                className="hidden"
-                                onChange={(e) => {
-                                    handleImageChange(originalIndex, e.target.files);
-                                    e.target.value = "";
-                                }}
-                              />
-                          </label>
-                      </div>
-                  </td>
-                  {/* 4. Product Name */}
-                  <td className="p-0 border-r border-neutral-200">
-                    <input
-                      type="text"
-                      className="w-full h-full px-3 py-2 bg-transparent border-none focus:ring-2 focus:ring-teal-500 focus:bg-white text-sm"
-                      value={product.productName}
-                      onChange={(e) =>
-                        handleFieldChange(originalIndex, "productName", e.target.value)
-                      }
-                    />
-                  </td>
-                  {/* 1. Category */}
-                  <td className="p-0 border-r border-neutral-200">
-                    <select
-                      className="w-full h-full px-3 py-2 bg-transparent border-none focus:ring-2 focus:ring-teal-500 focus:bg-white text-sm cursor-pointer"
-                      value={product.categoryId}
-                      onChange={(e) =>
-                        handleFieldChange(originalIndex, "categoryId", e.target.value)
-                      }
-                    >
-                      <option value="">Category</option>
-                      {categories.map((cat) => (
-                        <option key={cat._id} value={cat._id}>
-                          {cat.name}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  {/* 2. Sub Cat */}
-                  <td className="p-0 border-r border-neutral-200">
-                    <select
-                      className="w-full h-full px-2 py-2 bg-transparent border-none text-sm cursor-pointer"
-                      value={product.subCategoryId || ""}
-                      onChange={(e) => handleFieldChange(originalIndex, 'subCategoryId', e.target.value)}
-                    >
-                        <option value="">-</option>
-                        {subCategories
-                            .filter(sub => {
-                                // Filter based on selected category if possible
-                                const subCatObj = sub.category;
-                                const subCatId = (typeof subCatObj === 'string') ? subCatObj : subCatObj._id;
-                                return !product.categoryId || subCatId === product.categoryId;
-                            })
-                            .map(sub => (
-                                <option key={sub._id} value={sub._id}>{sub.name}</option>
-                            ))
-                        }
-                    </select>
-                  </td>
-                  {/* 3. Sub Sub Cat */}
-                   <td className="p-0 border-r border-neutral-200">
-                      <input type="text" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm" value={product.subSubCategory} onChange={(e) => handleFieldChange(originalIndex, 'subSubCategory', e.target.value)} />
-                   </td>
-                  {/* 5. SKU */}
-                  <td className="p-0 border-r border-neutral-200">
-                     <input type="text" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm" value={product.itemCode} onChange={(e) => handleFieldChange(originalIndex, 'itemCode', e.target.value)} />
-                  </td>
-                  {/* 6. Rack */}
-                  <td className="p-0 border-r border-neutral-200">
-                     <input type="text" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm" value={product.rackNumber} onChange={(e) => handleFieldChange(originalIndex, 'rackNumber', e.target.value)} />
-                  </td>
-                  {/* 7. Desc */}
-                   <td className="p-0 border-r border-neutral-200">
-                     <input type="text" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm" value={product.description} onChange={(e) => handleFieldChange(originalIndex, 'description', e.target.value)} />
-                  </td>
-                   {/* 8. Barcode */}
-                   <td className="p-0 border-r border-neutral-200">
-                     <input type="text" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm" value={product.barcode} onChange={(e) => handleFieldChange(originalIndex, 'barcode', e.target.value)} />
-                  </td>
-                   {/* 9. HSN */}
-                   <td className="p-0 border-r border-neutral-200">
-                     <input type="text" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm" value={product.hsnCode} onChange={(e) => handleFieldChange(originalIndex, 'hsnCode', e.target.value)} />
-                  </td>
-                   {/* 10. Unit */}
-                   <td className="p-0 border-r border-neutral-200">
-                     <input type="text" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm" value={product.pack} onChange={(e) => handleFieldChange(originalIndex, 'pack', e.target.value)} />
-                  </td>
-                   {/* 11. Size (Read-only placeholder) */}
-                   <td className="p-2 border-r border-neutral-200 text-sm text-neutral-600">-</td>
-                   {/* 12. Color (Read-only placeholder) */}
-                   <td className="p-2 border-r border-neutral-200 text-sm text-neutral-600">-</td>
-                   {/* 13. Attr (Read-only placeholder) */}
-                   <td className="p-2 border-r border-neutral-200 text-sm text-neutral-600">-</td>
-                   {/* 14. Tax Cat */}
-                   <td className="p-0 border-r border-neutral-200">
-                      <input type="text" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm" value={product.tax} onChange={(e) => handleFieldChange(originalIndex, 'tax', e.target.value)} />
-                   </td>
-                   {/* 15. GST (Read-only placeholder) */}
-                   <td className="p-2 border-r border-neutral-200 text-sm text-neutral-600">-</td>
-                  {/* 16. Purchase Price */}
-                    <td className="p-0 border-r border-neutral-200">
-                     <input type="number" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm text-right" value={product.purchasePrice} onChange={(e) => handleFieldChange(originalIndex, 'purchasePrice', parseFloat(e.target.value))} />
-                  </td>
-                  {/* 17. MRP */}
-                  <td className="p-0 border-r border-neutral-200">
-                    <input
-                      type="number"
-                      className="w-full h-full px-3 py-2 bg-transparent border-none focus:ring-2 focus:ring-teal-500 focus:bg-white text-sm text-right"
-                      value={product.compareAtPrice}
-                      onChange={(e) =>
-                        handleFieldChange(
-                          originalIndex,
-                          "compareAtPrice",
-                          parseFloat(e.target.value) || 0
-                        )
-                      }
-                    />
-                  </td>
-                  {/* 18. Selling Price */}
-                  <td className="p-0 border-r border-neutral-200">
-                    <input
-                      type="number"
-                      className="w-full h-full px-3 py-2 bg-transparent border-none focus:ring-2 focus:ring-teal-500 focus:bg-white text-sm text-right font-medium"
-                      value={product.price}
-                      onChange={(e) =>
-                        handleFieldChange(
-                          originalIndex,
-                          "price",
-                          parseFloat(e.target.value) || 0
-                        )
-                      }
-                    />
-                  </td>
-                  {/* 19. Delivery Time */}
-                   <td className="p-0 border-r border-neutral-200">
-                     <input type="text" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm" value={product.deliveryTime} onChange={(e) => handleFieldChange(originalIndex, 'deliveryTime', e.target.value)} />
-                  </td>
-                  {/* 20. Stock */}
-                  <td className="p-0 border-r border-neutral-200">
-                    <input
-                      type="number"
-                      className="w-full h-full px-3 py-2 bg-transparent border-none focus:ring-2 focus:ring-teal-500 focus:bg-white text-sm text-right"
-                      value={product.stock}
-                      onChange={(e) =>
-                        handleFieldChange(
-                          originalIndex,
-                          "stock",
-                          parseInt(e.target.value) || 0
-                        )
-                      }
-                    />
-                  </td>
-                   {/* 21. Offer Price */}
-                   <td className="p-0 border-r border-neutral-200">
-                     <input type="number" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm text-right" value={product.offerPrice} onChange={(e) => handleFieldChange(originalIndex, 'offerPrice', parseFloat(e.target.value) || 0)} />
-                   </td>
-                   {/* 22. Wholesale Price */}
-                   <td className="p-0 border-r border-neutral-200">
-                     <input type="number" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm text-right" value={product.wholesalePrice} onChange={(e) => handleFieldChange(originalIndex, 'wholesalePrice', parseFloat(e.target.value) || 0)} />
-                   </td>
-                   {/* 22. Low Stock */}
-                    <td className="p-0 border-r border-neutral-200">
-                     <input type="number" className="w-full h-full px-2 py-2 bg-transparent border-none text-sm text-right" value={product.lowStockQuantity} onChange={(e) => handleFieldChange(originalIndex, 'lowStockQuantity', parseInt(e.target.value))} />
-                  </td>
-                   {/* 23. Brand */}
-                   <td className="p-0 border-r border-neutral-200">
-                       <select
-                          className="w-full h-full px-2 py-2 bg-transparent border-none text-sm cursor-pointer"
-                          value={product.brandId || ""}
-                          onChange={(e) => handleFieldChange(originalIndex, 'brandId', e.target.value)}
-                        >
-                            <option value="">-Select Brand-</option>
-                            {brands.map(brand => (
-                                <option key={brand._id} value={brand._id}>{brand.name}</option>
-                            ))}
-                        </select>
-                   </td>
-                   {/* 24. Val (MRP) (Calculated/Read-only) */}
-                   <td className="p-2 border-r border-neutral-200 text-sm text-neutral-600 text-right">{(product.compareAtPrice * product.stock).toLocaleString()}</td>
-                   {/* 25. Val (Pur) (Calculated/Read-only) */}
-                   <td className="p-2 border-r border-neutral-200 text-sm text-neutral-600 text-right">{(product.purchasePrice * product.stock).toLocaleString()}</td>
-                  <td className="p-2 text-center">
-                    <label className="inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={product.publish}
-                        onChange={(e) =>
-                          handleFieldChange(originalIndex, "publish", e.target.checked)
-                        }
-                        className="sr-only peer"
-                      />
-                      <div className="relative w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-teal-300 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-teal-600"></div>
-                      <span className="ms-2 text-xs font-medium text-gray-900">
-                        {product.publish ? "Active" : "Inactive"}
-                      </span>
-                    </label>
-                  </td>
-                </tr>
-              );
-            })}
+                  <tr
+                    key={product.id}
+                    className={`border-b border-neutral-200 hover:bg-neutral-50 ${product.isChanged ? "bg-yellow-50" : ""}`}
+                  >
+                    {columnOrder.map((key) => renderBodyCell(key, product, originalIndex, index))}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           {filteredProducts.length === 0 && (

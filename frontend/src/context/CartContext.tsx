@@ -11,6 +11,7 @@ import {
   clearCart as apiClearCart
 } from '../services/api/customerCartService';
 import { calculateProductPrice } from '../utils/priceUtils';
+import { getActiveFreeGiftRules } from '../services/freeGiftService';
 
 const CART_STORAGE_KEY = 'saved_cart';
 
@@ -34,6 +35,7 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 // Extended interface to include Cart Item ID
 interface ExtendedCartItem extends CartItem {
   id?: string;
+  isFreeGift?: boolean;
 }
 
 export function CartProvider({ children }: { children: ReactNode }) {
@@ -121,10 +123,82 @@ export function CartProvider({ children }: { children: ReactNode }) {
     // }
   }, [isAuthenticated, user?.userType, location?.latitude, location?.longitude]);
 
+  // Free Gift Logic (Multiple Gifts Support)
+  useEffect(() => {
+    const activeRules = getActiveFreeGiftRules(); // Returns sorted by min value
+
+    // Calculate total of PAID items
+    const validItems = items.filter(item => item?.product);
+    const paidItems = validItems.filter(i => !i.isFreeGift);
+    const currentTotal = paidItems.reduce((sum, item) => {
+       const { displayPrice } = calculateProductPrice(item.product, item.variant);
+       return sum + displayPrice * (item.quantity || 0);
+    }, 0);
+
+    let newItems = [...items];
+    let hasChanges = false;
+
+    // 1. Remove gifts that are no longer valid (either rule inactive OR not met)
+    const validGiftIds = new Set<string>(); // Product IDs of gifts we SHOULD have
+
+    activeRules.forEach(rule => {
+        if (currentTotal >= rule.minCartValue) {
+            validGiftIds.add(rule.giftProductId);
+        }
+    });
+
+    // Filter out gifts that shouldn't be there
+    const itemsAfterRemoval = newItems.filter(item => {
+        if (item.isFreeGift) {
+            const productId = item.product.id || item.product._id || '';
+            // Keep if it's in our valid set
+            return validGiftIds.has(productId);
+        }
+        return true;
+    });
+
+    if (itemsAfterRemoval.length !== newItems.length) {
+        newItems = itemsAfterRemoval;
+        hasChanges = true;
+    }
+
+    // 2. Add gifts that are missing
+    activeRules.forEach(rule => {
+        if (currentTotal >= rule.minCartValue) {
+            const giftProductId = rule.giftProductId;
+            const giftProduct = rule.giftProduct;
+
+            // Check if already present
+            const exists = newItems.some(i => i.isFreeGift && (i.product.id === giftProductId || i.product._id === giftProductId));
+
+            if (!exists && giftProduct) {
+                const giftItem: ExtendedCartItem = {
+                    id: `free-${giftProductId}-${Date.now()}-${Math.random()}`,
+                    product: {
+                        ...giftProduct,
+                        price: 0,
+                        discPrice: 0,
+                        mrp: giftProduct.mrp || 0,
+                    } as any,
+                    quantity: 1,
+                    isFreeGift: true
+                };
+                newItems.push(giftItem);
+                hasChanges = true;
+            }
+        }
+    });
+
+    if (hasChanges) {
+        setItems(newItems);
+    }
+  }, [items.map(i => `${i.product.id}-${i.quantity}-${i.isFreeGift}`).join(',')]); // Depend on structure, avoid infinite loop on object ref
+
   const cart: Cart = useMemo(() => {
     // Filter out any items with null products before computing totals
     const validItems = items.filter(item => item?.product);
     const total = validItems.reduce((sum, item) => {
+      if (item.isFreeGift) return sum;
       const { displayPrice } = calculateProductPrice(item.product, item.variant);
       return sum + displayPrice * (item.quantity || 0);
     }, 0);

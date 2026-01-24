@@ -23,6 +23,7 @@ import { initiateOnlineOrder, verifyOnlinePayment } from '../../services/api/cus
 // const STORAGE_KEY = 'saved_address'; // Removed
 
 // Similar products helper removed - using API
+import { getActiveFreeGiftRules, getActiveFreeGiftRule } from '../../services/freeGiftService';
 
 
 export default function Checkout() {
@@ -188,6 +189,7 @@ export default function Checkout() {
     items: displayItems,
     itemCount: displayItems.reduce((sum, item) => sum + (item.quantity || 0), 0),
     total: displayItems.reduce((sum, item) => {
+      if (item.isFreeGift) return sum;
       const { displayPrice } = calculateProductPrice(item.product, item.variant);
       return sum + displayPrice * (item.quantity || 0);
     }, 0)
@@ -197,7 +199,7 @@ export default function Checkout() {
   const cartItem = displayItems[0];
 
   const itemsTotal = displayItems.reduce((sum, item) => {
-    if (!item?.product) return sum;
+    if (!item?.product || item.isFreeGift) return sum;
     const { mrp } = calculateProductPrice(item.product, item.variant);
     return sum + (mrp * (item.quantity || 0));
   }, 0);
@@ -351,11 +353,22 @@ export default function Checkout() {
     setIsProcessingPayment(true);
     try {
         const orderData = {
-            items: cart.items.map(item => ({
-                product: { id: item.product.id || item.product._id },
-                quantity: item.quantity,
-                variant: item.variant // Assuming backend handles this structure
-            })),
+            items: cart.items.map(item => {
+                const activeRule = getActiveFreeGiftRule();
+                const isFreeGiftItem = item.isFreeGift;
+
+                // Get the most reliable ID
+                const productId = item.product.id || item.product._id;
+
+                return {
+                    product: { id: productId },
+                    quantity: item.quantity,
+                    variant: item.variant, // Assuming backend handles this structure
+                    isFreeGift: isFreeGiftItem || false,
+                    price: isFreeGiftItem ? 0 : undefined, // Explicitly send 0 if free gift
+                    freeGiftReason: isFreeGiftItem && activeRule ? `Cart value ≥ ₹${activeRule.minCartValue}` : undefined
+                };
+            }),
             address: addressWithLocation,
             fees: {
                 platformFee: handlingCharge,
@@ -456,7 +469,16 @@ export default function Checkout() {
 
     const order: Order = {
       id: orderId,
-      items: cart.items,
+      items: cart.items.map(item => {
+          const activeRule = getActiveFreeGiftRule();
+          const isFreeGiftItem = item.isFreeGift;
+          return {
+              ...item,
+              isFreeGift: isFreeGiftItem || false,
+              price: isFreeGiftItem ? 0 : item.price,
+              freeGiftReason: isFreeGiftItem && activeRule ? `Cart value ≥ ₹${activeRule.minCartValue}` : undefined
+          };
+      }),
       totalItems: cart.itemCount,
       subtotal: discountedTotal,
       fees: {
@@ -744,14 +766,97 @@ export default function Checkout() {
             <span className="text-xs font-semibold text-neutral-900">Delivery in {config.estimatedDeliveryTime}</span>
           </div>
 
+
+        {/* Free Gift Progress Bar (Multi-Tier Checkout) */}
+        {(() => {
+             const activeRules = getActiveFreeGiftRules();
+             if (activeRules.length === 0) return null;
+
+             const currentTotal = displayCart.total;
+             const highestRule = activeRules[activeRules.length - 1];
+             const maxTarget = highestRule.minCartValue;
+             const nextRule = activeRules.find(r => r.minCartValue > currentTotal);
+
+             return (
+               <div className="mb-3 p-3 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                    <div className="flex justify-between items-center mb-4">
+                        <span className="text-xs font-semibold text-gray-800">
+                            {nextRule ? `Unlock: ${nextRule.giftProduct?.productName || 'Gift'}` : "🎉 All Gifts Unlocked!"}
+                        </span>
+                        {nextRule && (
+                             <span className="text-[10px] text-gray-500">
+                                Add <span className="font-bold text-teal-700">₹{nextRule.minCartValue - currentTotal}</span> more
+                             </span>
+                        )}
+                    </div>
+
+                    {/* Milestone Bar */}
+                    <div className="relative h-12 mb-1">
+                         {/* Background Line */}
+                         <div className="absolute top-1/2 left-0 right-0 h-1 bg-gray-200 rounded-full -translate-y-1/2 z-0"></div>
+
+                         {/* Progress Line */}
+                         <div
+                            className="absolute top-1/2 left-0 h-1 bg-gradient-to-r from-teal-400 to-green-500 rounded-full -translate-y-1/2 z-0 transition-all duration-300"
+                            style={{ width: `${Math.min(100, (currentTotal / maxTarget) * 100)}%` }}
+                         ></div>
+
+                         {/* Milestones */}
+                         {activeRules.map((rule) => {
+                             const isUnlocked = currentTotal >= rule.minCartValue;
+                             const position = (rule.minCartValue / maxTarget) * 100;
+
+                             return (
+                                 <div
+                                    key={rule.id}
+                                    className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center z-10"
+                                    style={{ left: `${position}%`, transform: `translate(-${position === 100 ? '100' : '50'}%, -50%)` }}
+                                 >
+                                     {/* Icon Circle */}
+                                     <div className={`w-6 h-6 rounded-full border flex items-center justify-center bg-white transition-all duration-300 ${isUnlocked ? 'border-green-500 text-green-500 shadow-sm' : 'border-gray-300 text-gray-300'}`}>
+                                         {isUnlocked ? (
+                                             <span className="text-[10px] font-bold">✓</span>
+                                         ) : (
+                                             <span className="text-[8px]">🎁</span>
+                                         )}
+                                     </div>
+
+                                     {/* Label */}
+                                     {/* Only show label if it's the next target or last one to avoid clutter */}
+                                     <div className="absolute top-7 w-16 text-center">
+                                         <span className={`text-[8px] font-bold block ${isUnlocked ? 'text-green-600' : 'text-gray-400'}`}>
+                                             ₹{rule.minCartValue}
+                                         </span>
+                                     </div>
+                                 </div>
+                             );
+                         })}
+                    </div>
+                    {/* Next Gift Preview */}
+                    {nextRule && (
+                        <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100">
+                            {nextRule.giftProduct?.mainImage && (
+                                <img src={nextRule.giftProduct.mainImage} alt="" className="w-6 h-6 object-cover rounded border border-white shadow-sm" />
+                            )}
+                            <span className="text-[10px] text-gray-600">
+                                Get free <b>{nextRule.giftProduct?.productName}</b> at ₹{nextRule.minCartValue}
+                            </span>
+                        </div>
+                    )}
+               </div>
+             );
+        })()}
+
           <p className="text-[10px] text-neutral-600 mb-2.5">Shipment of {displayCart.itemCount || 0} {(displayCart.itemCount || 0) === 1 ? 'item' : 'items'}</p>
 
           {/* Cart Items */}
           <div className="space-y-2.5">
-            {displayItems.filter(item => item.product).map((item, index) => (
+            {displayItems.filter(item => item.product).map((item, index) => {
+              const isFreeGift = item.isFreeGift;
+              return (
               <div key={`${item.product?.id || 'product'}-${item.variant || ''}-${index}`} className="flex gap-2">
                 {/* Product Image */}
-                <div className="w-12 h-12 bg-neutral-100 rounded-lg flex-shrink-0 overflow-hidden">
+                <div className="w-12 h-12 bg-neutral-100 rounded-lg flex-shrink-0 overflow-hidden relative">
                   {item.product?.imageUrl ? (
                     <img
                       src={item.product?.imageUrl}
@@ -763,14 +868,22 @@ export default function Checkout() {
                       {(item.product?.name || '').charAt(0)}
                     </div>
                   )}
+                  {isFreeGift && (
+                      <div className="absolute top-0 left-0 right-0 bg-green-500 text-white text-[8px] text-center font-bold">
+                          FREE
+                      </div>
+                  )}
                 </div>
 
                 {/* Product Info */}
                 <div className="flex-1 min-w-0">
                   <h3 className="text-xs font-semibold text-neutral-900 mb-0.5 line-clamp-2">
                     {item.product?.name}
+                    {isFreeGift && <span className="ml-1 text-green-600 font-bold">(Free Gift)</span>}
                   </h3>
                   <p className="text-[10px] text-neutral-600 mb-0.5">{item.quantity} × {item.product?.pack}</p>
+
+                  {!isFreeGift && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -780,9 +893,15 @@ export default function Checkout() {
                   >
                     Move to wishlist
                   </button>
+                  )}
 
                   {/* Quantity Selector */}
                   <div className="flex items-center justify-between mt-1.5">
+                    {isFreeGift ? (
+                        <div className="text-xs text-green-600 font-bold bg-green-50 px-2 py-1 rounded">
+                            Standard Qty: 1
+                        </div>
+                    ) : (
                     <div className="flex items-center gap-1.5 bg-white border-2 border-green-600 rounded-full px-1.5 py-0.5">
                       <button
                         type="button"
@@ -799,7 +918,7 @@ export default function Checkout() {
                       </span>
                       <button
                         type="button"
-                         onClick={(e) => {
+                        onClick={(e) => {
                           e.stopPropagation();
                           updateQuantity(item.product?.id, item.quantity + 1, item.variant);
                         }}
@@ -808,28 +927,25 @@ export default function Checkout() {
                         +
                       </button>
                     </div>
+                    )}
 
-                    {/* Price */}
-                      {(() => {
-                        const { displayPrice, mrp, hasDiscount } = calculateProductPrice(item.product, item.variant);
-                        return (
-                          <div className="flex items-center gap-1.5">
-                            {hasDiscount && (
-                              <span className="text-[10px] text-neutral-500 line-through">
-                                ₹{(mrp * item.quantity).toLocaleString()}
-                              </span>
-                            )}
-                            <span className="text-sm font-bold text-neutral-900">
-                              ₹{(displayPrice * item.quantity).toLocaleString()}
-                            </span>
-                          </div>
-                        );
-                      })()}
+                    <div className="flex flex-col items-end">
+                      {isFreeGift ? (
+                          <span className="text-xs font-bold text-neutral-900">₹0</span>
+                      ) : (
+                          <span className="text-xs font-bold text-neutral-900">
+                            ₹{(calculateProductPrice(item.product, item.variant).displayPrice * item.quantity).toFixed(0)}
+                          </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
-            ))}
+            );
+            })}
           </div>
+
+
         </div>
       </div>
 
@@ -1098,8 +1214,8 @@ export default function Checkout() {
                 </svg>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-green-700 truncate">{selectedCoupon.code}</p>
-                <p className="text-[10px] text-green-600 truncate">{selectedCoupon.title}</p>
+                <p className="text-xs font-semibold text-green-700 truncate">{selectedCoupon?.code}</p>
+                <p className="text-[10px] text-green-600 truncate">{selectedCoupon?.title}</p>
               </div>
             </div>
             <button

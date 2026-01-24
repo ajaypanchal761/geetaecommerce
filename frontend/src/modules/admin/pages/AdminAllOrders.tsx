@@ -760,8 +760,13 @@ export default function AdminAllOrders() {
                 ) : (
                   paginatedOrders.map((order) => (
                     <tr key={order._id} className="hover:bg-neutral-50">
-                      <td className="px-4 sm:px-6 py-3 text-sm text-neutral-900">
+                      <td className="px-4 sm:px-6 py-3 text-sm text-neutral-900 flex items-center gap-2">
                         {order.orderNumber}
+                        {order.items?.some((i: any) => i.isFreeGift) && (
+                            <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800" title="Includes Free Gift">
+                                🎁
+                            </span>
+                        )}
                       </td>
                       <td className="px-4 sm:px-6 py-3 text-sm text-neutral-600">
                         {order.customerName ||

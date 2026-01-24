@@ -19,6 +19,9 @@ export interface CreateOrderData {
         };
         quantity: number;
         variant?: string;
+        isFreeGift?: boolean;
+        price?: number;
+        freeGiftReason?: string;
     }[];
     address: {
         addressLine?: string;

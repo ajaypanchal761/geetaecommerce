@@ -115,6 +115,9 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
           },
           quantity: item.quantity,
           variant: item.variant, // Pass variant if available
+          isFreeGift: (item as any).isFreeGift,
+          price: (item as any).price,
+          freeGiftReason: (item as any).freeGiftReason
         })),
         fees: {
           deliveryFee: order.fees?.deliveryFee || 0,

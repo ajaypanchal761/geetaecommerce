@@ -3,10 +3,12 @@ import { useCart } from '../../context/CartContext';
 import Button from '../../components/ui/button';
 import { appConfig } from '../../services/configService';
 import { calculateProductPrice } from '../../utils/priceUtils';
+import { getActiveFreeGiftRules } from '../../services/freeGiftService';
 
 export default function Cart() {
   const { cart, updateQuantity, removeFromCart, clearCart } = useCart();
   const navigate = useNavigate();
+
 
   const deliveryFee = cart.total >= appConfig.freeDeliveryThreshold ? 0 : appConfig.deliveryFee;
   const platformFee = appConfig.platformFee;
@@ -36,7 +38,7 @@ export default function Cart() {
       {/* Header */}
       <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 bg-white border-b border-neutral-200 mb-4 md:mb-6 sticky top-0 z-10">
         <div className="flex items-center justify-between mb-2">
-          <h1 className="text-xl md:text-2xl font-bold text-neutral-900">Your Basket</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-neutral-900">Your Basket 🛍️</h1>
           {cart.items.length > 0 && (
             <button
               onClick={clearCart}
@@ -47,12 +49,86 @@ export default function Cart() {
           )}
         </div>
         <p className="text-xs md:text-sm text-neutral-600">Delivered in {appConfig.estimatedDeliveryTime}</p>
+
+        {/* Free Gift Progress Bar (Multi-Tier) */}
+        {(() => {
+            const activeRules = getActiveFreeGiftRules();
+            if (activeRules.length === 0) return null;
+
+            const currentTotal = cart.total;
+            const highestRule = activeRules[activeRules.length - 1];
+            const maxTarget = highestRule.minCartValue;
+
+            // Find next milestone
+            const nextRule = activeRules.find(r => r.minCartValue > currentTotal);
+
+            return (
+              <div className="mt-4 pt-4 border-t border-dashed border-gray-200">
+                 {nextRule ? (
+                     <div className="text-center mb-4 text-sm text-gray-700">
+                         Add <span className="font-bold text-teal-700">₹{(nextRule.minCartValue - currentTotal).toLocaleString('en-IN')}</span> more to unlock <span className="font-bold">{nextRule.giftProduct?.productName || 'Gift'}</span> 🎁
+                     </div>
+                 ) : (
+                     <div className="text-green-600 font-medium text-center mb-4 flex items-center justify-center gap-2">
+                         <span className="text-lg">🎉</span> All Free Gifts Unlocked!
+                     </div>
+                 )}
+
+                 {/* Milestone Bar Container */}
+                 <div className="relative h-12 mb-2 px-2">
+                     {/* Background Line */}
+                     <div className="absolute top-1/2 left-0 right-0 h-1.5 bg-gray-100 rounded-full -translate-y-1/2 z-0"></div>
+
+                     {/* Progress Line */}
+                     <div
+                        className="absolute top-1/2 left-0 h-1.5 bg-gradient-to-r from-teal-400 to-green-500 rounded-full -translate-y-1/2 z-0 transition-all duration-700 ease-out"
+                        style={{ width: `${Math.min(100, (currentTotal / maxTarget) * 100)}%` }}
+                     ></div>
+
+                     {/* Milestones */}
+                     {activeRules.map((rule, idx) => {
+                         const isUnlocked = currentTotal >= rule.minCartValue;
+                         const position = (rule.minCartValue / maxTarget) * 100;
+
+                         return (
+                             <div
+                                key={rule.id}
+                                className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center group z-10"
+                                style={{ left: `${position}%`, transform: `translate(-${position === 100 ? '100' : '50'}%, -50%)` }}
+                             >
+                                 {/* Icon Circle */}
+                                 <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center bg-white transition-all duration-300 ${isUnlocked ? 'border-green-500 text-green-500 shadow-md scale-110' : 'border-gray-300 text-gray-300'}`}>
+                                     {isUnlocked ? (
+                                         <span className="text-sm font-bold">✓</span>
+                                     ) : (
+                                         <span className="text-[10px]">🎁</span>
+                                     )}
+                                 </div>
+
+                                 {/* Label */}
+                                 <div className="absolute top-9 w-24 text-center">
+                                     <span className={`text-[10px] font-bold block ${isUnlocked ? 'text-green-600' : 'text-gray-400'}`}>
+                                         {isUnlocked ? 'Unlocked' : `₹${rule.minCartValue}`}
+                                     </span>
+                                     <span className="text-[9px] text-gray-500 leading-tight block truncate mx-auto max-w-full">
+                                         {rule.giftProduct?.productName?.split(' ')[0]}...
+                                     </span>
+                                 </div>
+                             </div>
+                         );
+                     })}
+                 </div>
+              </div>
+            );
+        })()}
       </div>
 
       {/* Cart Items */}
       <div className="px-4 md:px-6 lg:px-8 space-y-4 md:space-y-6 mb-4 md:mb-6">
         {cart.items.map((item) => {
           const { displayPrice, mrp, hasDiscount } = calculateProductPrice(item.product, item.variant);
+          const isFreeGift = item.isFreeGift;
+
           return (
             <div
               key={item.product.id}
@@ -92,6 +168,13 @@ export default function Cart() {
                   </div>
 
                   {/* Quantity Controls */}
+                  {isFreeGift ? (
+                      <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-green-600 bg-green-50 px-3 py-1 rounded-full border border-green-100">
+                              Qty: 1 (Free Gift) 🎁
+                          </span>
+                      </div>
+                  ) : (
                   <div className="flex items-center gap-3 md:gap-4">
                     <Button
                       variant="outline"
@@ -118,9 +201,11 @@ export default function Cart() {
                       </div>
                     </div>
                   </div>
+                  )}
                 </div>
 
                 {/* Remove Button */}
+                {!isFreeGift && (
                 <button
                   onClick={() => removeFromCart(item.product.id)}
                   className="text-neutral-400 hover:text-red-600 transition-colors self-start"
@@ -128,6 +213,12 @@ export default function Cart() {
                 >
                   ✕
                 </button>
+                )}
+                {isFreeGift && (
+                    <div className="self-start text-green-500" title="Cannot remove free gift">
+                        🔒
+                    </div>
+                )}
               </div>
             </div>
           );

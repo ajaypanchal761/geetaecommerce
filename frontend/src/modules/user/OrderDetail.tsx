@@ -1152,7 +1152,9 @@ export default function OrderDetail() {
                   Order #{order.id.split("-").slice(-1)[0]}
                 </p>
                 <div className="mt-2 space-y-1">
-                  {order.items?.map((item: any, index: number) => (
+                  {order.items?.map((item: any, index: number) => {
+                    const isFree = (item.total === 0 && item.quantity > 0) || item.unitPrice === 0 || item.price === 0;
+                    return (
                     <div
                       key={index}
                       className="flex items-center gap-2 text-sm text-gray-600">
@@ -1162,9 +1164,11 @@ export default function OrderDetail() {
                       <span>
                         {item.quantity} x{" "}
                         {item.product?.name || item.productName || "Product"}
+                        {isFree && <span className="text-green-600 font-bold ml-1 text-xs">(Free Gift)</span>}
                       </span>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
               <ChevronRightIcon className="w-5 h-5 text-gray-400" />
@@ -1536,7 +1540,9 @@ export default function OrderDetail() {
                 Order Items
               </h2>
               <div className="space-y-4">
-                {order?.items?.map((item: any, index: number) => (
+                {order?.items?.map((item: any, index: number) => {
+                   const isFree = (item.total === 0 && item.quantity > 0) || item.unitPrice === 0 || item.price === 0;
+                   return (
                   <div
                     key={index}
                     className="flex gap-3 border-b border-gray-200 pb-4 last:border-0">
@@ -1556,6 +1562,7 @@ export default function OrderDetail() {
                     <div className="flex-1">
                       <p className="font-medium text-gray-900">
                         {item.product?.name || item.productName}
+                        {isFree && <span className="text-green-600 font-bold ml-2 text-xs bg-green-50 px-2 py-0.5 rounded">Free Gift</span>}
                       </p>
                       <p className="text-sm text-gray-500">
                         Qty: {item.quantity}
@@ -1564,13 +1571,16 @@ export default function OrderDetail() {
                         <p className="text-xs text-gray-500">{item.variant}</p>
                       )}
                       <p className="text-sm font-semibold text-gray-900 mt-1">
-                        ₹
-                        {item.total?.toFixed(0) ||
-                          (item.unitPrice * item.quantity).toFixed(0)}
+                        {isFree ? (
+                            <span className="text-green-600">Free</span>
+                        ) : (
+                            <>₹{item.total?.toFixed(0) || (item.unitPrice * item.quantity).toFixed(0)}</>
+                        )}
                       </p>
                     </div>
                   </div>
-                ))}
+                   );
+                })}
               </div>
               <Button
                 className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white"

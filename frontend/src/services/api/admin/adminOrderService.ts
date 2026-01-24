@@ -16,6 +16,8 @@ export interface OrderItem {
   total: number;
   variation?: string;
   status: "Pending" | "Shipped" | "Delivered" | "Cancelled" | "Returned";
+  isFreeGift?: boolean;
+  freeGiftReason?: string;
 }
 
 export interface DeliveryAddress {

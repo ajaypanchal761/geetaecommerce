@@ -190,7 +190,7 @@ export default function AdminOrderDetail() {
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((item: any, index: number) => {
+                  {items.filter((item: any) => !item.isFreeGift).map((item: any, index: number) => {
                     const product = typeof item.product === 'object' ? item.product : null;
                     const seller = typeof item.seller === 'object' ? item.seller : null;
                     return (
@@ -216,6 +216,33 @@ export default function AdminOrderDetail() {
                 </tbody>
               </table>
             </div>
+
+            {/* Free Gift Section */}
+            {items.some((item: any) => item.isFreeGift) && (
+                <div className="mt-6 bg-green-50 border border-green-200 rounded-lg overflow-hidden">
+                    <div className="bg-green-100 px-4 py-2 border-b border-green-200 flex items-center gap-2">
+                        <span className="text-lg">🎁</span>
+                        <h3 className="font-bold text-green-800">Free Gift Applied</h3>
+                    </div>
+                    <div className="p-4">
+                        {items.filter((item: any) => item.isFreeGift).map((item: any, index: number) => (
+                            <div key={index} className="flex justify-between items-start border-b border-green-100 last:border-0 pb-3 last:pb-0 mb-3 last:mb-0">
+                                <div>
+                                    <p className="font-bold text-green-900">{item.productName || item.product?.productName || 'Free Gift'}</p>
+                                    <p className="text-sm text-green-700">Qty: {item.quantity}</p>
+                                    {item.freeGiftReason && (
+                                        <p className="text-xs text-green-600 mt-1 italic">Reason: {item.freeGiftReason}</p>
+                                    )}
+                                </div>
+                                <div className="text-right">
+                                    <p className="font-bold text-green-900">₹0</p>
+                                    <span className="inline-block px-2 py-0.5 bg-green-200 text-green-800 text-[10px] rounded uppercase font-bold mt-1">Free</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
           </div>
 
           {/* Delivery Address */}

@@ -4,6 +4,8 @@ export interface CartItem {
   product: Product;
   quantity: number;
   variant?: any;
+  isFreeGift?: boolean;
+  id?: string; // Add id as it's used in context and makes life easier
 }
 
 export interface Cart {
