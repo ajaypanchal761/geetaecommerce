@@ -7,7 +7,8 @@ import { OrderStatus } from "../../types/order";
 import GoogleMapsTracking from "../../components/GoogleMapsTracking";
 import { useDeliveryTracking } from "../../hooks/useDeliveryTracking";
 import DeliveryPartnerCard from "../../components/DeliveryPartnerCard";
-import { cancelOrder, updateOrderNotes, getSellerLocationsForOrder, refreshDeliveryOtp } from "../../services/api/customerOrderService";
+import { cancelOrder, updateOrderNotes, getSellerLocationsForOrder, refreshDeliveryOtp, requestReturnOrReplace } from "../../services/api/customerOrderService";
+import { uploadImage } from "../../services/api/uploadService";
 
 // Icon Components
 const ArrowLeftIcon = ({ className }: { className?: string }) => (
@@ -481,6 +482,7 @@ export default function OrderDetail() {
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [showReplaceModal, setShowReplaceModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState("");
+  const [selectedOrderItemId, setSelectedOrderItemId] = useState("");
   const [selectedQuantity, setSelectedQuantity] = useState(1);
   const [returnReason, setReturnReason] = useState("Damaged");
   const [replaceReason, setReplaceReason] = useState("Damaged");
@@ -696,52 +698,78 @@ export default function OrderDetail() {
     }
   };
 
-  const handleReturnSubmit = () => {
-    // Save to localStorage so Admin can see it
-    const newRequest = {
-      id: `RET-${Math.floor(Math.random() * 1000)}`,
-      orderId: order?.orderId || id,
-      user: order?.address?.name || "Current User",
-      product: selectedProduct || "Unknown Product",
-      quantity: 1,
-      reason: returnReason,
-      comment: requestComment,
-      status: "Pending",
-      date: new Date().toISOString().split('T')[0],
-    };
+  const handleReturnSubmit = async () => {
+    if (!selectedOrderItemId) {
+      alert("Please select a product");
+      return;
+    }
 
-    const existingRequests = JSON.parse(localStorage.getItem("geeta_return_requests") || "[]");
-    localStorage.setItem("geeta_return_requests", JSON.stringify([newRequest, ...existingRequests]));
+    try {
+      setLoading(true);
+      const data = {
+        orderId: id!,
+        orderItemId: selectedOrderItemId,
+        requestType: "Return" as const,
+        reason: returnReason,
+        description: requestComment,
+        quantity: selectedQuantity
+      };
 
-    setReturnRequestStatus("Pending");
-    setShowReturnModal(false);
-    alert("Return request submitted successfully. Admin will review it.");
+      const response = await requestReturnOrReplace(data);
+      if (response.success) {
+        setReturnRequestStatus("Pending");
+        setShowReturnModal(false);
+        alert("Return request submitted successfully. Admin will review it.");
+        handleRefresh();
+      }
+    } catch (error: any) {
+      console.error("Return request failed:", error);
+      alert(error.message || "Failed to submit return request");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleReplaceSubmit = () => {
-    if (!replaceImage && showReplaceModal) {
+  const handleReplaceSubmit = async () => {
+    if (!selectedOrderItemId) {
+      alert("Please select a product");
+      return;
+    }
+
+    if (!replaceImage) {
       alert("Please upload an image for replacement request");
       return;
     }
 
-    // Save to localStorage so Admin can see it
-    const newRequest = {
-      id: `REP-${Math.floor(Math.random() * 1000)}`,
-      orderId: order?.orderId || id,
-      product: selectedProduct || "Unknown Product",
-      image: replaceImage ? URL.createObjectURL(replaceImage) : "https://via.placeholder.com/50", // Simplify for demo
-      reason: replaceReason,
-      comment: requestComment,
-      status: "Pending",
-      date: new Date().toISOString().split('T')[0],
-    };
+    try {
+      setLoading(true);
 
-    const existingRequests = JSON.parse(localStorage.getItem("geeta_replace_requests") || "[]");
-    localStorage.setItem("geeta_replace_requests", JSON.stringify([newRequest, ...existingRequests]));
+      // Upload image first
+      const uploadResult = await uploadImage(replaceImage, "returns");
 
-    setReplaceRequestStatus("Pending");
-    setShowReplaceModal(false);
-    alert("Replacement request submitted successfully. Admin will review it.");
+      const data = {
+        orderId: id!,
+        orderItemId: selectedOrderItemId,
+        requestType: "Replacement" as const,
+        reason: replaceReason,
+        description: requestComment,
+        images: [uploadResult.url],
+        quantity: selectedQuantity
+      };
+
+      const response = await requestReturnOrReplace(data);
+      if (response.success) {
+        setReplaceRequestStatus("Pending");
+        setShowReplaceModal(false);
+        alert("Replacement request submitted successfully. Admin will review it.");
+        handleRefresh();
+      }
+    } catch (error: any) {
+      console.error("Replacement request failed:", error);
+      alert(error.message || "Failed to submit replacement request");
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (loading && !order) {
@@ -1242,24 +1270,26 @@ export default function OrderDetail() {
         </motion.div>
 
         {/* Return/Replace Buttons */}
-        <motion.div
-            className="flex gap-3 mt-4"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.9 }}>
-            <Button
-            onClick={() => setShowReturnModal(true)}
-            className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 border-2 border-transparent"
-            >
-                Request Return
-            </Button>
-            <Button
-            onClick={() => setShowReplaceModal(true)}
-            className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 border-2 border-transparent"
-            >
-                Request Replacement
-            </Button>
-        </motion.div>
+        {order?.status === "Delivered" && (
+          <motion.div
+              className="flex gap-3 mt-4"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.9 }}>
+              <Button
+              onClick={() => setShowReturnModal(true)}
+              className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 border-2 border-transparent"
+              >
+                  Request Return
+              </Button>
+              <Button
+              onClick={() => setShowReplaceModal(true)}
+              className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 border-2 border-transparent"
+              >
+                  Request Replacement
+              </Button>
+          </motion.div>
+        )}
 
         {/* Status Display */}
         {(returnRequestStatus || replaceRequestStatus) && (
@@ -1304,15 +1334,33 @@ export default function OrderDetail() {
                  <label className="block text-sm font-medium text-gray-700 mb-1">Select Product</label>
                  <select
                     className="w-full border rounded-lg p-2"
-                    value={selectedProduct}
-                    onChange={(e) => setSelectedProduct(e.target.value)}
+                    value={selectedOrderItemId}
+                    onChange={(e) => {
+                      setSelectedOrderItemId(e.target.value);
+                      const item = order?.items?.find((it: any) => it._id === e.target.value);
+                      if (item) setSelectedQuantity(item.quantity);
+                    }}
                  >
                      <option value="">Select a product...</option>
-                     {order?.items?.map((item: any, i:number) => (
-                         <option key={i} value={item.product?.name || item.productName}>{item.product?.name || item.productName} (Qty: {item.quantity})</option>
+                     {order?.items?.map((item: any) => (
+                         <option key={item._id} value={item._id}>{item.product?.name || item.productName} (Qty: {item.quantity})</option>
                      ))}
                  </select>
                </div>
+
+               {selectedOrderItemId && (
+                 <div className="mb-4">
+                   <label className="block text-sm font-medium text-gray-700 mb-1">Quantity to Return</label>
+                   <input
+                     type="number"
+                     min="1"
+                     max={order?.items?.find((it: any) => it._id === selectedOrderItemId)?.quantity || 1}
+                     className="w-full border rounded-lg p-2"
+                     value={selectedQuantity}
+                     onChange={(e) => setSelectedQuantity(parseInt(e.target.value))}
+                   />
+                 </div>
+               )}
 
                 <div className="mb-4">
                  <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
@@ -1371,15 +1419,33 @@ export default function OrderDetail() {
                  <label className="block text-sm font-medium text-gray-700 mb-1">Select Product</label>
                  <select
                     className="w-full border rounded-lg p-2"
-                    value={selectedProduct}
-                    onChange={(e) => setSelectedProduct(e.target.value)}
+                    value={selectedOrderItemId}
+                    onChange={(e) => {
+                      setSelectedOrderItemId(e.target.value);
+                      const item = order?.items?.find((it: any) => it._id === e.target.value);
+                      if (item) setSelectedQuantity(item.quantity);
+                    }}
                  >
                      <option value="">Select a product...</option>
-                     {order?.items?.map((item: any, i:number) => (
-                         <option key={i} value={item.product?.name || item.productName}>{item.product?.name || item.productName} (Qty: {item.quantity})</option>
+                     {order?.items?.map((item: any) => (
+                         <option key={item._id} value={item._id}>{item.product?.name || item.productName} (Qty: {item.quantity})</option>
                      ))}
                  </select>
                </div>
+
+               {selectedOrderItemId && (
+                 <div className="mb-4">
+                   <label className="block text-sm font-medium text-gray-700 mb-1">Quantity to Replace</label>
+                   <input
+                     type="number"
+                     min="1"
+                     max={order?.items?.find((it: any) => it._id === selectedOrderItemId)?.quantity || 1}
+                     className="w-full border rounded-lg p-2"
+                     value={selectedQuantity}
+                     onChange={(e) => setSelectedQuantity(parseInt(e.target.value))}
+                   />
+                 </div>
+               )}
 
                 <div className="mb-4">
                  <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>

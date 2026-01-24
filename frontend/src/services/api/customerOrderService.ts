@@ -122,3 +122,19 @@ export const verifyOnlinePayment = async (data: { orderId: string; paymentId: st
     const response = await api.post<OrderResponse>('/customer/orders/verify-payment', data);
     return response.data;
 };
+
+/**
+ * Request Return or Replacement
+ */
+export const requestReturnOrReplace = async (data: {
+    orderId: string;
+    orderItemId: string;
+    requestType: "Return" | "Replacement";
+    reason: string;
+    description?: string;
+    images?: string[];
+    quantity?: number;
+}): Promise<OrderResponse> => {
+    const response = await api.post<OrderResponse>('/customer/orders/return-replace', data);
+    return response.data;
+};

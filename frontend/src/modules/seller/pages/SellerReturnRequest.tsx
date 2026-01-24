@@ -86,6 +86,13 @@ export default function SellerReturnRequest() {
         setToDate('');
     };
 
+    // EARLY RETURN TO HIDE PAGE CONTENT
+    return (
+        <div className="flex items-center justify-center min-h-[400px]">
+            <p className="text-neutral-500 text-lg font-medium">Return request feature is currently disabled.</p>
+        </div>
+    );
+
     return (
         <div className="flex flex-col h-full min-h-screen bg-neutral-50">
             {/* Top Navigation/Header */}

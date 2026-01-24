@@ -105,6 +105,215 @@ export default function SellerAddProduct() {
   const [scanTarget, setScanTarget] = useState<"product" | "variation">("product");
   const scannerRef = React.useRef<Html5Qrcode | null>(null);
 
+  // Print Barcode State
+  const [printQuantity, setPrintQuantity] = useState("1");
+  const [selectedPrintBarcode, setSelectedPrintBarcode] = useState("");
+  const [barcodeSettings, setBarcodeSettings] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+        try {
+            const response = await getAppSettings();
+            if (response.success) {
+                // Barcode Settings
+                if (response.data?.barcodeSettings) {
+                    setBarcodeSettings(response.data.barcodeSettings);
+                }
+            }
+        } catch (error) {
+            console.error("Failed to fetch app settings", error);
+        }
+    };
+    fetchSettings();
+  }, []);
+
+  const handlePrintBarcode = (barcodeVal: string, qty: number, name?: string, sp?: number, mrp?: number) => {
+    if(!barcodeVal) return;
+
+    // Use dynamic settings if available, else fallback to defaults/localStorage
+    const savedCustom = localStorage.getItem('barcode_printer_settings');
+    const savedSize = localStorage.getItem('barcode_print_size') || 'medium';
+
+    let customSettings = barcodeSettings; // Prefer DB settings
+    let containerWidth = 250;
+    let barcodeHeight = 55;
+    let fontSize = 14;
+    let productNameSize = 14;
+    let showName = true;
+    let showPrice = true;
+    let isCustom = false;
+
+    if (customSettings) {
+        isCustom = true;
+        barcodeHeight = customSettings.barcodeHeight;
+        fontSize = customSettings.fontSize;
+        productNameSize = customSettings.productNameSize;
+        showName = customSettings.showName ?? true;
+        showPrice = customSettings.showPrice ?? true;
+    } else if (savedCustom) {
+        try {
+            customSettings = JSON.parse(savedCustom);
+            isCustom = true;
+            barcodeHeight = customSettings.barcodeHeight;
+            fontSize = customSettings.fontSize;
+            productNameSize = customSettings.productNameSize;
+            showName = customSettings.showName ?? true;
+            showPrice = customSettings.showPrice ?? true;
+        } catch (e) { console.error(e); }
+    }
+
+    if (!isCustom) {
+        if (savedSize === 'small') {
+            containerWidth = 200;
+            barcodeHeight = 40;
+            fontSize = 12;
+            productNameSize = 12;
+        } else if (savedSize === 'large') {
+            containerWidth = 320;
+            barcodeHeight = 75;
+            fontSize = 16;
+            productNameSize = 16;
+        }
+    }
+
+    const printWindow = window.open('', '_blank');
+    if(!printWindow) {
+        alert("Please allow popups to print barcodes");
+        return;
+    }
+
+    let styleContent = '';
+    if (isCustom && customSettings) {
+        styleContent = `
+            @page {
+              size: ${customSettings.width}mm ${customSettings.height}mm;
+              margin: 0;
+            }
+            body {
+                margin: 0;
+                padding: 0;
+                width: ${customSettings.width}mm;
+            }
+            .barcode-container {
+                width: ${customSettings.width}mm;
+                height: ${customSettings.height}mm;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+                overflow: hidden;
+                page-break-after: always;
+                box-sizing: border-box;
+                padding: 2px;
+            }
+        `;
+    } else {
+        styleContent = `
+            body { font-family: 'Inter', sans-serif; padding: 20px; }
+            .barcode-grid { display: flex; flex-wrap: wrap; gap: 20px; justify-content: flex-start; }
+            .barcode-container {
+                text-align: center;
+                border: 1px solid #ccc;
+                padding: 10px;
+                page-break-inside: avoid;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                width: ${containerWidth}px;
+                height: auto;
+                background: white;
+                box-sizing: border-box;
+                border-radius: 8px;
+            }
+            @media print {
+              @page { margin: 0.5cm; }
+              body { padding: 0; }
+              .barcode-container { break-inside: avoid; border: 1px solid #ccc; }
+            }
+        `;
+    }
+
+    const htmlContent = `
+      <html>
+        <head>
+          <title>Print Barcodes</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+            body { font-family: 'Inter', sans-serif; }
+            ${styleContent}
+            .product-name {
+                font-size: ${productNameSize}px;
+                font-weight: 600;
+                margin-bottom: 2px;
+                color: #000;
+                line-height: 1.1;
+                text-transform: capitalize;
+                max-width: 100%;
+                word-wrap: break-word;
+                display: ${showName ? 'block' : 'none'};
+            }
+            .price-row {
+                display: ${showPrice ? 'flex' : 'none'};
+                gap: 10px;
+                margin-top: 2px;
+                font-size: ${fontSize}px;
+                font-weight: 700;
+                color: #000;
+                justify-content: center;
+            }
+            .price-item {
+                display: flex;
+                align-items: center;
+            }
+            svg.barcode {
+                width: 100%;
+                height: ${barcodeHeight}px;
+                max-width: 100%;
+                display: block;
+            }
+          </style>
+          <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+        </head>
+        <body>
+          <div class="${isCustom ? '' : 'barcode-grid'}">
+          ${Array(qty).fill(0).map(() => `
+            <div class="barcode-container">
+              <div class="product-name">${name || ''}</div>
+              <svg class="barcode"
+                jsbarcode-format="CODE128"
+                jsbarcode-value="${barcodeVal}"
+                jsbarcode-width="2"
+                jsbarcode-height="${barcodeHeight}"
+                jsbarcode-textmargin="0"
+                jsbarcode-fontoptions="bold"
+                jsbarcode-displayValue="true"
+                jsbarcode-fontSize="${fontSize}"
+                jsbarcode-marginBottom="2"
+                jsbarcode-marginTop="2">
+              </svg>
+              <div class="price-row">
+                  ${mrp ? `<div class="price-item">MRP:${mrp}</div>` : ''}
+                  ${sp ? `<div class="price-item">SP:${sp}</div>` : ''}
+              </div>
+            </div>
+          `).join('')}
+          </div>
+          <script>
+            JsBarcode(".barcode").init();
+            // Auto print after a short delay
+            setTimeout(() => {
+                window.print();
+            }, 800);
+          </script>
+        </body>
+      </html>
+    `;
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
+
   // Image Search State
   const [imageSearchQuery, setImageSearchQuery] = useState("");
   const [searchedImage, setSearchedImage] = useState("");
@@ -1577,58 +1786,112 @@ export default function SellerAddProduct() {
             </div>
           </div>
 
-          {/* AI Image Search Section (New) */}
-          <div className="bg-white rounded-lg shadow-sm border border-neutral-200">
-              <div className="bg-purple-600 text-white px-4 sm:px-6 py-3 rounded-t-lg flex justify-between items-center">
-                  <h2 className="text-lg font-semibold flex items-center gap-2">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
-                    Live Image Search
-                  </h2>
-                  <span className="text-xs bg-white/20 px-2 py-0.5 rounded">AI Powered</span>
+          {/* Print Barcodes Section */}
+          <div className="bg-white rounded-xl shadow-sm border border-neutral-200">
+            <div className="bg-teal-600 text-white px-6 py-4 rounded-t-xl">
+              <h2 className="text-lg font-semibold tracking-wide">Print Barcodes</h2>
+            </div>
+            <div className="p-6 border-x border-b border-neutral-200 rounded-b-xl">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+                <div>
+                   <label className="block text-sm font-semibold text-neutral-700 mb-2">Quantity</label>
+                   <input
+                      type="number"
+                      value={printQuantity}
+                      onChange={(e) => setPrintQuantity(e.target.value)}
+                      className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 shadow-sm"
+                      placeholder="Enter Quantity"
+                   />
+                </div>
+                <div>
+                    <label className="block text-sm font-semibold text-neutral-700 mb-2">Select Barcode</label>
+                    <div className="relative">
+                        <select
+                            className="w-full px-4 py-2 border border-neutral-300 rounded-lg appearance-none bg-white focus:ring-2 focus:ring-teal-500/20 shadow-sm pr-10 cursor-pointer"
+                            value={selectedPrintBarcode}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                setSelectedPrintBarcode(val);
+                                if(val) {
+                                    // Find variation for name/price
+                                    const v = variations.find(v => v.barcode === val);
+                                    handlePrintBarcode(val, parseInt(printQuantity), formData.productName + (v ? ' - ' + v.title : ''), v?.price, v?.price);
+                                }
+                            }}
+                        >
+                            <option value="">Select a Barcode</option>
+                            {(formData as any).barcode && <option value={(formData as any).barcode}>Product: {(formData as any).barcode}</option>}
+                            {variations.map((v, i) => v.barcode && (
+                                <option key={i} value={v.barcode}>Var: {v.title} ({v.barcode})</option>
+                            ))}
+                        </select>
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </div>
+                    </div>
+                </div>
+                <div className="text-sm text-neutral-500 italic bg-teal-50 p-3 rounded-lg border border-teal-100 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    * Select a barcode to immediately open the print preview.
+                </div>
               </div>
-              <div className="p-4 sm:p-6 space-y-4">
-                  <div className="flex gap-2">
-                       <input
-                          type="text"
-                          value={imageSearchQuery}
-                          onChange={(e) => setImageSearchQuery(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleImageSearch())}
-                          placeholder="e.g. Vaseline 200ml, Dove Soap"
-                          className="flex-1 px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
-                       />
-                       <button
-                          type="button"
-                          onClick={handleImageSearch}
-                          disabled={isSearchingImage}
-                          className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors disabled:opacity-70 flex items-center gap-2"
-                       >
-                           {isSearchingImage ? (
-                               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                           ) : (
-                               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                           )}
-                           Search
-                       </button>
-                  </div>
-
-                  {searchedImage && (
-                      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 flex flex-col sm:flex-row gap-4 items-center">
-                          <img src={searchedImage} alt="Analysis Result" className="w-24 h-24 object-cover rounded bg-white border border-gray-200" />
-                          <div className="flex-1 text-center sm:text-left">
-                              <h4 className="font-medium text-gray-800">Image Found</h4>
-                              <p className="text-sm text-gray-500">Web Search Result</p>
-                          </div>
-                          <button
-                              type="button"
-                              onClick={applySearchedImage}
-                              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
-                          >
-                              Use this Image
-                          </button>
-                      </div>
-                  )}
-              </div>
+            </div>
           </div>
+
+          {/* AI Image Search Section (New) - Only for New Products */}
+          {!id && (
+            <div className="bg-white rounded-lg shadow-sm border border-neutral-200">
+                <div className="bg-purple-600 text-white px-4 sm:px-6 py-3 rounded-t-lg flex justify-between items-center">
+                    <h2 className="text-lg font-semibold flex items-center gap-2">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 00-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                      Live Image Search
+                    </h2>
+                    <span className="text-xs bg-white/20 px-2 py-0.5 rounded">AI Powered</span>
+                </div>
+                <div className="p-4 sm:p-6 space-y-4">
+                    <div className="flex gap-2">
+                         <input
+                            type="text"
+                            value={imageSearchQuery}
+                            onChange={(e) => setImageSearchQuery(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleImageSearch())}
+                            placeholder="e.g. Vaseline 200ml, Dove Soap"
+                            className="flex-1 px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                         />
+                         <button
+                            type="button"
+                            onClick={handleImageSearch}
+                            disabled={isSearchingImage}
+                            className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors disabled:opacity-70 flex items-center gap-2"
+                         >
+                             {isSearchingImage ? (
+                                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                             ) : (
+                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                             )}
+                             Search
+                         </button>
+                    </div>
+
+                    {searchedImage && (
+                        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 flex flex-col sm:flex-row gap-4 items-center">
+                            <img src={searchedImage} alt="Analysis Result" className="w-24 h-24 object-cover rounded bg-white border border-gray-200" />
+                            <div className="flex-1 text-center sm:text-left">
+                                <h4 className="font-medium text-gray-800">Image Found</h4>
+                                <p className="text-sm text-gray-500">Web Search Result</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={applySearchedImage}
+                                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
+                            >
+                                Use this Image
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+          )}
 
 
 

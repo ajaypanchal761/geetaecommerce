@@ -104,24 +104,38 @@ export interface ReturnRequest {
   order: string | Order;
   orderItem: string | OrderItem;
   customer: string | { name: string; email: string; phone: string };
+  userName?: string;
+  productName?: string;
   reason: string;
+  requestType: "Return" | "Replacement";
   description?: string;
-  status: "Pending" | "Approved" | "Rejected" | "Processing" | "Completed";
+  status: "Pending" | "Approved" | "Rejected" | "Processing" | "Picked Up" | "Completed";
   quantity: number;
   images?: string[];
   processedBy?: string;
   processedAt?: string;
   rejectionReason?: string;
-  pickupScheduled?: string;
-  pickupCompleted?: string;
   refundAmount?: number;
-  refundId?: string;
+  orderNumber?: string;
+  requestedAt?: string;
 }
 
 export interface ProcessReturnRequestData {
-  status: "Approved" | "Rejected" | "Processing" | "Completed";
+  status: string;
   rejectionReason?: string;
   refundAmount?: number;
+  deliveryBoyId?: string;
+  adminNotes?: string;
+}
+
+export interface GetReturnRequestsParams {
+  page?: number;
+  limit?: number;
+  status?: string;
+  requestType?: string;
+  search?: string;
+  dateFrom?: string;
+  dateTo?: string;
 }
 
 export interface ExportOrdersParams {
@@ -193,14 +207,26 @@ export const assignDeliveryBoy = async (
 };
 
 /**
+ * Get Return/Replacement Requests
+ */
+export const getReturnRequests = async (
+  params?: GetReturnRequestsParams
+): Promise<ApiResponse<ReturnRequest[]>> => {
+  const response = await api.get<ApiResponse<ReturnRequest[]>>("/admin/return-requests", {
+    params,
+  });
+  return response.data;
+};
+
+/**
  * Process return request
  */
 export const processReturnRequest = async (
   id: string,
   data: ProcessReturnRequestData
 ): Promise<ApiResponse<ReturnRequest>> => {
-  const response = await api.patch<ApiResponse<ReturnRequest>>(
-    `/admin/returns/${id}/process`,
+  const response = await api.put<ApiResponse<ReturnRequest>>(
+    `/admin/return-requests/${id}`,
     data
   );
   return response.data;

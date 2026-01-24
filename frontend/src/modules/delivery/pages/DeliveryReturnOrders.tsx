@@ -2,94 +2,55 @@ import { useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import DeliveryHeader from '../components/DeliveryHeader';
 import DeliveryBottomNav from '../components/DeliveryBottomNav';
-import { getReturnOrders } from '../../../services/api/delivery/deliveryService';
+import { getReturnTasks, updateReturnTaskStatus } from '../../../services/api/delivery/deliveryService';
+import { useToast } from '../../../context/ToastContext';
 
 export default function DeliveryReturnOrders() {
   const navigate = useNavigate();
-  const [returnOrders, setReturnOrders] = useState<any[]>([]);
+  const { showToast } = useToast();
+  const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState<'return' | 'replacement'>('return');
+  const [activeTab, setActiveTab] = useState<'Return' | 'Replacement'>('Return');
 
   useEffect(() => {
-    const fetchOrders = async () => {
-      try {
-        const data = await getReturnOrders();
-        setReturnOrders(data);
-      } catch (err: any) {
-        setError(err.message || 'Failed to load return orders');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchOrders();
+    fetchTasks();
   }, []);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Cancelled':
-        return 'bg-red-100 text-red-700';
-      case 'Returned':
-        return 'bg-red-100 text-red-700';
-      default:
-        return 'bg-neutral-100 text-neutral-700';
+  const fetchTasks = async () => {
+    try {
+      setLoading(true);
+      const data = await getReturnTasks();
+      setTasks(data);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load return tasks');
+    } finally {
+      setLoading(false);
     }
   };
+
+  const handleUpdateStatus = async (taskId: string, status: string, type: string) => {
+      try {
+          const response = await updateReturnTaskStatus(taskId, status);
+          if (response.success) {
+              showToast(`${type} status updated to ${status}`, 'success');
+              fetchTasks();
+          }
+      } catch (err: any) {
+          showToast(err.message || 'Failed to update status', 'error');
+      }
+  };
+
+  const filteredTasks = tasks.filter(t => t.requestType === activeTab);
 
   if (loading) {
     return (
       <div className="min-h-screen bg-neutral-100 flex items-center justify-center pb-20">
-        <p className="text-neutral-500">Loading return orders...</p>
+        <p className="text-neutral-500 font-medium">Loading tasks...</p>
         <DeliveryBottomNav />
       </div>
     );
   }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-neutral-100 flex items-center justify-center pb-20">
-        <p className="text-red-500">{error}</p>
-        <DeliveryBottomNav />
-      </div>
-    );
-  }
-
-
-
-  // Mock Data for Demo
-  const MOCK_RETURNS = [
-      {
-          id: 'RET-101',
-          type: 'Return',
-          customerName: 'Rahul Sharma',
-          address: '123, mg road, bangalore',
-          status: 'Pending Pickup',
-          items: 1,
-          createdAt: new Date().toISOString()
-      }
-  ];
-
-  const MOCK_REPLACEMENTS = [
-      {
-          id: 'REP-202',
-          type: 'Replacement',
-          customerName: 'Priya Singh',
-          address: '456, indira nagar, bangalore',
-          status: 'Pending Pickup',
-          items: 1,
-          createdAt: new Date().toISOString()
-      }
-  ];
-
-  const handlePickup = (id: string, type: string) => {
-      alert(`${type} Pickup Confirmed for ${id}`);
-      // In real app, update status to 'Picked Up' or 'Out for Delivery' (for replacement)
-  };
-
-  const handleDeliver = (id: string) => {
-      alert(`Replacement Delivered for ${id}`);
-  };
 
   return (
     <div className="min-h-screen bg-neutral-100 pb-20">
@@ -116,73 +77,100 @@ export default function DeliveryReturnOrders() {
         {/* Tabs */}
         <div className="flex p-1 bg-white rounded-xl mb-4 border border-neutral-200">
             <button
-                className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${activeTab === 'return' ? 'bg-orange-100 text-orange-700 shadow-sm' : 'text-neutral-500'}`}
-                onClick={() => setActiveTab('return')}
+                className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${activeTab === 'Return' ? 'bg-orange-100 text-orange-700 shadow-sm' : 'text-neutral-500'}`}
+                onClick={() => setActiveTab('Return')}
             >
                 Return Pickups
             </button>
             <button
-                className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${activeTab === 'replacement' ? 'bg-blue-100 text-blue-700 shadow-sm' : 'text-neutral-500'}`}
-                onClick={() => setActiveTab('replacement')}
+                className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${activeTab === 'Replacement' ? 'bg-blue-100 text-blue-700 shadow-sm' : 'text-neutral-500'}`}
+                onClick={() => setActiveTab('Replacement')}
             >
                 Replacements
             </button>
         </div>
 
-        {activeTab === 'return' ? (
-             <div className="space-y-3">
-            {MOCK_RETURNS.map((order) => (
-              <div key={order.id} className="bg-white rounded-xl p-4 shadow-sm border border-neutral-200">
-                 <div className="flex justify-between items-start mb-2">
-                     <div>
-                         <span className="text-xs font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded">RETURN PICKUP</span>
-                         <h3 className="font-semibold text-gray-900 mt-1">{order.id}</h3>
-                         <p className="text-sm text-gray-500">{order.customerName}</p>
-                     </div>
-                     <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">{order.status}</span>
-                 </div>
-                 <p className="text-xs text-gray-500 mb-3">{order.address}</p>
-                 <button
-                    onClick={() => handlePickup(order.id, 'Return')}
-                    className="w-full py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700"
-                 >
-                     Confirm Pickup
-                 </button>
-              </div>
-            ))}
-            {MOCK_RETURNS.length === 0 && <p className="text-center text-gray-500 mt-10">No return tasks.</p>}
-          </div>
+        {error ? (
+            <div className="bg-red-50 text-red-600 p-4 rounded-xl text-center mb-4">
+                {error}
+                <button onClick={fetchTasks} className="block w-full mt-2 text-sm underline">Retry</button>
+            </div>
         ) : (
-             <div className="space-y-3">
-            {MOCK_REPLACEMENTS.map((order) => (
-              <div key={order.id} className="bg-white rounded-xl p-4 shadow-sm border border-neutral-200">
-                 <div className="flex justify-between items-start mb-2">
-                     <div>
-                         <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">REPLACEMENT</span>
-                         <h3 className="font-semibold text-gray-900 mt-1">{order.id}</h3>
-                         <p className="text-sm text-gray-500">{order.customerName}</p>
-                     </div>
-                     <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">{order.status}</span>
-                 </div>
-                 <p className="text-xs text-gray-500 mb-3">{order.address}</p>
-                 <div className="flex gap-2">
-                     <button
-                        onClick={() => handlePickup(order.id, 'Replacement Old Item')}
-                        className="flex-1 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700"
-                     >
-                         Pickup Old Item
-                     </button>
-                      <button
-                        onClick={() => handleDeliver(order.id)}
-                        className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
-                     >
-                         Deliver New Item
-                     </button>
-                 </div>
-              </div>
-            ))}
-            {MOCK_REPLACEMENTS.length === 0 && <p className="text-center text-gray-500 mt-10">No replacement tasks.</p>}
-          </div>
+            <div className="space-y-3">
+                {filteredTasks.map((task) => (
+                    <div key={task.id} className="bg-white rounded-xl p-4 shadow-sm border border-neutral-200">
+                        <div className="flex justify-between items-start mb-2">
+                            <div>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
+                                    task.requestType === 'Return' ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'
+                                }`}>
+                                    {task.requestType}
+                                </span>
+                                <h3 className="font-semibold text-gray-900 mt-1">{task.orderNumber}</h3>
+                                <p className="text-sm text-gray-700 font-medium">{task.productName}</p>
+                            </div>
+                            <span className="text-[10px] bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded font-medium">
+                                {task.status}
+                            </span>
+                        </div>
+                        <div className="text-xs text-gray-500 space-y-1 mb-3">
+                            <p><span className="font-medium text-gray-700">Customer:</span> {task.customerName}</p>
+                            <p><span className="font-medium text-gray-700">Phone:</span> {task.customerPhone}</p>
+                            <p><span className="font-medium text-gray-700">Address:</span> {task.address?.address}, {task.address?.city}</p>
+                            <p><span className="font-medium text-gray-700">Reason:</span> {task.reason}</p>
+                        </div>
+
+                        <div className="flex gap-2">
+                            {task.status === 'Assigned' && (
+                                <button
+                                    onClick={() => handleUpdateStatus(task.id, 'Accepted', task.requestType)}
+                                    className="w-full py-2 bg-neutral-900 text-white rounded-lg text-sm font-medium"
+                                >
+                                    Accept Task
+                                </button>
+                            )}
+
+                            {task.status === 'Accepted' && (
+                                <button
+                                    onClick={() => handleUpdateStatus(task.id, 'Picked Up', task.requestType)}
+                                    className="w-full py-2 bg-orange-600 text-white rounded-lg text-sm font-medium"
+                                >
+                                    Confirm Pickup
+                                </button>
+                            )}
+
+                            {task.status === 'Picked Up' && task.requestType === 'Replacement' && (
+                                <button
+                                    onClick={() => handleUpdateStatus(task.id, 'Delivered', task.requestType)}
+                                    className="w-full py-2 bg-blue-600 text-white rounded-lg text-sm font-medium"
+                                >
+                                    Deliver New Item (Replacement)
+                                </button>
+                            )}
+
+                            {task.status === 'Picked Up' && task.requestType === 'Return' && (
+                                <button
+                                    onClick={() => handleUpdateStatus(task.id, 'Delivered', task.requestType)}
+                                    className="w-full py-2 bg-green-600 text-white rounded-lg text-sm font-medium"
+                                >
+                                    Confirm Delivery to Store
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                ))}
+
+                {filteredTasks.length === 0 && (
+                    <div className="py-20 text-center">
+                        <div className="bg-neutral-200 h-16 w-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="text-neutral-500">
+                                <path d="M22 12h-4l-3 9L9 3l-3 9H2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                        </div>
+                        <p className="text-neutral-500 font-medium">No active {activeTab.toLowerCase()} tasks</p>
+                    </div>
+                )}
+            </div>
         )}
       </div>
       <DeliveryBottomNav />

@@ -4,6 +4,7 @@ import Product from "../../../models/Product";
 import OrderItem from "../../../models/OrderItem";
 import Customer from "../../../models/Customer";
 import Seller from "../../../models/Seller";
+import Return from "../../../models/Return";
 import AppSettings from "../../../models/AppSettings";
 import mongoose from "mongoose";
 import axios from "axios";
@@ -1067,6 +1068,92 @@ export const verifyOnlinePayment = async (req: Request, res: Response) => {
         return res.status(200).json({ success: true, message: "Payment verified", data: order });
     } catch (error: any) {
         return res.status(500).json({ success: false, message: "Verification failed", error: error.message });
+    }
+};
+
+/**
+ * Request Return or Replacement
+ */
+export const requestReturnOrReplace = async (req: Request, res: Response) => {
+    try {
+        const { orderId, orderItemId, requestType, reason, description, images, quantity } = req.body;
+        const userId = req.user!.userId;
+
+        // Validation
+        if (!orderId || !orderItemId || !requestType || !reason) {
+            return res.status(400).json({
+                success: false,
+                message: "Missing required fields: orderId, orderItemId, requestType, reason"
+            });
+        }
+
+        if (requestType === "Replacement" && (!images || images.length === 0)) {
+            return res.status(400).json({
+                success: false,
+                message: "Issue image is mandatory for replacement request"
+            });
+        }
+
+        const order = await Order.findOne({ _id: orderId, customer: userId });
+        if (!order) {
+            return res.status(404).json({ success: false, message: "Order not found" });
+        }
+
+        // Validate that order is delivered (standard policy)
+        if (order.status !== "Delivered") {
+            return res.status(400).json({
+                success: false,
+                message: "Requests can only be raised for delivered orders"
+            });
+        }
+
+        const orderItem = await OrderItem.findOne({ _id: orderItemId, order: orderId });
+        if (!orderItem) {
+            return res.status(404).json({ success: false, message: "Order item not found" });
+        }
+
+        const requestedQuantity = Number(quantity) || orderItem.quantity;
+        if (requestedQuantity > orderItem.quantity) {
+             return res.status(400).json({ success: false, message: "Quantity exceeds ordered quantity" });
+        }
+
+        // Check if a request already exists for this item
+        const existingRequest = await Return.findOne({ orderItem: orderItemId, status: { $ne: "Rejected" } });
+        if (existingRequest) {
+            return res.status(400).json({
+                success: false,
+                message: `A ${existingRequest.requestType} request already exists for this item`
+            });
+        }
+
+        // Create return/replacement request
+        const returnRequest = new Return({
+            order: orderId,
+            orderItem: orderItemId,
+            customer: userId,
+            requestType,
+            reason,
+            description,
+            images: images || [],
+            quantity: requestedQuantity,
+            status: "Pending"
+        });
+
+        await returnRequest.save();
+
+        return res.status(201).json({
+            success: true,
+            message: `${requestType} request raised successfully`,
+            data: returnRequest
+        });
+
+    } catch (error: any) {
+        console.error("Error requesting return/replace:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to raise request",
+            error: error.message
+        });
     }
 };
 

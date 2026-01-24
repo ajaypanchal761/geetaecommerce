@@ -7,9 +7,10 @@ export interface IReturn extends Document {
   customer: mongoose.Types.ObjectId;
 
   // Return Info
+  requestType: "Return" | "Replacement";
   reason: string;
   description?: string;
-  status: "Pending" | "Approved" | "Rejected" | "Processing" | "Completed";
+  status: "Pending" | "Approved" | "Rejected" | "Processing" | "Picked Up" | "Completed";
 
   // Items
   quantity: number;
@@ -56,6 +57,11 @@ const ReturnSchema = new Schema<IReturn>(
     },
 
     // Return Info
+    requestType: {
+      type: String,
+      enum: ["Return", "Replacement"],
+      required: [true, "Request type is required"],
+    },
     reason: {
       type: String,
       required: [true, "Return reason is required"],
@@ -67,7 +73,7 @@ const ReturnSchema = new Schema<IReturn>(
     },
     status: {
       type: String,
-      enum: ["Pending", "Approved", "Rejected", "Processing", "Completed"],
+      enum: ["Pending", "Approved", "Rejected", "Processing", "Picked Up", "Completed"],
       default: "Pending",
     },
 

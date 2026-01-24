@@ -116,10 +116,10 @@ const menuItems: MenuItem[] = [
       },
     ],
   },
-  {
+  /* {
     label: "Wallet",
     path: "/seller/wallet",
-  },
+  }, */
   {
     label: "Reports",
     path: "/seller/reports",
@@ -146,7 +146,7 @@ const menuItems: MenuItem[] = [
       },
     ],
   },
-  { label: "Return", path: "/seller/return" },
+  // { label: "Return", path: "/seller/return" },
 ];
 
 export default function SellerSidebar({ onClose }: SellerSidebarProps) {
