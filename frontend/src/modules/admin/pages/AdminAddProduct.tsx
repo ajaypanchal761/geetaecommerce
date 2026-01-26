@@ -17,6 +17,7 @@ import {
   uploadImage as uploadImageLegacy,
   Product,
 } from "../../../services/api/admin/adminProductService";
+import { getAttributes } from "../../../services/api/admin/attributeService";
 import { ProductVariation, Shop, searchProductImage } from "../../../services/api/productService";
 import {
   getCategories,
@@ -165,11 +166,153 @@ export default function AdminAddProduct() {
 
   const [isUnitModalOpen, setIsUnitModalOpen] = useState(false);
 
+  // Attribute Based Variations State
+  const [enableAttributes, setEnableAttributes] = useState(false);
+  const [availableAttributes, setAvailableAttributes] = useState<any[]>([]);
+  const [selectedAttributeId, setSelectedAttributeId] = useState("");
+  const [selectedAttributes, setSelectedAttributes] = useState<{id: string, name: string, values: string[]}[]>([]);
+  const [variationUnits, setVariationUnits] = useState<string[]>([]); // To store unit values like 1kg, 5kg
+  const [currentUnitInput, setCurrentUnitInput] = useState("");
+  const [attrInputValues, setAttrInputValues] = useState<Record<string, string>>({});
+  const [currentAttrValueInput, setCurrentAttrValueInput] = useState(""); // Deprecated/Backup
+
+  // Color specific state
+  const [enableColors, setEnableColors] = useState(false);
+  const [selectedColors, setSelectedColors] = useState<{name: string, code: string}[]>([]);
+  const [colorInput, setColorInput] = useState({ name: "", code: "#000000" });
+
+  // Unit Pricing Modal State
+  const [unitPricingModal, setUnitPricingModal] = useState<{ isOpen: boolean, variationIndex: number | null }>({ isOpen: false, variationIndex: null });
+  // Temp state for editing in modal
+  const [tempTieredPrices, setTempTieredPrices] = useState<{ minQty: number, price: number }[]>([]);
+
+  useEffect(() => {
+    if (enableAttributes) {
+        getAttributes().then(res => {
+            if(res.success) setAvailableAttributes(res.data);
+        }).catch(err => console.error(err));
+    }
+  }, [enableAttributes]);
+
   useEffect(() => {
     const fetchSettings = async () => {
         try {
             const response = await getAppSettings();
             if (response.success) {
+// ... existing code ...
+  const handleRemoveAttributeValue = (attrId: string, value: string) => {
+      setSelectedAttributes(prev => prev.map(p => {
+          if(p.id === attrId) {
+              return { ...p, values: p.values.filter(v => v !== value) };
+          }
+          return p;
+      }));
+  };
+
+  const handleAddColor = () => {
+      if(!colorInput.name.trim()) return;
+      if(!selectedColors.some(c => c.name === colorInput.name.trim())) {
+          setSelectedColors([...selectedColors, { name: colorInput.name.trim(), code: colorInput.code }]);
+          setColorInput({ name: "", code: "#000000" });
+      }
+  };
+
+  const handleRemoveColor = (name: string) => {
+      setSelectedColors(prev => prev.filter(c => c.name !== name));
+  };
+
+  const handleAddUnit = () => {
+      if(!currentUnitInput.trim()) return;
+      if(!variationUnits.includes(currentUnitInput.trim())) {
+          setVariationUnits([...variationUnits, currentUnitInput.trim()]);
+          setCurrentUnitInput("");
+      }
+  };
+
+  const handleRemoveUnit = (unit: string) => {
+      setVariationUnits(prev => prev.filter(u => u !== unit));
+  };
+
+  const generateVariations = () => {
+       let combos: string[] = [];
+
+       // Prepare dimensions
+       // 1. Colors (if enabled)
+       // 2. Attributes
+       // 3. Units
+
+       let dimensions: string[][] = [];
+
+       if (enableColors && selectedColors.length > 0) {
+           dimensions.push(selectedColors.map(c => c.name));
+       }
+
+       selectedAttributes.forEach(attr => {
+           if (attr.values.length > 0) {
+               dimensions.push(attr.values);
+           }
+       });
+
+       if (variationUnits.length > 0) {
+           dimensions.push(variationUnits);
+       }
+
+       // Generate Cartesian Product
+       if (dimensions.length === 0) {
+           combos = ["Default"]; // Should not happen ideally if triggered correctly
+       } else {
+           const cartesian = (sets: string[][]): string[] => {
+               return sets.reduce<string[]>((acc, set) => {
+                   return acc.flatMap(x => set.map(y => `${x} - ${y}`));
+               }, sets.shift() || []);
+           };
+
+           // We need to clone dimensions because shift() modifies it
+           // Actually reduce logic above is slightly wrong for n arrays.
+           // Correct reduce for cartesian:
+           // ['A', 'B'] x ['1', '2'] = A-1, A-2, B-1, B-2
+
+           const result = dimensions.reduce((acc, curr) => {
+               return acc.flatMap(x => curr.map(y => `${x}-${y}`));
+           }, [""]);
+
+           // Clean up leading hyphen if exists (due to initial [""])
+           combos = result.map(s => s.startsWith("-") ? s.substring(1) : s);
+
+           // If only one dimension, the reduce above with [""] might produce "-A", "-B".
+           // Let's retry simple recursive approach for clarity or fix the reduce.
+           // Reduce with [""] works: [""] x [A, B] -> [-A, -B].
+           // Then [-A, -B] x [1, 2] -> [-A-1, -A-2, ...].
+           // So trimming start is correct.
+       }
+
+       // Edge case: if dimensions empty but unit empty? Handled.
+
+       const newVariations = combos.map(title => ({
+           title: title,
+           value: title, // value field
+           name: formData.variationType || "Variation",
+           price: 0,
+           discPrice: 0,
+           stock: 0,
+           status: "Available" as const,
+           barcode: "",
+           offerPrice: undefined,
+           tieredPrices: []
+       }));
+
+       // Merge logic: preserve existing prices/stock if title matches
+       const merged = newVariations.map(nv => {
+           const existing = variations.find(v => v.title === nv.title);
+           return existing ? existing : nv;
+       });
+
+       if(merged.length > 0) {
+           setVariations(merged);
+       } else {
+            alert("No variations generated. Please add colors, attributes or units.");
+       }
+  };
                 // Field Visibility Settings
                 if (response.data?.productDisplaySettings) {
                     const settings = response.data.productDisplaySettings;
@@ -751,6 +894,127 @@ export default function AdminAddProduct() {
 
   const removeVariation = (index: number) => {
     setVariations((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Attribute Variation Helpers
+  const handleAddAttribute = () => {
+      if(!selectedAttributeId) return;
+      const attr = availableAttributes.find(a => (a._id || a.id) === selectedAttributeId);
+      if(attr && !selectedAttributes.find(sa => sa.id === selectedAttributeId)) {
+          setSelectedAttributes([...selectedAttributes, { id: selectedAttributeId, name: attr.name, values: [] }]);
+          setSelectedAttributeId("");
+      }
+  };
+
+  const handleRemoveAttribute = (id: string) => {
+      setSelectedAttributes(prev => prev.filter(p => p.id !== id));
+  };
+
+  const handleAddAttributeValue = (attrId: string, value: string) => {
+      if(!value.trim()) return;
+      setSelectedAttributes(prev => prev.map(p => {
+          if(p.id === attrId && !p.values.includes(value.trim())) {
+              return { ...p, values: [...p.values, value.trim()] };
+          }
+          return p;
+      }));
+  };
+
+  const handleRemoveAttributeValue = (attrId: string, value: string) => {
+      setSelectedAttributes(prev => prev.map(p => {
+          if(p.id === attrId) {
+              return { ...p, values: p.values.filter(v => v !== value) };
+          }
+          return p;
+      }));
+  };
+
+  const handleAddUnit = () => {
+      if(!currentUnitInput.trim()) return;
+      if(!variationUnits.includes(currentUnitInput.trim())) {
+          setVariationUnits([...variationUnits, currentUnitInput.trim()]);
+          setCurrentUnitInput("");
+      }
+  };
+
+  const handleRemoveUnit = (unit: string) => {
+      setVariationUnits(prev => prev.filter(u => u !== unit));
+  };
+
+  const generateVariations = () => {
+       let combos: string[] = [];
+       const units = variationUnits.length > 0 ? variationUnits : [""];
+
+       // If no attributes selected, just use units
+       if(selectedAttributes.length === 0) {
+           combos = variationUnits; // If empty, combos is empty
+       } else {
+           // Helper to generate combinations
+           const generate = (index: number, current: string[]) => {
+               if(index === selectedAttributes.length) {
+                   // Reached end of attributes, now combine with units
+                   const attrStr = current.join("-");
+                   units.forEach(u => {
+                       combos.push(u ? `${attrStr} - ${u}` : attrStr);
+                   });
+                   return;
+               }
+
+               const attr = selectedAttributes[index];
+               if(attr.values.length === 0) {
+                   // If an attribute has no values, assume it's ignored or stop?
+                   // User probably wants to enforce values. Let's skip it or treat as empty?
+                   // Treating as empty might break "Choc- -1kg".
+                   // Let's assume validation prevents this, or we just skip.
+                   // For now, if no values, we continue with empty? No, usually blocked.
+                   // But let's just loop over empty array -> no generation.
+               }
+
+               attr.values.forEach(val => {
+                   generate(index + 1, [...current, val]);
+               });
+           };
+           generate(0, []);
+       }
+
+       const newVariations = combos.map(title => ({
+           title: title,
+           value: title, // value field
+           name: formData.variationType || "Variation",
+           price: 0,
+           discPrice: 0,
+           stock: 0,
+           status: "Available" as const,
+           barcode: "",
+           offerPrice: undefined,
+           tieredPrices: []
+       }));
+
+       // Merge logic: preserve existing prices/stock if title matches
+       const merged = newVariations.map(nv => {
+           const existing = variations.find(v => v.title === nv.title);
+           return existing ? existing : nv;
+       });
+
+       if(merged.length > 0) {
+           setVariations(merged);
+       } else {
+           if(selectedAttributes.length > 0 && selectedAttributes.some(s => s.values.length > 0)) {
+               alert("No variations generated. Please checks attributes and values.");
+           }
+       }
+  };
+
+  const handleAddColor = () => {
+      if(!colorInput.name.trim()) return;
+      if(!selectedColors.some(c => c.name === colorInput.name.trim())) {
+          setSelectedColors([...selectedColors, { name: colorInput.name.trim(), code: colorInput.code }]);
+          setColorInput({ name: "", code: "#000000" });
+      }
+  };
+
+  const handleRemoveColor = (name: string) => {
+      setSelectedColors(prev => prev.filter(c => c.name !== name));
   };
 
   const startScanning = (target: "product" | "variation" = "product") => {
@@ -1400,9 +1664,20 @@ const applySearchedImage = () => {
 
           {/* Add Variation Section */}
           <div className="bg-white rounded-xl shadow-sm border border-neutral-200">
-            <div className="bg-teal-600 text-white px-6 py-4 rounded-t-xl">
+            <div className="bg-teal-600 text-white px-6 py-4 rounded-t-xl flex justify-between items-center">
               <h2 className="text-lg font-semibold tracking-wide">Product Variations</h2>
+              <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-white/90">Enable Attributes</span>
+                  <button
+                      type="button"
+                      onClick={() => setEnableAttributes(!enableAttributes)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${enableAttributes ? 'bg-teal-200' : 'bg-teal-800'}`}
+                  >
+                      <span className={`inline-block h-4 w-4 transform rounded-full transition-transform bg-white ${enableAttributes ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+              </div>
             </div>
+
             <div className="p-6 space-y-6 border-x border-b border-neutral-200 rounded-b-xl">
               <div>
                 <label className="block text-sm font-semibold text-neutral-700 mb-2">
@@ -1410,7 +1685,7 @@ const applySearchedImage = () => {
                 </label>
                 <div className="max-w-xs">
                   <ThemedDropdown
-                    options={['Size', 'Weight', 'Color', 'Pack']}
+                    options={['Size', 'Weight', 'Color', 'Pack', 'Material']}
                     value={formData.variationType}
                     onChange={(val) => setFormData(prev => ({ ...prev, variationType: val }))}
                     placeholder="Select Variation Type"
@@ -1418,180 +1693,491 @@ const applySearchedImage = () => {
                 </div>
               </div>
 
-              {/* Variation Form */}
-              <div className="bg-neutral-50 rounded-xl p-6 border border-neutral-200">
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-start">
-                  <div>
-                    <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
-                      Unit Value
-                    </label>
-                    <input
-                      type="text"
-                      value={variationForm.title}
-                      onChange={(e) => setVariationForm({ ...variationForm, title: e.target.value })}
-                      placeholder="e.g. XL, 1kg"
-                      className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
-                      Price *
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400">₹</span>
-                      <input
-                        type="number"
-                        value={variationForm.price}
-                        onChange={(e) => setVariationForm({ ...variationForm, price: e.target.value })}
-                        placeholder="0.00"
-                        className="w-full pl-7 pr-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
-                      Discount Price
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400">₹</span>
-                      <input
-                        type="number"
-                        value={variationForm.discPrice}
-                        onChange={(e) => setVariationForm({ ...variationForm, discPrice: e.target.value })}
-                        placeholder="0.00"
-                        className="w-full pl-7 pr-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
-                      Stock
-                    </label>
-                    <input
-                      type="number"
-                      value={variationForm.stock}
-                      onChange={(e) => setVariationForm({ ...variationForm, stock: e.target.value })}
-                      placeholder="0 = Unlimited"
-                      className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
-                    />
-                  </div>
-                  {fieldVisibility.online_offer_price && (
-                  <div>
-                    <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
-                      Offer Price
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400">₹</span>
-                      <input
-                        type="number"
-                        value={variationForm.offerPrice}
-                        onChange={(e) => setVariationForm({ ...variationForm, offerPrice: e.target.value })}
-                        placeholder="Optional"
-                        className="w-full pl-7 pr-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
-                      />
-                    </div>
-                  </div>
-                  )}
-                  <div>
-                    <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
-                      Secondary Offer (Optional)
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400">₹</span>
-                      <input
-                        type="number"
-                        value={variationForm.offerPrice}
-                        onChange={(e) => setVariationForm({ ...variationForm, offerPrice: e.target.value })}
-                        placeholder="Optional"
-                        className="w-full pl-7 pr-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Tiered Pricing Section */}
-                  <div className="md:col-span-5 bg-gray-50 p-4 rounded-lg border border-dashed border-gray-300">
-                      <div className="flex justify-between items-center mb-3">
-                          <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">
-                              Unit Pricing (Buy X get for Y)
-                          </label>
-                          <button
-                            type="button"
-                            onClick={handleAddTier}
-                            className="text-xs font-bold text-teal-600 hover:text-teal-700"
-                          >
-                            + Add Tier
-                          </button>
-                      </div>
-
-                      {variationForm.tieredPrices.length === 0 && (
-                          <p className="text-xs text-center text-gray-400 italic py-2">No unit pricing added.</p>
-                      )}
-
-                      <div className="space-y-3">
-                          {variationForm.tieredPrices.map((tier, idx) => (
-                              <div key={idx} className="flex gap-3 items-center">
-                                  <div className="flex-1">
-                                      <input
-                                          type="number"
-                                          placeholder="Min Qty (e.g. 2)"
-                                          className="w-full px-3 py-2 border border-neutral-300 rounded text-sm"
-                                          value={tier.minQty}
-                                          onChange={e => handleTierChange(idx, 'minQty', e.target.value)}
-                                      />
-                                  </div>
-                                  <div className="flex-1 relative">
-                                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">₹</span>
-                                      <input
-                                          type="number"
-                                          placeholder="Price/Unit"
-                                          className="w-full pl-6 pr-3 py-2 border border-neutral-300 rounded text-sm"
-                                          value={tier.price}
-                                          onChange={e => handleTierChange(idx, 'price', e.target.value)}
-                                      />
-                                  </div>
-                                  <button onClick={() => handleRemoveTier(idx)} className="text-red-500 hover:text-red-700">✕</button>
-                              </div>
-                          ))}
-                      </div>
-                  </div>
-                  <div className="md:col-span-5 grid grid-cols-1 md:grid-cols-2 gap-4">
-                     <div className="flex-1">
-                        <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
-                            Barcode
-                        </label>
-                        <div className="flex gap-2">
-                             <input
-                                type="text"
-                                value={variationForm.barcode}
-                                onChange={(e) => setVariationForm({ ...variationForm, barcode: e.target.value })}
-                                placeholder="Scan or Enter"
-                                className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
-                            />
-                            <button
+              {enableAttributes ? (
+                  /* Attribute Selection UI */
+                  <div className="space-y-6 bg-neutral-50 p-6 rounded-xl border border-neutral-200">
+                     {/* Step 0: Select Colors (Special Case) */}
+                     <div>
+                         <div className="flex items-center justify-between mb-4">
+                            <label className="block text-sm font-semibold text-neutral-700">
+                                Select Colors
+                            </label>
+                             <button
                                 type="button"
-                                onClick={() => startScanning("variation")}
-                                className="px-3 py-2 bg-neutral-100 border border-neutral-300 rounded-lg hover:bg-neutral-200 text-neutral-600 transition-colors"
-                                title="Scan Barcode"
-                                >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
+                                onClick={() => setEnableColors(!enableColors)}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${enableColors ? 'bg-blue-600' : 'bg-neutral-300'}`}
+                            >
+                                <span className={`inline-block h-4 w-4 transform rounded-full transition-transform bg-white ${enableColors ? 'translate-x-6' : 'translate-x-1'}`} />
+                            </button>
+                         </div>
+
+                         {enableColors && (
+                             <div className="bg-white p-4 rounded-lg border border-neutral-200 shadow-sm mb-4">
+                                <div className="flex gap-2 mb-3 max-w-lg items-center">
+                                    <input
+                                        type="color"
+                                        className="w-10 h-10 p-1 border border-neutral-300 rounded cursor-pointer shrink-0"
+                                        value={colorInput.code}
+                                        onChange={(e) => setColorInput(prev => ({...prev, code: e.target.value}))}
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Color Name (e.g. Red, Forest Green)"
+                                        className="flex-1 px-3 py-2 border border-neutral-300 rounded text-sm focus:outline-none focus:border-blue-500"
+                                        value={colorInput.name}
+                                        onChange={(e) => {
+                                            const name = e.target.value;
+                                            setColorInput(prev => ({...prev, name}));
+
+                                            // Try to auto-detect color code from name
+                                            if (name.length > 2) {
+                                                const s = new Option().style;
+                                                s.color = name;
+                                                // Check if it's a valid color (browser accepts it)
+                                                if (s.color !== '') {
+                                                    // This gives us 'red' or 'rgb(...)', need hex for input type=color
+                                                    // Helper to convert rgb/name to hex
+                                                    const tempEl = document.createElement("div");
+                                                    tempEl.style.color = name;
+                                                    document.body.appendChild(tempEl);
+                                                    const computedColor = window.getComputedStyle(tempEl).color;
+                                                    document.body.removeChild(tempEl);
+
+                                                    // Convert rgb(r, g, b) to #hex
+                                                    const rgbMatch = computedColor.match(/\d+/g);
+                                                    if (rgbMatch && rgbMatch.length >= 3) {
+                                                        const hex = "#" + rgbMatch.slice(0, 3).map(x => {
+                                                            const h = parseInt(x).toString(16);
+                                                            return h.length === 1 ? "0" + h : h;
+                                                        }).join("");
+                                                        setColorInput(prev => ({...prev, code: hex}));
+                                                    }
+                                                }
+                                            }
+                                        }}
+                                        onKeyDown={(e) => {
+                                           if(e.key === 'Enter') {
+                                               e.preventDefault();
+                                               handleAddColor();
+                                           }
+                                        }}
+                                    />
+                                     <button
+                                        type="button"
+                                        onClick={handleAddColor}
+                                         className="px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded hover:bg-blue-100 text-sm font-medium"
+                                     >Add</button>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {selectedColors.length === 0 && <span className="text-xs text-gray-400 italic">No colors added yet</span>}
+                                    {selectedColors.map(color => (
+                                        <span key={color.name} className="px-3 py-1 bg-neutral-100 text-neutral-800 border border-neutral-200 rounded-full text-xs font-medium flex items-center gap-2">
+                                            <span className="w-3 h-3 rounded-full border border-gray-300 shadow-sm" style={{ backgroundColor: color.code }}></span>
+                                            {color.name}
+                                            <button type="button" onClick={() => handleRemoveColor(color.name)} className="text-neutral-400 hover:text-red-500 font-bold focus:outline-none">&times;</button>
+                                        </span>
+                                    ))}
+                                </div>
+                             </div>
+                         )}
+                     </div>
+
+                     {/* Step 1: Select Attributes */}
+                       <div>
+                          <label className="block text-sm font-semibold text-neutral-700 mb-2">
+                              Select Attributes
+                          </label>
+                          <div className="flex gap-2 max-w-md">
+                             <select
+                                  className="flex-1 px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                  value={selectedAttributeId}
+                                  onChange={(e) => setSelectedAttributeId(e.target.value)}
+                             >
+                                 <option value="">Select an Attribute</option>
+                                 {availableAttributes.map(attr => (
+                                     <option key={attr._id || attr.id} value={attr._id || attr.id} disabled={selectedAttributes.some(s => s.id === (attr._id || attr.id))}>
+                                         {attr.name}
+                                     </option>
+                                 ))}
+                             </select>
+                             <button
+                                 type="button"
+                                 onClick={handleAddAttribute}
+                                 className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700"
+                             >
+                                 Add
+                             </button>
+                          </div>
+                       </div>
+
+                       {/* Step 2: Attribute Values */}
+                       {selectedAttributes.map((attr) => (
+                           <div key={attr.id} className="bg-white p-4 rounded-lg border border-neutral-200 shadow-sm relative">
+                               <button type="button" onClick={() => handleRemoveAttribute(attr.id)} className="absolute top-2 right-2 text-gray-400 hover:text-red-500 text-lg leading-none">&times;</button>
+                               <h4 className="font-semibold text-teal-800 mb-2">{attr.name} Values</h4>
+                               <div className="flex gap-2 mb-3 max-w-lg">
+                                   <input
+                                       type="text"
+                                       placeholder={`Add ${attr.name} value (e.g. Red, XL)`}
+                                       className="flex-1 px-3 py-2 border border-neutral-300 rounded text-sm focus:outline-none focus:border-teal-500"
+                                       value={attrInputValues[attr.id] || ""}
+                                       onChange={(e) => setAttrInputValues(prev => ({...prev, [attr.id]: e.target.value}))}
+                                       onKeyDown={(e) => {
+                                          if(e.key === 'Enter') {
+                                              e.preventDefault();
+                                              handleAddAttributeValue(attr.id, attrInputValues[attr.id] || "");
+                                              setAttrInputValues(prev => ({...prev, [attr.id]: ""}));
+                                          }
+                                       }}
+                                   />
+                                    <button
+                                       type="button"
+                                       onClick={() => {
+                                           handleAddAttributeValue(attr.id, attrInputValues[attr.id] || "");
+                                           setAttrInputValues(prev => ({...prev, [attr.id]: ""}));
+                                       }}
+                                        className="px-4 py-2 bg-teal-50 text-teal-700 border border-teal-200 rounded hover:bg-teal-100 text-sm font-medium"
+                                    >Add</button>
+                               </div>
+                               <div className="flex flex-wrap gap-2">
+                                   {attr.values.length === 0 && <span className="text-xs text-gray-400 italic">No values added yet</span>}
+                                   {attr.values.map(val => (
+                                       <span key={val} className="px-3 py-1 bg-teal-50 text-teal-700 border border-teal-200 rounded-full text-xs font-medium flex items-center gap-2">
+                                           {val}
+                                           <button type="button" onClick={() => handleRemoveAttributeValue(attr.id, val)} className="text-teal-400 hover:text-red-500 font-bold focus:outline-none">&times;</button>
+                                       </span>
+                                   ))}
+                               </div>
+                           </div>
+                       ))}
+
+                       {/* Unit Values */}
+                       <div className="bg-white p-4 rounded-lg border border-neutral-200 shadow-sm">
+                           <h4 className="font-semibold text-teal-800 mb-2">Unit Values (Optional)</h4>
+                           <div className="flex gap-2 mb-3 max-w-lg">
+                               <input
+                                   type="text"
+                                   placeholder="e.g. 1kg, 5kg"
+                                   className="flex-1 px-3 py-2 border border-neutral-300 rounded text-sm focus:outline-none focus:border-blue-500"
+                                   value={currentUnitInput}
+                                   onChange={e => setCurrentUnitInput(e.target.value)}
+                                   onKeyDown={(e) => {
+                                      if(e.key === 'Enter') {
+                                          e.preventDefault();
+                                          handleAddUnit();
+                                      }
+                                   }}
+                               />
+                               <button
+                                   type="button"
+                                   onClick={handleAddUnit}
+                                   className="px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded hover:bg-blue-100 text-sm font-medium"
+                               >Add</button>
+                           </div>
+                           <div className="flex flex-wrap gap-2">
+                               {variationUnits.length === 0 && <span className="text-xs text-gray-400 italic">No units added (Will generate single variation per attribute combo)</span>}
+                               {variationUnits.map(unit => (
+                                   <span key={unit} className="px-3 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-full text-xs font-medium flex items-center gap-2">
+                                       {unit}
+                                       <button type="button" onClick={() => handleRemoveUnit(unit)} className="text-blue-400 hover:text-red-500 font-bold focus:outline-none">&times;</button>
+                                   </span>
+                               ))}
+                           </div>
+                       </div>
+
+                       <div className="flex justify-end pt-4 border-t border-neutral-200">
+                           <button
+                               type="button"
+                               onClick={generateVariations}
+                               className="px-6 py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 shadow-sm font-medium transition-colors"
+                           >
+                               Generate Variations Table
+                           </button>
+                       </div>
+                  </div>
+              ) : (
+                /* Variation Form (Old Manual) */
+                <div className="bg-neutral-50 rounded-xl p-6 border border-neutral-200">
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-start">
+                    <div>
+                      <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
+                        Unit Value
+                      </label>
+                      <input
+                        type="text"
+                        value={variationForm.title}
+                        onChange={(e) => setVariationForm({ ...variationForm, title: e.target.value })}
+                        placeholder="e.g. XL, 1kg"
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
+                        Price *
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400">₹</span>
+                        <input
+                          type="number"
+                          value={variationForm.price}
+                          onChange={(e) => setVariationForm({ ...variationForm, price: e.target.value })}
+                          placeholder="0.00"
+                          className="w-full pl-7 pr-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
+                        Discount Price
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400">₹</span>
+                        <input
+                          type="number"
+                          value={variationForm.discPrice}
+                          onChange={(e) => setVariationForm({ ...variationForm, discPrice: e.target.value })}
+                          placeholder="0.00"
+                          className="w-full pl-7 pr-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
+                        Stock
+                      </label>
+                      <input
+                        type="number"
+                        value={variationForm.stock}
+                        onChange={(e) => setVariationForm({ ...variationForm, stock: e.target.value })}
+                        placeholder="0 = Unlimited"
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                      />
+                    </div>
+                    {fieldVisibility.online_offer_price && (
+                    <div>
+                      <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
+                        Offer Price
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400">₹</span>
+                        <input
+                          type="number"
+                          value={variationForm.offerPrice}
+                          onChange={(e) => setVariationForm({ ...variationForm, offerPrice: e.target.value })}
+                          placeholder="Optional"
+                          className="w-full pl-7 pr-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                        />
+                      </div>
+                    </div>
+                    )}
+                    <div>
+                      <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
+                        Secondary Offer (Optional)
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400">₹</span>
+                        <input
+                          type="number"
+                          value={variationForm.offerPrice}
+                          onChange={(e) => setVariationForm({ ...variationForm, offerPrice: e.target.value })}
+                          placeholder="Optional"
+                          className="w-full pl-7 pr-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Tiered Pricing Section */}
+                    <div className="md:col-span-5 bg-gray-50 p-4 rounded-lg border border-dashed border-gray-300">
+                        <div className="flex justify-between items-center mb-3">
+                            <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+                                Unit Pricing (Buy X get for Y)
+                            </label>
+                            <button
+                              type="button"
+                              onClick={handleAddTier}
+                              className="text-xs font-bold text-teal-600 hover:text-teal-700"
+                            >
+                              + Add Tier
                             </button>
                         </div>
-                     </div>
-                  </div>
-                  <div className="flex items-end h-full pt-6 md:col-span-5 justify-end">
-                    <button
-                      type="button"
-                      onClick={addVariation}
-                      className="px-6 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
-                    >
-                      Add Variation +
-                    </button>
+
+                        {variationForm.tieredPrices.length === 0 && (
+                            <p className="text-xs text-center text-gray-400 italic py-2">No unit pricing added.</p>
+                        )}
+
+                        <div className="space-y-3">
+                            {variationForm.tieredPrices.map((tier, idx) => (
+                                <div key={idx} className="flex gap-3 items-center">
+                                    <div className="flex-1">
+                                        <input
+                                            type="number"
+                                            placeholder="Min Qty (e.g. 2)"
+                                            className="w-full px-3 py-2 border border-neutral-300 rounded text-sm"
+                                            value={tier.minQty}
+                                            onChange={e => handleTierChange(idx, 'minQty', e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="flex-1 relative">
+                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">₹</span>
+                                        <input
+                                            type="number"
+                                            placeholder="Price/Unit"
+                                            className="w-full pl-6 pr-3 py-2 border border-neutral-300 rounded text-sm"
+                                            value={tier.price}
+                                            onChange={e => handleTierChange(idx, 'price', e.target.value)}
+                                        />
+                                    </div>
+                                    <button onClick={() => handleRemoveTier(idx)} className="text-red-500 hover:text-red-700">✕</button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="md:col-span-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                       <div className="flex-1">
+                          <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
+                              Barcode
+                          </label>
+                          <div className="flex gap-2">
+                               <input
+                                  type="text"
+                                  value={variationForm.barcode}
+                                  onChange={(e) => setVariationForm({ ...variationForm, barcode: e.target.value })}
+                                  placeholder="Scan or Enter"
+                                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                              />
+                              <button
+                                  type="button"
+                                  onClick={() => startScanning("variation")}
+                                  className="px-3 py-2 bg-neutral-100 border border-neutral-300 rounded-lg hover:bg-neutral-200 text-neutral-600 transition-colors"
+                                  title="Scan Barcode"
+                                  >
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
+                              </button>
+                          </div>
+                       </div>
+                    </div>
+                    <div className="flex items-end h-full pt-6 md:col-span-5 justify-end">
+                      <button
+                        type="button"
+                        onClick={addVariation}
+                        className="px-6 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+                      >
+                        Add Variation +
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
-              {/* Variations List */}
+              {/* Variations List/Table */}
               {variations.length > 0 && (
+                enableAttributes ? (
+                    <div className="overflow-x-auto border border-neutral-200 rounded-lg">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-teal-50 text-teal-900 font-semibold border-b border-teal-100">
+                                <tr>
+                                    <th className="px-4 py-3 min-w-[150px]">Variation</th>
+                                    <th className="px-4 py-3 min-w-[100px]">Price (₹) <span className="text-red-500">*</span></th>
+                                    <th className="px-4 py-3 min-w-[100px]">Disc. Price</th>
+                                    <th className="px-4 py-3 min-w-[80px]">Stock</th>
+                                    <th className="px-4 py-3 min-w-[120px]">SKU/Barcode</th>
+                                    <th className="px-4 py-3 min-w-[100px]">Unit Pricing</th>
+                                    <th className="px-4 py-3 w-10 text-center">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-neutral-100 bg-white">
+                                {variations.map((v, idx) => (
+                                    <tr key={idx} className="hover:bg-neutral-50 group">
+                                        <td className="px-4 py-2 font-medium text-neutral-800">{v.title}</td>
+                                        <td className="px-4 py-2">
+                                            <input
+                                                type="number"
+                                                className="w-full px-2 py-1.5 border border-neutral-300 rounded focus:border-teal-500 focus:outline-none"
+                                                value={v.price}
+                                                onChange={e => {
+                                                    const val = e.target.value;
+                                                    setVariations(prev => {
+                                                        const n = [...prev];
+                                                        n[idx].price = parseFloat(val) || 0;
+                                                        return n;
+                                                    });
+                                                }}
+                                            />
+                                        </td>
+                                        <td className="px-4 py-2">
+                                            <input
+                                                type="number"
+                                                className="w-full px-2 py-1.5 border border-neutral-300 rounded focus:border-teal-500 focus:outline-none"
+                                                value={v.discPrice}
+                                                onChange={e => {
+                                                    const val = e.target.value;
+                                                    setVariations(prev => {
+                                                        const n = [...prev];
+                                                        n[idx].discPrice = parseFloat(val) || 0;
+                                                        return n;
+                                                    });
+                                                }}
+                                            />
+                                        </td>
+                                        <td className="px-4 py-2">
+                                            <input
+                                                type="number"
+                                                className="w-full px-2 py-1.5 border border-neutral-300 rounded focus:border-teal-500 focus:outline-none"
+                                                value={v.stock}
+                                                onChange={e => {
+                                                    const val = e.target.value;
+                                                    setVariations(prev => {
+                                                        const n = [...prev];
+                                                        n[idx].stock = parseInt(val) || 0;
+                                                        return n;
+                                                    });
+                                                }}
+                                            />
+                                        </td>
+                                        <td className="px-4 py-2">
+                                            <input
+                                                type="text"
+                                                className="w-full px-2 py-1.5 border border-neutral-300 rounded focus:border-teal-500 focus:outline-none"
+                                                value={v.barcode}
+                                                placeholder="SKU"
+                                                onChange={e => {
+                                                    const val = e.target.value;
+                                                    setVariations(prev => {
+                                                        const n = [...prev];
+                                                        n[idx].barcode = val;
+                                                        return n;
+                                                    });
+                                                }}
+                                            />
+                                        </td>
+                                        <td className="px-4 py-2 text-center">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const existing = v.tieredPrices || [];
+                                                    setTempTieredPrices(existing.map(t => ({ minQty: t.minQty, price: t.price })));
+                                                    setUnitPricingModal({ isOpen: true, variationIndex: idx });
+                                                }}
+                                                className={`text-xs px-2 py-1 rounded border font-medium transition-colors ${
+                                                    v.tieredPrices && v.tieredPrices.length > 0
+                                                    ? "bg-teal-100 text-teal-800 border-teal-200 hover:bg-teal-200"
+                                                    : "bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200"
+                                                }`}
+                                            >
+                                                {v.tieredPrices && v.tieredPrices.length > 0 ? `${v.tieredPrices.length} Slabs` : "Add +"}
+                                            </button>
+                                        </td>
+                                        <td className="px-4 py-2 text-center">
+                                            <button type="button" onClick={() => removeVariation(idx)} className="text-gray-400 hover:text-red-600 transition-colors p-1 rounded-full hover:bg-red-50">
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : (
                 <div className="border border-neutral-200 rounded-lg overflow-hidden">
                   <div className="bg-neutral-50 px-4 py-2 border-b border-neutral-200">
                     <h3 className="text-sm font-semibold text-neutral-700">Added Variations</h3>
@@ -1650,7 +2236,7 @@ const applySearchedImage = () => {
                     ))}
                   </div>
                 </div>
-              )}
+              ))}
             </div>
           </div>
 
@@ -2067,6 +2653,110 @@ const applySearchedImage = () => {
           </div>
         </div>
       )}
+        {/* Unit Pricing Modal */}
+        {unitPricingModal.isOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+                    <div className="bg-teal-600 text-white px-6 py-4 flex justify-between items-center shrink-0">
+                        <h3 className="text-lg font-semibold">Unit Wise Pricing</h3>
+                        <button onClick={() => setUnitPricingModal({...unitPricingModal, isOpen: false})} className="text-white hover:bg-teal-700 p-1 rounded-full">✕</button>
+                    </div>
+
+                    <div className="p-6 overflow-y-auto flex-1">
+                        <p className="text-sm text-gray-500 mb-4 bg-blue-50 p-3 rounded border border-blue-100">
+                           Set discount prices when users buy in bulk. (e.g. Buy 2+ get at ₹95)
+                        </p>
+
+                        <div className="space-y-3">
+                            {tempTieredPrices.map((tier, idx) => (
+                                <div key={idx} className="flex gap-3 items-center">
+                                    <div className="flex-1">
+                                        <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Min Qty</label>
+                                        <input
+                                            type="number"
+                                            placeholder="e.g. 2"
+                                            className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:border-teal-500 focus:outline-none"
+                                            value={tier.minQty}
+                                            onChange={e => {
+                                                const val = parseInt(e.target.value) || 0;
+                                                setTempTieredPrices(prev => {
+                                                    const n = [...prev];
+                                                    n[idx].minQty = val;
+                                                    return n;
+                                                });
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="flex-1 relative">
+                                        <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Unit Price</label>
+                                        <div className="relative">
+                                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">₹</span>
+                                            <input
+                                                type="number"
+                                                placeholder="Price"
+                                                className="w-full pl-6 pr-3 py-2 border border-neutral-300 rounded text-sm focus:border-teal-500 focus:outline-none"
+                                                value={tier.price}
+                                                onChange={e => {
+                                                    const val = parseFloat(e.target.value) || 0;
+                                                    setTempTieredPrices(prev => {
+                                                        const n = [...prev];
+                                                        n[idx].price = val;
+                                                        return n;
+                                                    });
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex items-end h-[58px]">
+                                        <button
+                                            onClick={() => setTempTieredPrices(prev => prev.filter((_, i) => i !== idx))}
+                                            className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded mb-0.5"
+                                        >✕</button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => setTempTieredPrices(prev => [...prev, { minQty: 0, price: 0 }])}
+                            className="mt-4 text-sm font-bold text-teal-600 hover:text-teal-700 flex items-center gap-1"
+                        >
+                            + Add Price Slab
+                        </button>
+                    </div>
+
+                    <div className="p-4 border-t border-gray-100 flex justify-end gap-3 shrink-0">
+                        <button
+                            onClick={() => setUnitPricingModal({...unitPricingModal, isOpen: false})}
+                            className="px-4 py-2 text-neutral-600 hover:bg-neutral-100 rounded-lg font-medium"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={() => {
+                                if (unitPricingModal.variationIndex !== null) {
+                                    const cleanedTiers = tempTieredPrices.filter(t => t.minQty > 1 && t.price > 0);
+                                    setVariations(prev => {
+                                        const n = [...prev];
+                                        n[unitPricingModal.variationIndex!] = {
+                                            ...n[unitPricingModal.variationIndex!],
+                                            tieredPrices: cleanedTiers
+                                        };
+                                        return n;
+                                    });
+                                    setUnitPricingModal({ isOpen: false, variationIndex: null });
+                                }
+                            }}
+                            className="px-6 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-medium"
+                        >
+                            Save Prices
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+
         {/* Unit Selection Modal */}
         <UnitSelectionModal
             isOpen={isUnitModalOpen}

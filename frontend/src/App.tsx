@@ -6,6 +6,7 @@ import { AuthProvider } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { LocationProvider } from "./context/LocationContext";
 import { ToastProvider } from "./context/ToastContext";
+import { ConfirmationProvider } from "./context/ConfirmationContext";
 
 import { LoadingProvider } from "./context/LoadingContext";
 import { AxiosLoadingInterceptor } from "./context/AxiosLoadingInterceptor";
@@ -152,6 +153,7 @@ const AdminFeaturedDeal = lazy(() => import("./modules/admin/pages/AdminFeatured
 const AdminFreeGiftRules = lazy(() => import("./modules/admin/pages/AdminFreeGiftRules"));
 const AdminReturnRequests = lazy(() => import("./modules/admin/pages/AdminReturnRequests"));
 const AdminReplaceRequests = lazy(() => import("./modules/admin/pages/AdminReplaceRequests"));
+const AdminAttributeSetup = lazy(() => import("./modules/admin/pages/AdminAttributeSetup"));
 
 function App() {
   return (
@@ -163,8 +165,9 @@ function App() {
             <ThemeProvider>
               <LocationProvider>
                 <ToastProvider>
-                <CartProvider>
-                  <OrdersProvider>
+                  <ConfirmationProvider>
+                  <CartProvider>
+                    <OrdersProvider>
                     <BrowserRouter
                       future={{
                         v7_startTransition: true,
@@ -323,6 +326,7 @@ function App() {
                             <Route path="subcategory-order" element={<AdminSubcategoryOrder />} />
                             <Route path="brand" element={<AdminBrand />} />
                             <Route path="product/taxes" element={<AdminTaxes />} />
+                            <Route path="product/attribute-setup" element={<AdminAttributeSetup />} />
                             <Route path="product/list" element={<AdminStockManagement />} />
                             <Route path="product/edit/:id" element={<AdminAddProduct />} />
                             <Route path="manage-seller/list" element={<AdminManageSellerList />} />
@@ -431,6 +435,7 @@ function App() {
                 </BrowserRouter>
                   </OrdersProvider>
                 </CartProvider>
+                  </ConfirmationProvider>
                 </ToastProvider>
               </LocationProvider>
 

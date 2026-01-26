@@ -15,7 +15,7 @@ import Badge from '../../components/ui/badge';
 import { getProductById } from '../../services/api/customerProductService';
 import WishlistButton from '../../components/WishlistButton';
 import StarRating from "../../components/ui/StarRating";
-import { calculateProductPrice } from '../../utils/priceUtils';
+import { calculateProductPrice, getApplicableUnitPrice } from '../../utils/priceUtils';
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
@@ -132,7 +132,31 @@ export default function ProductDetail() {
 
   // Get selected variant
   const selectedVariant = product?.variations?.[selectedVariantIndex] || null;
-  const { displayPrice: variantPrice, mrp: variantMrp, discount, hasDiscount } = calculateProductPrice(product, selectedVariantIndex);
+  const { displayPrice: baseVariantPrice, mrp: variantMrp, discount: baseDiscount, hasDiscount: baseHasDiscount } = calculateProductPrice(product, selectedVariantIndex);
+
+  // Calculate dynamic price based on cart quantity
+  const inCartQtyForCalc = Math.max(1, product
+    ? (cart.items.find(item => {
+        if (!item?.product) return false;
+         const itemProductId = item.product.id || item.product._id;
+         const productId = product.id || product._id;
+         if (itemProductId !== productId) return false;
+         // Match variant
+         if (selectedVariant) {
+            const itemVariantId = (item.product as any).variantId || (item.product as any).selectedVariant?._id;
+            const itemVariantTitle = (item.product as any).variantTitle || (item.product as any).pack;
+            const currentVariantTitle = selectedVariant.title || selectedVariant.value || product.pack;
+            return itemVariantId === selectedVariant._id || itemVariantTitle === currentVariantTitle;
+         }
+         return true;
+    })?.quantity || 0)
+    : 0);
+
+  const variantPrice = getApplicableUnitPrice(product, selectedVariantIndex, inCartQtyForCalc);
+
+  // Recalculate discount based on dynamic price
+  const hasDiscount = variantMrp > variantPrice;
+  const discount = hasDiscount ? Math.round(((variantMrp - variantPrice) / variantMrp) * 100) : 0;
 
   const variantStock = selectedVariant?.stock !== undefined ? selectedVariant.stock : (product?.stock || 0);
   const variantTitle = selectedVariant?.title || selectedVariant?.value || product?.pack || "Standard";

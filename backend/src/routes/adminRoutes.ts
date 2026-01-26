@@ -377,4 +377,12 @@ router.post("/video-finds", videoFindController.createVideoFind);
 router.put("/video-finds/:id", videoFindController.updateVideoFind);
 router.delete("/video-finds/:id", videoFindController.deleteVideoFind);
 
+// ==================== Attribute Routes ====================
+import * as attributeController from "../modules/admin/controllers/adminAttributeController";
+
+router.post("/attributes", attributeController.createAttribute);
+router.get("/attributes", attributeController.getAttributes);
+router.put("/attributes/:id", attributeController.updateAttribute);
+router.delete("/attributes/:id", attributeController.deleteAttribute);
+
 export default router;
