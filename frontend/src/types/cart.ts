@@ -6,6 +6,8 @@ export interface CartItem {
   variant?: any;
   isFreeGift?: boolean;
   id?: string; // Add id as it's used in context and makes life easier
+  source?: string;
+  sourceId?: string;
 }
 
 export interface Cart {

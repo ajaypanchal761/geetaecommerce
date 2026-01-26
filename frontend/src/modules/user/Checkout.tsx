@@ -17,7 +17,7 @@ import { getAppConfig, AppConfig, appConfig as defaultAppConfig } from '../../se
 import { getAddresses } from '../../services/api/customerAddressService';
 import { getProducts } from '../../services/api/customerProductService';
 import { addToWishlist } from '../../services/api/customerWishlistService';
-import { calculateProductPrice } from '../../utils/priceUtils';
+import { calculateProductPrice, getApplicableUnitPrice } from '../../utils/priceUtils';
 import { initiateOnlineOrder, verifyOnlinePayment } from '../../services/api/customerOrderService';
 
 // const STORAGE_KEY = 'saved_address'; // Removed
@@ -190,8 +190,8 @@ export default function Checkout() {
     itemCount: displayItems.reduce((sum, item) => sum + (item.quantity || 0), 0),
     total: displayItems.reduce((sum, item) => {
       if (item.isFreeGift) return sum;
-      const { displayPrice } = calculateProductPrice(item.product, item.variant);
-      return sum + displayPrice * (item.quantity || 0);
+      const unitPrice = getApplicableUnitPrice(item.product, item.variant, item.quantity || 0);
+      return sum + unitPrice * (item.quantity || 0);
     }, 0)
   };
 
@@ -200,7 +200,16 @@ export default function Checkout() {
 
   const itemsTotal = displayItems.reduce((sum, item) => {
     if (!item?.product || item.isFreeGift) return sum;
+    // For MRp calculation in savings, we still compare MRP vs Tier Price
     const { mrp } = calculateProductPrice(item.product, item.variant);
+    // Determine the effective price we are selling at (this is 'discountedTotal' effectively, but 'Items total' in UI usually means MRP total in Indian e-commerce to show savings, OR it means Selling Price total.
+    // Usually:
+    // Items Total (MRP): ₹200
+    // Savings: -₹50
+    // To Pay: ₹150
+    //
+    // The code below suggests 'itemsTotal' is used to calculate 'savedAmount' = itemsTotal - discountedTotal.
+    // So itemsTotal MUST be the MRP total.
     return sum + (mrp * (item.quantity || 0));
   }, 0);
 
@@ -906,8 +915,10 @@ export default function Checkout() {
                       <button
                         type="button"
                         onClick={(e) => {
+                          e.preventDefault();
                           e.stopPropagation();
-                          updateQuantity(item.product?.id, item.quantity - 1, item.variant);
+                          const variantId = (item.product as any).variantId || (item.product as any).selectedVariant?._id || item.variant;
+                          updateQuantity(item.product?.id || item.product?._id, (item.quantity || 1) - 1, variantId);
                         }}
                         className="w-5 h-5 flex items-center justify-center text-green-600 font-bold hover:bg-green-50 rounded-full transition-colors text-xs"
                       >
@@ -919,8 +930,10 @@ export default function Checkout() {
                       <button
                         type="button"
                         onClick={(e) => {
+                          e.preventDefault();
                           e.stopPropagation();
-                          updateQuantity(item.product?.id, item.quantity + 1, item.variant);
+                          const variantId = (item.product as any).variantId || (item.product as any).selectedVariant?._id || item.variant;
+                          updateQuantity(item.product?.id || item.product?._id, (item.quantity || 1) + 1, variantId);
                         }}
                         className="w-5 h-5 flex items-center justify-center text-green-600 font-bold hover:bg-green-50 rounded-full transition-colors text-xs"
                       >
@@ -933,9 +946,17 @@ export default function Checkout() {
                       {isFreeGift ? (
                           <span className="text-xs font-bold text-neutral-900">₹0</span>
                       ) : (
-                          <span className="text-xs font-bold text-neutral-900">
-                            ₹{(calculateProductPrice(item.product, item.variant).displayPrice * item.quantity).toFixed(0)}
-                          </span>
+                          <div className="flex flex-col items-end">
+                            <span className="text-xs font-bold text-neutral-900">
+                                ₹{(getApplicableUnitPrice(item.product, item.variant, item.quantity) * (item.quantity || 0)).toFixed(0)}
+                            </span>
+                             {/* Show tier info if active */}
+                             {getApplicableUnitPrice(item.product, item.variant, item.quantity) < calculateProductPrice(item.product, item.variant).displayPrice && (
+                                <span className="text-[9px] text-green-600 font-medium">
+                                    Bulk Applied
+                                </span>
+                             )}
+                          </div>
                       )}
                     </div>
                   </div>

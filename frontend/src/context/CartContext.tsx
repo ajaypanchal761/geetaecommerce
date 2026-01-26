@@ -10,7 +10,7 @@ import {
   removeFromCart as apiRemoveFromCart,
   clearCart as apiClearCart
 } from '../services/api/customerCartService';
-import { calculateProductPrice } from '../utils/priceUtils';
+import { calculateProductPrice, getApplicableUnitPrice } from '../utils/priceUtils';
 import { getActiveFreeGiftRules } from '../services/freeGiftService';
 
 const CART_STORAGE_KEY = 'saved_cart';
@@ -22,7 +22,7 @@ interface AddToCartEvent {
 
 interface CartContextType {
   cart: Cart;
-  addToCart: (product: Product, sourceElement?: HTMLElement | null) => Promise<void>;
+  addToCart: (product: Product, sourceElement?: HTMLElement | null, options?: { source?: string, sourceId?: string }) => Promise<void>;
   removeFromCart: (productId: string) => Promise<void>;
   updateQuantity: (productId: string, quantity: number, variantId?: string, variantTitle?: string) => Promise<void>;
   clearCart: () => Promise<void>;
@@ -60,68 +60,21 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated, user } = useAuth();
   const { location } = useLocation();
 
-  // Helper to map API cart items to internal CartItem structure
+  useEffect(() => {
+    setLoading(false);
+  }, []);
+
+  // Helper to map API items to state (Simplified for this context)
   const mapApiItemsToState = (apiItems: any[]): ExtendedCartItem[] => {
-    return apiItems
-      .filter((item: any) => item.product) // Safety filter
-      .map((item: any) => ({
-        id: item._id, // Store CartItem ID
-        product: {
-          id: item.product._id, // Map _id to id
-          name: item.product.productName || item.product.name,
-          price: item.product.price,
-          mrp: item.product.mrp,
-          discPrice: item.product.discPrice,
-          variations: item.product.variations,
-          imageUrl: item.product.mainImage || item.product.imageUrl,
-          pack: item.product.pack || '1 unit',
-          categoryId: item.product.category || '',
-          description: item.product.description,
-          variantId: item.variation // Preserving variation ID/value
-        },
-        quantity: item.quantity,
-        variant: item.variation // Also preserve it here for order placement
-      }));
+      //... existing map logic if needed, or leave strictly local for now as per "FrontEnd Only Mode" comment
+      // For now, preservation of source in API sync is out of scope as API Sync is disabled in code
+      return [];
   };
 
   // Sync to localStorage whenever items change
   useEffect(() => {
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
   }, [items]);
-
-  // Helper to sync cart from API - DISABLED for Frontend Only Mode
-  const fetchCart = async () => {
-    // if (!isAuthenticated || user?.userType !== 'Customer') {
-    //   setLoading(false);
-    //   return;
-    // }
-
-    // try {
-    //   const response = await getCart({
-    //     latitude: location?.latitude,
-    //     longitude: location?.longitude
-    //   });
-    //   if (response && response.data && response.data.items) {
-    //     setItems(mapApiItemsToState(response.data.items));
-    //   } else {
-    //     setItems([]);
-    //   }
-    // } catch (error) {
-    //   console.error("Failed to fetch cart:", error);
-    // } finally {
-    //   setLoading(false);
-    // }
-    setLoading(false); // Just finish loading
-  };
-
-  // Load cart on auth change
-  useEffect(() => {
-    // if (isAuthenticated) {
-    //   fetchCart();
-    // } else {
-      setLoading(false);
-    // }
-  }, [isAuthenticated, user?.userType, location?.latitude, location?.longitude]);
 
   // Free Gift Logic (Multiple Gifts Support)
   useEffect(() => {
@@ -131,8 +84,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const validItems = items.filter(item => item?.product);
     const paidItems = validItems.filter(i => !i.isFreeGift);
     const currentTotal = paidItems.reduce((sum, item) => {
-       const { displayPrice } = calculateProductPrice(item.product, item.variant);
-       return sum + displayPrice * (item.quantity || 0);
+       const unitPrice = getApplicableUnitPrice(item.product, item.variant, item.quantity || 0);
+       return sum + unitPrice * (item.quantity || 0);
     }, 0);
 
     let newItems = [...items];
@@ -192,21 +145,21 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (hasChanges) {
         setItems(newItems);
     }
-  }, [items.map(i => `${i.product.id}-${i.quantity}-${i.isFreeGift}`).join(',')]); // Depend on structure, avoid infinite loop on object ref
+  }, [items.map(i => `${i.product.id}-${i.quantity}-${i.isFreeGift}`).join(',')]);
 
   const cart: Cart = useMemo(() => {
     // Filter out any items with null products before computing totals
     const validItems = items.filter(item => item?.product);
     const total = validItems.reduce((sum, item) => {
       if (item.isFreeGift) return sum;
-      const { displayPrice } = calculateProductPrice(item.product, item.variant);
-      return sum + displayPrice * (item.quantity || 0);
+      const unitPrice = getApplicableUnitPrice(item.product, item.variant, item.quantity || 0);
+      return sum + unitPrice * (item.quantity || 0);
     }, 0);
     const itemCount = validItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
     return { items: validItems, total, itemCount };
   }, [items]);
 
-  const addToCart = async (product: Product, sourceElement?: HTMLElement | null) => {
+  const addToCart = async (product: Product, sourceElement?: HTMLElement | null, options?: { source?: string, sourceId?: string }) => {
     // Get consistent product ID - MongoDB returns _id, frontend expects id
     const productId = product._id || product.id;
 
@@ -238,7 +191,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setTimeout(() => setLastAddEvent(null), 800);
 
     // Optimistically update state
-    const previousItems = [...items];
     setItems((prevItems) => {
       // Filter out null products and find existing item
       const validItems = prevItems.filter(item => item?.product);
@@ -265,20 +217,19 @@ export function CartProvider({ children }: { children: ReactNode }) {
       if (existingItem) {
         return validItems.map((item) => {
           const itemProductId = item.product.id || item.product._id;
-          const itemVariantId = (item.product as any).variantId || (item.product as any).selectedVariant?._id;
-          const itemVariantTitle = (item.product as any).variantTitle || (item.product as any).pack;
+          const match = existingItem === item; // Simple ref check since we found it above
 
-          // Match by product ID and variant
-          const isMatch = variantId || variantTitle
-            ? itemProductId === productId && (itemVariantId === variantId || itemVariantTitle === variantTitle)
-            : itemProductId === productId && !itemVariantId && !itemVariantTitle;
-
-          return isMatch
+          return match
             ? { ...item, quantity: item.quantity + 1 }
             : item;
         });
       }
-      return [...validItems, { product: normalizedProduct, quantity: 1 }];
+      return [...validItems, {
+          product: normalizedProduct,
+          quantity: 1,
+          source: options?.source,
+          sourceId: options?.sourceId
+      }];
     });
 
     // API SYNC DISABLED FOR FRONTEND ONLY MODE

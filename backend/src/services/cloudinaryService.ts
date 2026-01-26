@@ -186,6 +186,47 @@ export async function uploadDocumentFromBuffer(
 }
 
 /**
+ * Upload video from buffer (for multer)
+ */
+export async function uploadVideoFromBuffer(
+  buffer: Buffer,
+  options: UploadOptions = {}
+): Promise<UploadResult> {
+  return new Promise((resolve, reject) => {
+    const uploadOptions = {
+      folder: options.folder || CLOUDINARY_FOLDERS.PRODUCTS,
+      resource_type: options.resourceType || "video",
+      transformation: options.transformation,
+      overwrite: options.overwrite || false,
+      invalidate: options.invalidate || true,
+    };
+
+    const uploadStream = cloudinary.uploader.upload_stream(
+      uploadOptions,
+      (error: any, result: any) => {
+        if (error) {
+          reject(new Error(`Cloudinary video upload failed: ${error.message}`));
+        } else if (result) {
+          resolve({
+            url: result.url,
+            publicId: result.public_id,
+            secureUrl: result.secure_url,
+            width: result.width,
+            height: result.height,
+            format: result.format,
+            bytes: result.bytes,
+          });
+        } else {
+          reject(new Error("Cloudinary video upload returned no result"));
+        }
+      }
+    );
+
+    uploadStream.end(buffer);
+  });
+}
+
+/**
  * Delete an image from Cloudinary by public_id
  */
 export async function deleteImage(publicId: string): Promise<void> {

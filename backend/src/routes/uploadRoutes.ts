@@ -6,10 +6,12 @@ import {
   uploadDocument,
   uploadMultipleDocuments,
   handleUploadError,
+  uploadVideo,
 } from "../middleware/upload";
 import {
   uploadImageFromBuffer,
   uploadDocumentFromBuffer,
+  uploadVideoFromBuffer,
   deleteImage,
 } from "../services/cloudinaryService";
 import { CLOUDINARY_FOLDERS } from "../config/cloudinary";
@@ -176,6 +178,37 @@ router.post(
     return res.status(200).json({
       success: true,
       data: results,
+    });
+  })
+);
+
+/**
+ * POST /api/v1/upload/video
+ * Upload a single video
+ */
+router.post(
+  "/video",
+  authenticate,
+  requireUserType("Admin", "Seller"),
+  uploadVideo.single("video"),
+  handleUploadError,
+  asyncHandler(async (req: Request, res: Response) => {
+    if (!(req as any).file) {
+      return res.status(400).json({
+        success: false,
+        message: "No video file provided",
+      });
+    }
+
+    const folder = (req.body.folder as string) || CLOUDINARY_FOLDERS.PRODUCTS;
+    const result = await uploadVideoFromBuffer((req as any).file.buffer, {
+      folder,
+      resourceType: "video",
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: result,
     });
   })
 );

@@ -462,34 +462,91 @@ export default function AdminStockManagement() {
   const displayedProducts = sortedProducts.slice(startIndex, endIndex);
 
   const handleExport = () => {
+    // Columns exactly matching visible table headers [1-26] + Status
     const headers = [
       "Variation Id",
-      "Name",
-      "Seller",
-      "Variation",
+      "Category",
+      "Sub Cat",
+      "Sub Sub Cat",
+      "Product Name",
+      "SKU",
+      "Rack",
+      "Desc",
+      "Barcode",
+      "HSN",
+      "Unit",
+      "Size",
+      "Color",
+      "Attr",
+      "Tax Cat",
+      "GST",
+      "Pur. Price",
+      "MRP",
+      "Sell Price",
+      "Del. Time",
       "Stock",
+      "Offer Price",
+      "Wholesale Price",
+      "Low Stock",
+      "Brand",
+      "Val (MRP)",
+      "Val (Pur)",
       "Status",
     ];
+
+    const escapeCsv = (val: any) => {
+        if (val === null || val === undefined) return '';
+        const stringVal = String(val);
+        // If value contains comma, double quote or newline, wrap in quotes and escape internal quotes
+        if (stringVal.includes(',') || stringVal.includes('"') || stringVal.includes('\n')) {
+            return `"${stringVal.replace(/"/g, '""')}"`;
+        }
+        return stringVal;
+    };
+
     const csvContent = [
       headers.join(","),
       ...sortedProducts.map((product) =>
         [
-          product.id,
-          `"${product.name}"`,
-          `"${product.seller}"`,
-          `"${product.variation}"`,
-          product.stock === "Unlimited" ? "Unlimited" : product.stock,
-          product.status,
+          escapeCsv(product.id),
+          escapeCsv(product.category),
+          escapeCsv(product.subCategory),
+          escapeCsv(product.subSubCategory),
+          escapeCsv(product.name),
+          escapeCsv(product.sku),
+          escapeCsv(product.rackNumber),
+          escapeCsv(product.description),
+          escapeCsv(product.barcode),
+          escapeCsv(product.hsnCode),
+          escapeCsv(product.unit),
+          escapeCsv(product.sizeName),
+          escapeCsv(product.colorName),
+          escapeCsv(product.attributeName),
+          escapeCsv(product.taxCategory),
+          escapeCsv(product.gst),
+          escapeCsv(product.purchasePrice),
+          escapeCsv(product.compareAtPrice),
+          escapeCsv(product.price),
+          escapeCsv(product.deliveryTime),
+          escapeCsv(product.stock),
+          escapeCsv(product.offerPrice),
+          escapeCsv(product.wholesalePrice),
+          escapeCsv(product.lowStockQuantity),
+          escapeCsv(product.brand),
+          escapeCsv(product.valueMrp),
+          escapeCsv(product.valuePurchase),
+          escapeCsv(product.publish ? "Active" : "Inactive"),
         ].join(",")
       ),
     ].join("\n");
+
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
     link.setAttribute(
       "download",
-      `stock_management_${new Date().toISOString().split("T")[0]}.csv`
+      `stock_export_${new Date().toISOString().split("T")[0]}.csv`
     );
     link.style.visibility = "hidden";
     document.body.appendChild(link);

@@ -170,7 +170,9 @@ export interface Product {
   brandId?: string;
   taxId?: string;
   mainImageUrl?: string;
+  mainImageUrl?: string;
   galleryImageUrls?: string[];
+  unitPricing?: { minQty: number; price: number }[];
 }
 
 export interface CreateProductData {
@@ -230,6 +232,7 @@ export interface CreateProductData {
   discPrice?: number;
   isShopByStoreOnly?: boolean;
   shopId?: string;
+  unitPricing?: { minQty: number; price: number }[];
 }
 
 export interface GetProductsParams {

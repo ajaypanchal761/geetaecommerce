@@ -4,7 +4,7 @@ import mongoose from "mongoose";
 
 export const getVideoFinds = async (_req: Request, res: Response) => {
   try {
-    const videos = await VideoFind.find().sort({ createdAt: -1 });
+    const videos = await VideoFind.find().sort({ createdAt: -1 }).populate('linkedProduct');
     return res.status(200).json({ success: true, count: videos.length, data: videos });
   } catch (error) {
     return res.status(500).json({ success: false, message: "Error fetching video finds", error: (error as Error).message });

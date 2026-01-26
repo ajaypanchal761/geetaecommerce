@@ -93,6 +93,31 @@ export default function AdminStockBulkImport({
        variations.push({ name: "Attribute", value: String(row['Attr'] || row['13. Attr']) });
     }
 
+    let unitPricing: { minQty: number; price: number }[] = [];
+    try {
+        const rawPricing = row['Unit Pricing'] || row['Tiered Pricing'] || row['Pricing Rules'] ||
+                          row['27. Unit Pricing Rules (e.g. 2=100; 5=90)'] || row['27. Unit Pricing Rules'] ||
+                          row['27. Pricing Rules'] || row['Unit Pricing Rules'];
+
+        if (rawPricing) {
+             const pricingStr = String(rawPricing).trim();
+
+             // 1. Try Simple Syntax: "2=100; 5=90"
+             if (pricingStr.includes('=') && !pricingStr.startsWith('[')) {
+                unitPricing = pricingStr.split(';').map(pair => {
+                    const [qty, price] = pair.split('=').map(s => s.trim());
+                    return { minQty: parseInt(qty), price: parseFloat(price) };
+                }).filter(p => !isNaN(p.minQty) && !isNaN(p.price));
+             }
+             // 2. Try JSON Syntax
+             else if (pricingStr.startsWith('[')) {
+                 unitPricing = JSON.parse(pricingStr);
+             }
+        }
+    } catch (e) {
+        console.warn("Failed to parse unit pricing for row", row);
+    }
+
     return {
       category: findCategory(row['Category'] || row['1. Category']),
       subcategory: row['Sub Cat'] || row['2. Sub Cat'] || "",
@@ -114,8 +139,10 @@ export default function AdminStockBulkImport({
       deliveryTime: row['Del. Time'] || row['19. Del. Time'] || "",
       stock: parseInt(row['Stock'] || row['20. Stock'] || "0"),
       discPrice: parseFloat(row['Offer Price'] || row['21. Offer Price'] || "0"),
-      lowStockQuantity: parseInt(row['Low Stock'] || row['22. Low Stock'] || "5"),
-      brand: row['Brand'] || row['23. Brand'] || "",
+      wholesalePrice: parseFloat(row['Wholesale Price'] || row['22. Wholesale Price'] || row['Unit Price'] || row['27. Unit Price'] || "0"),
+      lowStockQuantity: parseInt(row['Low Stock'] || row['23. Low Stock'] || "5"),
+      brand: row['Brand'] || row['24. Brand'] || "",
+      unitPricing: unitPricing.length > 0 ? unitPricing : undefined, // Add parsed unitPricing
 
       publish: (row['Status'] || row['Status'] || "").toLowerCase() === 'active' || (row['Status'] || "").toLowerCase() === 'published' ? true : false,
 
@@ -168,7 +195,8 @@ export default function AdminStockBulkImport({
           "1. Category", "2. Sub Cat", "3. Sub Sub Cat", "4. Product Name", "5. SKU", "6. Rack", "7. Desc",
           "8. Barcode", "9. HSN", "10. Unit", "11. Size", "12. Color", "13. Attr", "14. Tax Cat", "15. GST",
           "16. Pur. Price", "17. MRP", "18. Sell Price", "19. Del. Time", "20. Stock", "21. Offer Price",
-          "22. Low Stock", "23. Brand", "24. Val (MRP)", "25. Val (Pur)", "Image"
+          "22. Wholesale Price", "23. Low Stock", "24. Brand", "25. Val (MRP)", "26. Val (Pur)",
+          "27. Unit Pricing Rules (e.g. 2=100; 5=90)", "Image"
       ];
 
       const ws = XLSX.utils.aoa_to_sheet([headers]);
@@ -234,10 +262,12 @@ export default function AdminStockBulkImport({
                    <span>19. Del. Time</span>
                    <span>20. Stock</span>
                    <span>21. Offer Price</span>
-                   <span>22. Low Stock</span>
-                   <span>23. Brand</span>
-                   <span>24. Val (MRP)</span>
-                   <span>25. Val (Pur)</span>
+                   <span>22. Wholesale Price</span>
+                   <span>23. Low Stock</span>
+                   <span>24. Brand</span>
+                   <span>25. Val (MRP)</span>
+                   <span>26. Val (Pur)</span>
+                   <span>27. Unit Pricing Rules (Qty=Price;...)</span>
                    <span>Image</span>
                 </div>
               </div>

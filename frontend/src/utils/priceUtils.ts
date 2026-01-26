@@ -76,7 +76,19 @@ export const getApplicableUnitPrice = (product: any, variationSelector?: number 
     variation = product.variations[0];
   }
 
-  // 1. Check for tiered pricing in variation
+  // 1. Check for unitPricing in main product (New Standard - Prioritized)
+  // This ensures rules set in the new Bulk Import/Edit system take precedence
+  if (product.unitPricing && Array.isArray(product.unitPricing) && product.unitPricing.length > 0) {
+       const applicableTier = product.unitPricing
+          .filter((t: any) => quantity >= (t.minQty || 0))
+          .sort((a: any, b: any) => b.minQty - a.minQty)[0];
+
+        if (applicableTier) {
+            return parseFloat(applicableTier.price);
+        }
+  }
+
+  // 2. Check for tiered pricing in variation (Legacy/Specific)
   if (variation?.tieredPrices && Array.isArray(variation.tieredPrices) && variation.tieredPrices.length > 0) {
       // Find the highest tier where quantity >= minQty
       const applicableTier = variation.tieredPrices
@@ -88,7 +100,7 @@ export const getApplicableUnitPrice = (product: any, variationSelector?: number 
       }
   }
 
-  // 2. Check for tiered pricing in main product (if schema supports it, though currently usually on variation)
+  // 3. Check for tiered pricing in main product (Legacy fallbacks)
   if (product.tieredPrices && Array.isArray(product.tieredPrices) && product.tieredPrices.length > 0) {
        const applicableTier = product.tieredPrices
           .filter((t: any) => quantity >= (t.minQty || 0))

@@ -5,6 +5,7 @@ import { motion, AnimatePresence, useInView } from 'framer-motion';
 import { getVideoFinds, VideoFind, toggleLikeVideo, incrementShareCount } from '../../services/api/user/videoFindService';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
+import { useCart } from '../../context/CartContext';
 
 // --- Sub-components ---
 
@@ -79,6 +80,7 @@ const ReelItem = ({
 }) => {
   const { user, isAuthenticated } = useAuth();
   const { showToast } = useToast();
+  const { addToCart } = useCart();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isLiked, setIsLiked] = useState(false);
   const [likesCount, setLikesCount] = useState(0);
@@ -192,6 +194,38 @@ const ReelItem = ({
     }
   };
 
+  const handleAddToCart = async (e: React.MouseEvent) => {
+      e.stopPropagation();
+
+      if (!product.linkedProduct) {
+          showToast('Product not linked to this video', 'error');
+          return;
+      }
+
+      if (product.linkedProduct.stock !== undefined && product.linkedProduct.stock < 1) {
+           showToast('Product is out of stock', 'error');
+           return;
+      }
+
+      const productToAdd: any = {
+          id: product.linkedProduct._id,
+          _id: product.linkedProduct._id,
+          name: product.linkedProduct.productName,
+          price: product.linkedProduct.price,
+          imageUrl: product.linkedProduct.mainImage,
+          stock: product.linkedProduct.stock,
+          categoryId: '', // Not strictly needed for add to cart basic flow
+          pack: '1 unit', // Default
+          productName: product.linkedProduct.productName // Compatibility
+      };
+
+      await addToCart(productToAdd, e.currentTarget as HTMLElement, {
+          source: 'VIDEO_FIND',
+          sourceId: product._id
+      });
+      showToast('Added to cart!', 'success');
+  };
+
   return (
     <div
       className={`h-full w-full relative snap-start shrink-0 cursor-pointer ${isSidePreview ? 'pointer-events-none' : ''}`}
@@ -291,32 +325,41 @@ const ReelItem = ({
             className="absolute bottom-6 left-4 right-4 z-20"
             onClick={(e) => e.stopPropagation()}
           >
-             <div className="bg-white rounded-xl shadow-xl overflow-hidden">
-                {/* Product Details Section */}
-                <div className="p-3 flex gap-3 items-center">
-                   <div className="w-14 h-14 bg-gray-100 rounded-lg shrink-0 overflow-hidden">
-                       {/* Placeholder Video Thumbnail - using a generic placeholder or color since we don't have images in mock data */}
-                       <div className="w-full h-full bg-neutral-200 flex items-center justify-center text-xs text-gray-500 font-medium">
-                          Item
+             {product.linkedProduct ? (
+                 <div className="bg-white rounded-xl shadow-xl overflow-hidden">
+                    {/* Product Details Section */}
+                    <div className="p-3 flex gap-3 items-center">
+                       <div className="w-14 h-14 bg-gray-100 rounded-lg shrink-0 overflow-hidden">
+                           {product.linkedProduct.mainImage ? (
+                               <img src={product.linkedProduct.mainImage} alt="Product" className="w-full h-full object-cover" />
+                           ) : (
+                               <div className="w-full h-full bg-neutral-200 flex items-center justify-center text-xs text-gray-500 font-medium">
+                                  Item
+                               </div>
+                           )}
                        </div>
-                   </div>
-                   <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-semibold text-gray-900 line-clamp-1 mb-0.5">{product.title}</h4>
-                      <div className="flex items-center gap-2">
-                         <span className="text-base font-bold text-gray-900">₹{product.price}</span>
-                         <span className="text-xs text-gray-500 line-through">₹{product.originalPrice}</span>
-                      </div>
-                   </div>
-                </div>
+                       <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-semibold text-gray-900 line-clamp-1 mb-0.5">{product.linkedProduct.productName}</h4>
+                          <div className="flex items-center gap-2">
+                             <span className="text-base font-bold text-gray-900">₹{product.linkedProduct.price}</span>
+                          </div>
+                       </div>
+                    </div>
 
-                {/* Full Width Button Section */}
-                <button
-                  onClick={(e) => e.stopPropagation()}
-                  className="w-full py-3 bg-[#E31E24] text-white font-bold text-sm uppercase tracking-wide hover:bg-red-700 active:bg-red-800 transition-colors"
-                >
-                   Add To Cart
-                </button>
-             </div>
+                    {/* Full Width Button Section */}
+                    <button
+                      onClick={handleAddToCart}
+                      disabled={product.linkedProduct.stock !== undefined && product.linkedProduct.stock < 1}
+                      className="w-full py-3 bg-[#E31E24] text-white font-bold text-sm uppercase tracking-wide hover:bg-red-700 active:bg-red-800 transition-colors disabled:bg-gray-400"
+                    >
+                       {product.linkedProduct.stock !== undefined && product.linkedProduct.stock < 1 ? 'Out of Stock' : 'Add To Cart'}
+                    </button>
+                 </div>
+             ) : (
+                 <div className="bg-white/80 backdrop-blur rounded-xl p-4 text-center text-sm font-medium">
+                     Video Promotion
+                 </div>
+             )}
           </motion.div>
         </>
       )}

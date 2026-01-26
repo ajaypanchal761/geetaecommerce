@@ -4,7 +4,7 @@ import VideoFind from '../../../models/VideoFind';
 // Get all video finds
 export const getVideoFinds = async (req: Request, res: Response) => {
   try {
-    const videos = await VideoFind.find().sort({ createdAt: -1 });
+    const videos = await VideoFind.find().sort({ createdAt: -1 }).populate('linkedProduct');
     res.status(200).json({ success: true, count: videos.length, data: videos });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server Error', error: (error as Error).message });

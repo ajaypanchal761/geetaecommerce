@@ -1026,7 +1026,19 @@ export const updateProduct = asyncHandler(
     const { id } = req.params;
     const updateData = req.body;
 
-    const product = await Product.findByIdAndUpdate(id, updateData, {
+    // Handle sparse unique fields (like SKU) - if empty/null, unset them to avoid duplicate null/empty string errors
+    const unsetFields: any = {};
+    if (updateData.sku === "" || updateData.sku === null) {
+      unsetFields.sku = 1;
+      delete updateData.sku;
+    }
+
+    const updateOperation: any = { $set: updateData };
+    if (Object.keys(unsetFields).length > 0) {
+        updateOperation.$unset = unsetFields;
+    }
+
+    const product = await Product.findByIdAndUpdate(id, updateOperation, {
       new: true,
       runValidators: true,
     })

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { getPOSProducts, Product } from '../../../services/api/admin/adminProductService';
+import { getProducts, getProductById, getPOSProducts, Product, getSellers, updateProduct, createProduct } from '../../../services/api/admin/adminProductService';
 import { createPOSOrder, initiatePOSOnlineOrder, verifyPOSPayment } from '../../../services/api/admin/adminOrderService';
 import { getAllCustomers, Customer } from '../../../services/api/admin/adminCustomerService';
 import { getAppSettings, AppSettings } from '../../../services/api/admin/adminSettingsService';
+import { getCategories } from '../../../services/api/categoryService';
+import { getBrands } from '../../../services/api/brandService';
 import { useToast } from '../../../context/ToastContext';
 import { useNavigate } from 'react-router-dom';
 import { jsPDF } from "jspdf";
@@ -13,6 +15,13 @@ interface CartItem extends Product {
   customPrice?: number; // For edited selling price
   variationId?: string;
   isVariation?: boolean;
+  originalProductId?: string | null;
+}
+
+interface Seller {
+  _id: string;
+  sellerName: string;
+  storeName: string;
 }
 
 interface Bill {
@@ -192,14 +201,14 @@ const AdminPOSOrders = () => {
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
 
   // Fetch Settings, Sellers, Categories & Brands
-  useEffect(() => {
+    useEffect(() => {
     const fetchData = async () => {
       try {
         const [settingsRes, sellersRes, categoriesRes, brandsRes] = await Promise.all([
             getAppSettings(),
             getSellers(),
-            import('../../../services/api/admin/adminProductService').then(m => m.getCategories()),
-            import('../../../services/api/admin/adminProductService').then(m => m.getBrands())
+            getCategories(),
+            getBrands()
         ]);
         if (settingsRes.success) setSettings(settingsRes.data);
         if (sellersRes.success) setSellers(sellersRes.data);
@@ -431,7 +440,7 @@ const AdminPOSOrders = () => {
     if (quickForm.addToInventory) {
         setLoading(true);
         try {
-            const res = await (import('../../../services/api/admin/adminProductService')).then(m => m.createProduct({
+            const res = await createProduct({
                 productName: quickForm.name,
                 price: parseFloat(quickForm.price) || 0,
                 compareAtPrice: parseFloat(quickForm.mrp) || 0,
@@ -441,9 +450,8 @@ const AdminPOSOrders = () => {
                 category: quickForm.categoryId,
                 brand: quickForm.brandId,
                 seller: selectedSeller || undefined, // Will default to Admin Store in backend if undefined
-                status: 'Active',
                 publish: true
-            }));
+            });
 
             if (res.success && res.data) {
                 productId = res.data._id;
@@ -504,6 +512,46 @@ const AdminPOSOrders = () => {
     });
   };
 
+  // Fetch fresh product details when editing an item
+  useEffect(() => {
+    const fetchProductDetails = async () => {
+      // Ensure we have a valid item and it's not a temporary quick-add item (unless added to inventory)
+      if (!editingItem || !editingItem.originalProductId) return;
+
+      try {
+        const res = await getProductById(editingItem.originalProductId);
+        if (res.success && res.data) {
+          const product = res.data;
+          let mrp = product.compareAtPrice || 0;
+          let purchasePrice = product.purchasePrice || 0;
+          let wholesalePrice = product.wholesalePrice || 0;
+
+          // If it's a variation, try to find the specific variation's details
+          if (editingItem.isVariation && editingItem.variationId) {
+             const variation = product.variations?.find((v: any) => v._id === editingItem.variationId) as any;
+             if (variation) {
+                 mrp = variation.compareAtPrice || mrp;
+                 purchasePrice = variation.purchasePrice || purchasePrice;
+                 wholesalePrice = variation.wholesalePrice || wholesalePrice;
+             }
+          }
+
+          // Update the form with the fetched values
+          setEditForm(prev => ({
+              ...prev,
+              mrp: (mrp || 0).toString(),
+              purchasePrice: (purchasePrice || 0).toString(),
+              wholesalePrice: (wholesalePrice || 0).toString()
+          }));
+        }
+      } catch (err) {
+        console.error("Failed to fetch product details", err);
+      }
+    };
+
+    fetchProductDetails();
+  }, [editingItem]);
+
   const handleEditItemSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingItem) return;
@@ -513,7 +561,7 @@ const AdminPOSOrders = () => {
         const updatedItem = {
           ...item,
           productName: editForm.name,
-          customPrice: parseFloat(editForm.price),
+          customPrice: parseFloat(editForm.price) || 0,
           compareAtPrice: parseFloat(editForm.mrp) || 0,
           purchasePrice: parseFloat(editForm.purchasePrice) || 0,
           wholesalePrice: parseFloat(editForm.wholesalePrice) || 0,

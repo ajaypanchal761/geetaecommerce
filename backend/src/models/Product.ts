@@ -21,6 +21,7 @@ export interface IProduct extends Document {
   galleryImages: string[];
 
   // Pricing & Inventory
+  unitPricing?: { minQty: number; price: number }[];
   price: number;
   wholesalePrice?: number;
   discPrice?: number;
@@ -168,6 +169,10 @@ export interface IProduct extends Document {
     },
 
     // Pricing & Inventory
+    unitPricing: {
+      type: [{ minQty: Number, price: Number }],
+      default: [],
+    },
     price: {
       type: Number,
       required: [true, "Price is required"],
@@ -397,6 +402,12 @@ ProductSchema.pre("save", function (next) {
       (acc: number, curr: any) => acc + (Number(curr.stock) || 0),
       0
     );
+
+    // Sync unitPricing from first variation (if present) to root for easier access
+    // BUT only if unitPricing is not explicitly set/modified to avoid overwriting admin edits
+    if ((!this.unitPricing || this.unitPricing.length === 0) && this.variations[0].tieredPrices && this.variations[0].tieredPrices.length > 0) {
+      this.unitPricing = this.variations[0].tieredPrices;
+    }
   }
 
   // Calculate discount

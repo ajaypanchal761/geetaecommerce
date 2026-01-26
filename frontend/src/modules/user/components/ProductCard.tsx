@@ -125,25 +125,13 @@ export default function ProductCard({
   // Get Price and MRP using utility
   const { displayPrice, mrp, discount } = calculateProductPrice(product);
 
-  // --- STATIC TIER PRICING DEMO LOGIC ---
-  const realTiers = product.variations?.[0]?.tieredPrices || [];
-  // Use static if no real tiers exist (Demo Mode) - Always true for now if price > 0 per request
-  const useStaticTiers = realTiers.length === 0 && displayPrice > 0;
-
-  const tieredPrices = useStaticTiers ? [
-      { minQty: 2, price: Math.floor(displayPrice * 0.96) }, // ~4% off for 2+
-      { minQty: 4, price: Math.floor(displayPrice * 0.92) }  // ~8% off for 4+
-  ].filter(t => t.price < displayPrice) : realTiers;
+  // Get real tiered pricing from root or first variation
+  const tieredPrices = ((product as any).unitPricing && (product as any).unitPricing.length > 0)
+      ? (product as any).unitPricing
+      : (product.variations?.[0]?.tieredPrices || []);
 
   // Calculate dynamic unit price based on cart quantity
   let currentUnitPrice = getApplicableUnitPrice(product, undefined, Math.max(1, inCartQty));
-
-   // If showing static demo tiers, manually override price
-  if (useStaticTiers && inCartQty > 1) {
-      const match = [...tieredPrices].sort((a,b) => b.minQty - a.minQty).find(t => inCartQty >= t.minQty);
-      if (match) currentUnitPrice = match.price;
-  }
-  // -------------------------------------
 
   const handleCardClick = () => {
     navigate(`/product/${((product as any).id || product._id) as string}`);
@@ -418,27 +406,29 @@ export default function ProductCard({
                 <span>14 MINS</span>
               </p>
 
-              {/* 4. Tiered Pricing Static Display (First Image Style) */}
+              {/* 4. Tiered Pricing Static Display (Multi-Row) */}
               {tieredPrices.length > 0 ? (
-                 <div className="flex flex-col gap-0.5 mb-1 mt-auto w-full">
+                 <div className="flex flex-col gap-0.5 mb-1 mt-auto w-full border-t border-gray-100 pt-1">
                     {/* Line 1: Base Price */}
                     <div className="flex justify-between items-center text-[9px] leading-tight">
-                       <span className="text-gray-500 font-medium">1 unit(s)</span>
+                       <span className="text-gray-500 font-medium">1 unit</span>
                        <div className="flex items-center gap-1">
                          <span className="font-semibold text-gray-700">₹{displayPrice}</span>
-                         {discount > 0 && <span className="text-green-600 font-bold">({discount}% OFF)</span>}
+                         {/* Optional: Show base discount if needed, but keeping it clean for list */}
                        </div>
                     </div>
-                    {/* Line 2: Tier 1 (Highlighted) */}
-                    <div className="flex justify-between items-center text-[9px] leading-tight">
-                       <span className="text-red-600 font-bold">{tieredPrices[0].minQty}+ unit(s)</span>
-                       <div className="flex items-center gap-1">
-                         <span className="font-bold text-gray-900">₹{tieredPrices[0].price}</span>
-                         <span className="text-green-600 font-bold">
-                           ({Math.round(((mrp - tieredPrices[0].price) / mrp) * 100)}% OFF)
-                         </span>
-                       </div>
-                    </div>
+                    {/* Additional Tiers */}
+                    {tieredPrices.slice().sort((a: any, b: any) => a.minQty - b.minQty).map((tier: any, idx: number) => (
+                        <div key={idx} className="flex justify-between items-center text-[9px] leading-tight">
+                           <span className="text-green-600 font-bold">{tier.minQty}+ units</span>
+                           <div className="flex items-center gap-1">
+                             <span className="font-bold text-gray-900">₹{tier.price}</span>
+                             <span className="text-green-600 font-bold bg-green-50 px-1 rounded-sm">
+                               {Math.round(((mrp - tier.price) / mrp) * 100)}% OFF
+                             </span>
+                           </div>
+                        </div>
+                    ))}
                  </div>
               ) : (
                  discount > 0 && (
@@ -486,7 +476,7 @@ export default function ProductCard({
               </div>
 
               {/* Tiered Pricing Display */}
-              {product.variations?.[0]?.tieredPrices && product.variations[0].tieredPrices.length > 0 && (
+              {tieredPrices.length > 0 && (
                   <div className="mb-2 space-y-1">
                       {/* Base Price Tier */}
                       <div className="flex justify-between items-center bg-gray-50 px-2 py-1 rounded text-[10px]">
@@ -496,7 +486,7 @@ export default function ProductCard({
                           </div>
                       </div>
                       {/* Additional Tiers */}
-                      {product.variations[0].tieredPrices.map((tier, idx) => {
+                      {tieredPrices.map((tier: any, idx: number) => {
                           const tierDiscount = mrp ? Math.round(((mrp - tier.price) / mrp) * 100) : 0;
                           return (
                               <div key={idx} className="flex justify-between items-center bg-teal-50 px-2 py-1 rounded text-[10px] border border-teal-100">

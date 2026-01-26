@@ -2,7 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import Button from '../../components/ui/button';
 import { appConfig } from '../../services/configService';
-import { calculateProductPrice } from '../../utils/priceUtils';
+import { calculateProductPrice, getApplicableUnitPrice } from '../../utils/priceUtils';
 import { getActiveFreeGiftRules } from '../../services/freeGiftService';
 
 export default function Cart() {
@@ -127,6 +127,8 @@ export default function Cart() {
       <div className="px-4 md:px-6 lg:px-8 space-y-4 md:space-y-6 mb-4 md:mb-6">
         {cart.items.map((item) => {
           const { displayPrice, mrp, hasDiscount } = calculateProductPrice(item.product, item.variant);
+          const applicableUnitPrice = getApplicableUnitPrice(item.product, item.variant, item.quantity || 1);
+          const isTieredApplied = applicableUnitPrice < displayPrice;
           const isFreeGift = item.isFreeGift;
 
           return (
@@ -158,12 +160,17 @@ export default function Cart() {
                   <p className="text-xs md:text-sm text-neutral-500 mb-2">{item.product.pack}</p>
                   <div className="flex items-center gap-2 mb-3 md:mb-4">
                     <span className="text-base md:text-lg font-bold text-neutral-900">
-                      ₹{displayPrice.toLocaleString('en-IN')}
+                      ₹{applicableUnitPrice.toLocaleString('en-IN')}
                     </span>
-                    {hasDiscount && (
+                    {(hasDiscount || isTieredApplied) && (
                       <span className="text-xs md:text-sm text-neutral-500 line-through">
-                        ₹{mrp.toLocaleString('en-IN')}
+                        ₹{mrp > displayPrice ? mrp.toLocaleString('en-IN') : displayPrice.toLocaleString('en-IN')}
                       </span>
+                    )}
+                    {isTieredApplied && (
+                         <span className="text-xs font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded">
+                           Bulk Price
+                         </span>
                     )}
                   </div>
 
@@ -197,7 +204,7 @@ export default function Cart() {
                     </Button>
                     <div className="ml-auto text-right">
                       <div className="text-sm md:text-base font-bold text-neutral-900">
-                        ₹{(displayPrice * item.quantity).toFixed(0)}
+                        ₹{(applicableUnitPrice * item.quantity).toFixed(0)}
                       </div>
                     </div>
                   </div>

@@ -10,6 +10,13 @@ export interface VideoFind {
   views: string;
   likes: string[];
   shares: number;
+  linkedProduct?: {
+      _id: string;
+      productName: string;
+      price: number;
+      stock?: number;
+      mainImage?: string;
+  };
 }
 
 export const getVideoFinds = async () => {

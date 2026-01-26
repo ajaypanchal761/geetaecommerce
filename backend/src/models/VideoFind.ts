@@ -8,6 +8,7 @@ export interface IVideoFind extends Document {
   views: string;
   likes: mongoose.Types.ObjectId[];
   shares: number;
+  linkedProduct: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -21,6 +22,7 @@ const VideoFindSchema: Schema = new Schema(
     views: { type: String, default: '0' },
     likes: [{ type: Schema.Types.ObjectId, ref: 'Customer', default: [] }],
     shares: { type: Number, default: 0 },
+    linkedProduct: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
   },
   { timestamps: true }
 );

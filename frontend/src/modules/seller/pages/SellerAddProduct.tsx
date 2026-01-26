@@ -35,6 +35,8 @@ import { Html5Qrcode } from "html5-qrcode";
 
 import { useAuth } from "../../../context/AuthContext";
 
+import UnitSelectionModal from "../../../components/UnitSelectionModal";
+
 export default function SellerAddProduct() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -110,6 +112,7 @@ export default function SellerAddProduct() {
 
   // Dynamic Product Settings
   const [productDisplaySettings, setProductDisplaySettings] = useState<any[]>([]);
+  const [isUnitModalOpen, setIsUnitModalOpen] = useState(false);
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<SubCategory[]>([]);
@@ -385,6 +388,12 @@ export default function SellerAddProduct() {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
+    // Check limit
+    if (galleryImageFiles.length + files.length > 6) {
+        setUploadError("You can only upload a maximum of 6 gallery images.");
+        return;
+    }
+
     // Validate all files
     const invalidFiles = files.filter((file) => !validateImageFile(file).valid);
     if (invalidFiles.length > 0) {
@@ -394,14 +403,15 @@ export default function SellerAddProduct() {
       return;
     }
 
-    setGalleryImageFiles(files);
     setUploadError("");
 
     try {
       const previews = await Promise.all(
         files.map((file) => createImagePreview(file))
       );
-      setGalleryImagePreviews(previews);
+
+      setGalleryImageFiles(prev => [...prev, ...files]);
+      setGalleryImagePreviews(prev => [...prev, ...previews]);
     } catch (error) {
       setUploadError("Failed to create image previews");
     }
@@ -778,20 +788,50 @@ export default function SellerAddProduct() {
           <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-6 space-y-6">
 
             {/* 1. Image Upload - Compact Square */}
+            {/* 1. Image Upload Section */}
             <div>
-                 <div className="flex flex-col items-center">
-                    <label className="w-32 h-32 border-2 border-blue-500 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-blue-50 transition-colors">
-                        {mainImagePreview ? (
-                            <img src={mainImagePreview} className="w-full h-full object-cover rounded-lg" alt="Main" />
-                        ) : (
-                            <>
-                                <svg className="w-8 h-8 text-blue-500 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                                <span className="text-xs text-blue-600 font-bold">Image</span>
-                            </>
-                        )}
-                        <input type="file" accept="image/*" onChange={handleMainImageChange} className="hidden" />
-                    </label>
-                    <p className="text-xs text-gray-400 mt-2">You can add max 6 images</p>
+                 <div className="flex flex-col gap-6">
+                    {/* Main Image */}
+                    <div className="flex flex-col items-center">
+                        <span className="text-sm font-semibold text-neutral-700 mb-2">Main Image</span>
+                        <label className="w-40 h-40 border-2 border-blue-500 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-blue-50 transition-colors relative overflow-hidden bg-white">
+                            {mainImagePreview ? (
+                                <img src={mainImagePreview} className="w-full h-full object-contain" alt="Main" />
+                            ) : (
+                                <>
+                                    <svg className="w-10 h-10 text-blue-500 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                                    <span className="text-xs text-blue-600 font-bold">Upload Main</span>
+                                </>
+                            )}
+                            <input type="file" accept="image/*" onChange={handleMainImageChange} className="hidden" />
+                        </label>
+                    </div>
+
+                    {/* Gallery Images */}
+                    <div className="flex flex-col items-start w-full">
+                        <span className="text-sm font-semibold text-neutral-700 mb-2">Gallery Images (Max 6)</span>
+                        <div className="flex flex-wrap gap-3">
+                            {galleryImagePreviews.map((preview, index) => (
+                                <div key={index} className="w-24 h-24 relative border border-gray-200 rounded-lg overflow-hidden group bg-white">
+                                    <img src={preview} className="w-full h-full object-cover" alt={`Gallery ${index}`} />
+                                    <button
+                                        type="button"
+                                        onClick={() => removeGalleryImage(index)}
+                                        className="absolute top-1 right-1 bg-red-600/80 hover:bg-red-600 text-white w-6 h-6 flex items-center justify-center rounded-full opacity-100 shadow-sm transition-all text-xs z-10"
+                                    >
+                                        &times;
+                                    </button>
+                                </div>
+                            ))}
+                             {galleryImagePreviews.length < 6 && (
+                                <label className="w-24 h-24 border-2 border-gray-300 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors text-gray-400 hover:text-blue-600">
+                                    <span className="text-3xl font-light mb-1">+</span>
+                                    <span className="text-[10px] font-medium uppercase">Add</span>
+                                    <input type="file" accept="image/*" multiple onChange={handleGalleryImagesChange} className="hidden" />
+                                </label>
+                            )}
+                        </div>
+                    </div>
                  </div>
             </div>
 
@@ -878,14 +918,20 @@ export default function SellerAddProduct() {
                    <label className="block text-sm font-semibold text-neutral-700 mb-2">
                     Pack / Unit Size <span className="text-xs text-neutral-500 font-normal ml-1">(e.g. 1 kg, 500 ml, 1 pc)</span>
                    </label>
-                   <input
-                     type="text"
-                     name="pack"
-                     value={(formData as any).pack}
-                     onChange={handleChange}
-                     placeholder="Enter Unit Size (displayed on card)"
-                     className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
-                   />
+                   <div className="relative">
+                     <input
+                       type="text"
+                       name="pack"
+                       value={(formData as any).pack}
+                       onClick={() => setIsUnitModalOpen(true)}
+                       readOnly
+                       placeholder="Select Unit Size"
+                       className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all cursor-pointer bg-white"
+                     />
+                     <div className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+                     </div>
+                   </div>
                 </div>
                 )}
 
@@ -1669,6 +1715,16 @@ export default function SellerAddProduct() {
           </div>
         </div>
       )}
+        {/* Unit Selection Modal */}
+        <UnitSelectionModal
+            isOpen={isUnitModalOpen}
+            onClose={() => setIsUnitModalOpen(false)}
+            onSelect={(unit) => {
+                setFormData(prev => ({ ...prev, pack: unit }));
+                setIsUnitModalOpen(false);
+            }}
+            currentValue={(formData as any).pack}
+        />
     </div>
   );
 }

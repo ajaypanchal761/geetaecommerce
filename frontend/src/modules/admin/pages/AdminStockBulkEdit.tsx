@@ -23,6 +23,60 @@ interface ProductImage {
   file?: File;
 }
 
+// Simple Modal for editing pricing slabs
+const PricingSlabsModal = ({ slabs, onClose, onSave }: { slabs: {minQty: number, price: number}[], onClose: () => void, onSave: (newSlabs: any[]) => void }) => {
+    const [localSlabs, setSlabs] = useState(slabs.length ? slabs : [{ minQty: 1, price: 0 }]);
+
+    const handleChange = (index: number, field: string, val: string) => {
+        const newSlabs = [...localSlabs];
+        newSlabs[index] = { ...newSlabs[index], [field]: Number(val) };
+        setSlabs(newSlabs);
+    };
+
+    const addSlab = () => setSlabs([...localSlabs, { minQty: 0, price: 0 }]);
+    const removeSlab = (idx: number) => setSlabs(localSlabs.filter((_, i) => i !== idx));
+
+    return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+            <div className="bg-white p-6 rounded shadow-lg w-96 z-[70]">
+                <h3 className="text-lg font-bold mb-4">Set Unit Pricing</h3>
+                <div className="max-h-64 overflow-auto">
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr className="text-left text-gray-600">
+                                <th className="p-1">Min Qty</th>
+                                <th className="p-1">Price/Unit</th>
+                                <th className="p-1"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {localSlabs.map((slab, i) => (
+                                <tr key={i} className="border-b">
+                                    <td className="p-1"><input type="number" className="border w-20 p-1 rounded" value={slab.minQty} onChange={e => handleChange(i, 'minQty', e.target.value)} /></td>
+                                    <td className="p-1">
+                                        <div className="relative">
+                                            <span className="absolute left-1 top-1 text-gray-400">₹</span>
+                                            <input type="number" className="border w-24 p-1 pl-4 rounded" value={slab.price} onChange={e => handleChange(i, 'price', e.target.value)} />
+                                        </div>
+                                    </td>
+                                    <td className="p-1 text-red-500 cursor-pointer font-bold px-2" onClick={() => removeSlab(i)}>✕</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+                <button onClick={addSlab} className="mt-3 text-teal-600 font-bold text-sm flex items-center gap-1">
+                    <span className="text-lg">+</span> Add Slab
+                </button>
+                <div className="mt-6 flex justify-end gap-2">
+                    <button onClick={onClose} className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded text-sm text-gray-700 font-medium transition-colors">Cancel</button>
+                    <button onClick={() => { onSave(localSlabs.filter(s => s.minQty > 0)); onClose(); }} className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded text-sm font-medium transition-colors">Save Rules</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 interface EditableProduct {
   id: string;
   original: Product;
@@ -52,6 +106,7 @@ interface EditableProduct {
   brandId: string; // ID for editing
   tax: string;
   offerPrice: number;
+  unitPricing: { minQty: number; price: number }[]; // Add this
 }
 
 export default function AdminStockBulkEdit({
@@ -63,6 +118,7 @@ export default function AdminStockBulkEdit({
   const [editableProducts, setEditableProducts] = useState<EditableProduct[]>([]);
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [activePricingModalIndex, setActivePricingModalIndex] = useState<number | null>(null); // For modal
 
   const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
@@ -149,6 +205,7 @@ export default function AdminStockBulkEdit({
         brandId: brandId,
         tax: p.tax || "",
         offerPrice: p.discPrice || 0,
+        unitPricing: p.unitPricing && p.unitPricing.length > 0 ? p.unitPricing : [{ minQty: 1, price: 0 }], // Initialize
         images: images,
         isChanged: false,
       };
@@ -246,7 +303,7 @@ export default function AdminStockBulkEdit({
           publish: p.publish,
           mainImage: mainImage,
           galleryImages: galleryImages,
-          sku: p.itemCode,
+          sku: p.itemCode || null,
           // itemCode: p.itemCode, // Commenting out to avoid duplication issues if backend doesn't expect it
           rackNumber: p.rackNumber,
           smallDescription: p.description,
@@ -269,6 +326,7 @@ export default function AdminStockBulkEdit({
              ...v,
              discPrice: p.offerPrice
           })) || [],
+          unitPricing: p.unitPricing, // Include unitPricing in payload
         } as any);
       });
 
@@ -307,7 +365,7 @@ export default function AdminStockBulkEdit({
     "sku", "rackNumber", "description", "barcode", "hsnCode", "pack",
     "size", "color", "attr", "tax", "gst", "purchasePrice", "compareAtPrice",
     "price", "deliveryTime", "stock", "offerPrice", "wholesalePrice",
-    "lowStockQuantity", "brand", "valMrp", "valPur", "status"
+    "lowStockQuantity", "brand", "valMrp", "valPur", "unitPrice", "status"
   ]);
   const [draggedCol, setDraggedCol] = useState<string | null>(null);
 
@@ -340,6 +398,7 @@ export default function AdminStockBulkEdit({
     brand: "24. Brand",
     valMrp: "25. Val (MRP)",
     valPur: "26. Val (Pur)",
+    unitPrice: "27. Unit Pricing Rules", // Rename
     status: "Status"
   };
 
@@ -475,6 +534,7 @@ export default function AdminStockBulkEdit({
     brand: 100,
     valMrp: 100,
     valPur: 100,
+    unitPrice: 100,
     status: 100,
   });
 
@@ -611,6 +671,35 @@ export default function AdminStockBulkEdit({
         return <td key={key} className="p-2 border-r border-neutral-200 text-sm text-neutral-600 text-right">{(product.compareAtPrice * product.stock).toLocaleString()}</td>;
       case "valPur":
         return <td key={key} className="p-2 border-r border-neutral-200 text-sm text-neutral-600 text-right">{(product.purchasePrice * product.stock).toLocaleString()}</td>;
+      case "unitPrice":
+        return (
+            <td key={key} className="p-1 border-r border-neutral-200 align-top">
+                <div className="flex justify-between items-start h-full gap-1">
+                     <div className="flex flex-col gap-0.5 w-full">
+                        {product.unitPricing && product.unitPricing.length > 0 ? (
+                            product.unitPricing.map((slab, idx) => (
+                                <div key={idx} className="text-[10px] text-gray-700 bg-gray-50 px-1 rounded flex justify-between border border-gray-100">
+                                    <span>{slab.minQty}+</span>
+                                    <span className="font-bold">₹{slab.price}</span>
+                                </div>
+                            ))
+                        ) : (
+                            <span className="text-[10px] text-gray-400 italic p-1">No rules</span>
+                        )}
+                     </div>
+                     <button
+                        onClick={() => setActivePricingModalIndex(originalIndex)}
+                        className="text-teal-600 hover:text-teal-800 p-1 hover:bg-teal-50 rounded shrink-0"
+                        title="Edit Pricing Rules"
+                     >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                     </button>
+                </div>
+            </td>
+        );
       case "status":
         return (
           <td key={key} className="p-2 text-center">
@@ -737,6 +826,15 @@ export default function AdminStockBulkEdit({
           </button>
         </div>
       </div>
+
+      {/* Pricing Modal */}
+      {activePricingModalIndex !== null && (
+          <PricingSlabsModal
+              slabs={editableProducts[activePricingModalIndex].unitPricing || []}
+              onClose={() => setActivePricingModalIndex(null)}
+              onSave={(newSlabs) => handleFieldChange(activePricingModalIndex, 'unitPricing', newSlabs)}
+          />
+      )}
     </div>
   );
 }
