@@ -1,7 +1,7 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
 export interface IBanner extends Document {
-  position: 'Main Banner' | 'Popup Banner' | 'Main Section Banner' | 'Deal of the Day';
+  position: 'Main Banner' | 'Popup Banner' | 'Main Section Banner' | 'Deal of the Day' | 'Flash Deals' | 'Footer Banner';
   resourceType: 'Category' | 'Product' | 'None';
   resourceId?: string; // ID of the category or product
   resourceName?: string; // Store name for easier display, optional
@@ -16,7 +16,7 @@ const bannerSchema = new Schema<IBanner>(
     position: {
       type: String,
       required: true,
-      enum: ['Main Banner', 'Popup Banner', 'Main Section Banner', 'Deal of the Day'],
+      enum: ['Main Banner', 'Popup Banner', 'Main Section Banner', 'Deal of the Day', 'Flash Deals', 'Footer Banner'],
     },
     resourceType: {
       type: String,

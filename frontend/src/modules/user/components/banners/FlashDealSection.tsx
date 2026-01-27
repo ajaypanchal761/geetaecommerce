@@ -1,6 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getTheme } from '../../../../utils/themes';
 import { useThemeContext } from '../../../../context/ThemeContext';
+import { bannerService } from '../../../../services/bannerService';
+import { getProductById, getProducts } from '../../../../services/api/customerProductService';
+import { calculateProductPrice } from '../../../../utils/priceUtils';
 
 interface TimeLeft {
   days: number;
@@ -9,31 +13,46 @@ interface TimeLeft {
   seconds: number;
 }
 
-import { bannerService } from '../../../../services/bannerService';
-
 export default function FlashDealSection() {
+  const navigate = useNavigate();
   const { activeCategory } = useThemeContext();
   const theme = getTheme(activeCategory || 'all');
-  const [config, setConfig] = useState<{flashDealTargetDate: string; flashDealImage?: string; isActive?: boolean}>({ flashDealTargetDate: '', isActive: true });
+  const [config, setConfig] = useState<{flashDealTargetDate: string; flashDealImage?: string; isActive?: boolean; flashDealProductIds?: string[]}>({ flashDealTargetDate: '', isActive: true });
+  const [products, setProducts] = useState<any[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchConfig = async () => {
         try {
             const data = await bannerService.getDealsConfig();
             setConfig(data);
+
+            let fetchedProducts: any[] = [];
+
+            // 1. Try to fetch from specific IDs if configured
+            if (data.flashDealProductIds && data.flashDealProductIds.length > 0) {
+                const promises = data.flashDealProductIds.slice(0, 10).map(id => getProductById(id));
+                const results = await Promise.all(promises);
+                fetchedProducts = results
+                    .filter(res => res.success && res.data)
+                    .map(res => ({
+                        ...res.data,
+                        id: (res.data as any)._id || (res.data as any).id
+                    }));
+            }
+
+            setProducts(fetchedProducts);
             setIsLoaded(true);
         } catch (error) {
             console.error("Error fetching deals config:", error);
+            setIsLoaded(true);
         }
     };
     fetchConfig();
-  }, []);
+  }, [activeCategory]);
 
   const [targetDate, setTargetDate] = useState(() => {
-      if (config.flashDealTargetDate) {
-          return new Date(config.flashDealTargetDate);
-      }
       const date = new Date();
       date.setHours(date.getHours() + 24);
       return date;
@@ -41,7 +60,15 @@ export default function FlashDealSection() {
 
   useEffect(() => {
      if (config.flashDealTargetDate) {
-         setTargetDate(new Date(config.flashDealTargetDate));
+         const serverDate = new Date(config.flashDealTargetDate);
+         // If server date is in the past, add 24 hours to the current time to make it "run"
+         if (serverDate.getTime() <= Date.now()) {
+            const newTarget = new Date();
+            newTarget.setHours(newTarget.getHours() + 24);
+            setTargetDate(newTarget);
+         } else {
+            setTargetDate(serverDate);
+         }
      }
   }, [config.flashDealTargetDate]);
 
@@ -61,7 +88,6 @@ export default function FlashDealSection() {
   };
 
   const [timeLeft, setTimeLeft] = useState<TimeLeft>(calculateTimeLeft());
-  const isExpired = timeLeft.days === 0 && timeLeft.hours === 0 && timeLeft.minutes === 0 && timeLeft.seconds === 0;
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -71,83 +97,107 @@ export default function FlashDealSection() {
     return () => clearInterval(timer);
   }, [targetDate]);
 
-  if (isLoaded && (config.isActive === false || isExpired)) {
+  // Only hide if EXPLICITLY set to inactive by admin.
+  if (isLoaded && config.isActive === false) {
     return null;
   }
 
   const TimerBox = ({ value, label }: { value: number; label: string }) => (
-    <div className="flex flex-col items-center">
-      <div
-        className="w-10 h-10 md:w-12 md:h-12 rounded-lg flex items-center justify-center text-white font-bold text-lg md:text-xl shadow-sm mb-1"
-        style={{ backgroundColor: theme.primary[0] }}
-      >
+    <div className="flex flex-col items-center min-w-[45px]">
+      <div className="text-white font-bold text-lg md:text-xl leading-none mb-1">
         {value.toString().padStart(2, '0')}
       </div>
-      <span className="text-[10px] md:text-xs font-medium text-neutral-600 uppercase tracking-wide">{label}</span>
+      <span className="text-[10px] text-white/70 uppercase tracking-tighter font-medium">{label}</span>
     </div>
   );
 
   return (
-    <div className="px-4 md:px-6 lg:px-8 mb-6 mt-2">
+    <div className="px-4 md:px-6 lg:px-8 mb-8 mt-4">
       <div
-        className="rounded-2xl p-4 md:p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm border border-neutral-100 relative overflow-hidden"
-        style={{
-          background: `linear-gradient(135deg, ${theme.secondary[0]} 0%, white 100%)`
-        }}
+        className="rounded-2xl p-5 shadow-sm border border-neutral-100 flex flex-col gap-6"
+        style={{ background: `linear-gradient(135deg, ${theme.primary[3]}33 0%, #fff 100%)` }}
       >
-        {/* Decorative background circle */}
-        <div
-          className="absolute -right-10 -top-10 w-40 h-40 rounded-full opacity-10 pointer-events-none"
-          style={{ backgroundColor: theme.primary[0] }}
-        />
-
-        <div className="flex-1 text-center md:text-left z-10 flex flex-col md:flex-row items-center gap-4 md:gap-6">
-          <div className="relative w-24 h-24 md:w-28 md:h-28 flex-shrink-0">
-             <img
-                src={config.flashDealImage || "https://cdn-icons-png.flaticon.com/512/3081/3081986.png"}
-                alt="Flash Deal"
-                className="w-full h-full object-contain drop-shadow-md animate-bounce"
-                style={{ animationDuration: '3s' }}
-             />
-          </div>
-          <div>
-            <div className="flex items-center justify-center md:justify-start gap-2 mb-2">
-              <svg
-                className="w-6 h-6 animate-pulse"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                style={{ color: theme.primary[0] }}
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              <h2 className="text-2xl font-black text-neutral-900 tracking-tight">FLASH DEAL</h2>
-            </div>
-            <p className="text-neutral-600 text-sm md:text-base max-w-md">
-              Hurry Up! The offer is limited. Grab your favorites at unbeatable prices while it lasts.
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="text-center md:text-left">
+            <h2 className="text-xl font-black tracking-tight" style={{ color: theme.primary[0] }}>FLASH DEAL</h2>
+            <p className="text-neutral-500 text-xs md:text-sm mt-1 max-w-xs font-medium">
+              Hurry Up! The offer is limited. Grab while it lasts
             </p>
           </div>
+
+          <div
+             className="flex items-center gap-2 p-3 md:px-6 md:py-3 rounded-xl shadow-lg z-10"
+             style={{ backgroundColor: theme.primary[0] }}
+          >
+            <TimerBox value={timeLeft.days} label="Days" />
+            <span className="text-white/50 font-bold text-lg mb-4">:</span>
+            <TimerBox value={timeLeft.hours} label="Hrs" />
+            <span className="text-white/50 font-bold text-lg mb-4">:</span>
+            <TimerBox value={timeLeft.minutes} label="Min" />
+            <span className="text-white/50 font-bold text-lg mb-4">:</span>
+            <TimerBox value={timeLeft.seconds} label="Sec" />
+          </div>
         </div>
 
-        <div className="flex items-center gap-3 md:gap-4 z-10 bg-white/50 backdrop-blur-sm p-4 rounded-xl border border-white/60 shadow-sm">
-          <TimerBox value={timeLeft.days} label="Days" />
-          <span className="text-neutral-400 font-bold -mt-4">:</span>
-          <TimerBox value={timeLeft.hours} label="Hrs" />
-          <span className="text-neutral-400 font-bold -mt-4">:</span>
-          <TimerBox value={timeLeft.minutes} label="Min" />
-          <span className="text-neutral-400 font-bold -mt-4">:</span>
-          <TimerBox value={timeLeft.seconds} label="Sec" />
-        </div>
-
-        <div className="w-full md:w-auto z-10">
-            <button
-                className="w-full md:w-auto px-8 py-3 rounded-full text-white font-bold shadow-lg transform transition hover:scale-105 active:scale-95"
-                style={{
-                    backgroundColor: theme.primary[0],
-                    boxShadow: `0 4px 14px 0 ${theme.primary[1]}`
-                }}
+        {/* Product List Section */}
+        {products.length > 0 ? (
+            <div
+                ref={scrollContainerRef}
+                className="flex overflow-x-auto gap-4 scrollbar-hide pb-2"
             >
-                View All Deals
+                {products.map(product => {
+                    const { displayPrice, mrp, discount } = calculateProductPrice(product);
+                    return (
+                        <div
+                            key={product.id}
+                            className="flex-none w-[260px] md:w-[280px] bg-white rounded-xl p-3 shadow-md border border-neutral-100 flex items-center gap-3 cursor-pointer hover:scale-[1.02] transition-transform"
+                            onClick={() => navigate(`/product/${product.id}`)}
+                        >
+                            <div className="relative w-20 h-20 flex-shrink-0 bg-neutral-50 rounded-lg overflow-hidden flex items-center justify-center">
+                                {discount > 0 && (
+                                    <div
+                                        className="absolute top-0 left-0 text-white text-[10px] font-bold px-2 py-0.5 rounded-br-lg z-10"
+                                        style={{ backgroundColor: theme.primary[0] }}
+                                    >
+                                        -{discount}%
+                                    </div>
+                                )}
+                                <img
+                                    src={product.mainImage || product.imageUrl}
+                                    alt={product.name}
+                                    className="w-full h-full object-contain p-1"
+                                />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <h4 className="font-bold text-neutral-800 text-sm line-clamp-2 leading-snug">
+                                    {product.productName || product.name || 'Product'}
+                                </h4>
+                                <div className="flex flex-col mt-1">
+                                    {mrp > displayPrice && (
+                                        <span className="text-[10px] text-neutral-400 line-through">₹{mrp}</span>
+                                    )}
+                                    <span className="text-sm font-black text-neutral-900">₹{displayPrice}</span>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        ) : (
+            <div className="flex items-center justify-center p-8 bg-neutral-50/50 rounded-xl border border-dashed border-neutral-200">
+                <p className="text-neutral-400 text-sm font-medium italic">Setting up products for your flash deal...</p>
+            </div>
+        )}
+
+        {/* Footer Action */}
+        <div className="flex justify-center border-t border-neutral-100 pt-4">
+            <button
+                onClick={() => navigate('/flash-deals')}
+                className="text-sm font-bold flex items-center gap-1 hover:gap-2 transition-all px-6 py-2 rounded-full border border-neutral-200 bg-white"
+                style={{ color: theme.primary[0] }}
+            >
+                View All <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
             </button>
         </div>
       </div>

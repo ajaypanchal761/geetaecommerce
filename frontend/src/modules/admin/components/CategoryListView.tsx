@@ -7,6 +7,7 @@ interface CategoryListViewProps {
   onSelectAll: () => void;
   onEdit: (category: Category) => void;
   onDelete: (category: Category) => void;
+  onCategoryClick: (category: Category) => void;
   currentPage: number;
   itemsPerPage: number;
   onPageChange: (page: number) => void;
@@ -19,6 +20,7 @@ export default function CategoryListView({
   onSelectAll,
   onEdit,
   onDelete,
+  onCategoryClick,
   currentPage,
   itemsPerPage,
   onPageChange,
@@ -124,8 +126,20 @@ export default function CategoryListView({
                   )}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap">
-                  <div className="text-sm font-medium text-neutral-900">
+                  <div
+                    onClick={() => onCategoryClick(category)}
+                    className={`text-sm font-medium text-neutral-900 transition-colors flex items-center gap-2 ${
+                       (category.childrenCount || 0) > 0
+                         ? "cursor-pointer hover:text-teal-600"
+                         : ""
+                    }`}
+                  >
                     {category.name}
+                    {(category.childrenCount || 0) > 0 && (
+                      <span className="text-xs text-neutral-400 bg-neutral-100 px-1.5 py-0.5 rounded-full">
+                        {category.childrenCount}
+                      </span>
+                    )}
                   </div>
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap">

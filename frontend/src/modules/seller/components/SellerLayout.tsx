@@ -1,4 +1,4 @@
-import { ReactNode, useState, useCallback } from 'react';
+import { ReactNode, useState, useCallback, useEffect } from 'react';
 import SellerHeader from './SellerHeader';
 import SellerSidebar from './SellerSidebar';
 import { useSellerSocket, SellerNotification } from '../hooks/useSellerSocket';
@@ -9,8 +9,24 @@ interface SellerLayoutProps {
 }
 
 export default function SellerLayout({ children }: SellerLayoutProps) {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
   const [activeNotification, setActiveNotification] = useState<SellerNotification | null>(null);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 1024) {
+        setIsSidebarOpen(false);
+      } else {
+        setIsSidebarOpen(true);
+      }
+    };
+
+    // Set initial state correctly
+    handleResize();
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const handleNotificationReceived = useCallback((notification: SellerNotification) => {
     setActiveNotification(notification);
@@ -38,7 +54,7 @@ export default function SellerLayout({ children }: SellerLayoutProps) {
       {isSidebarOpen && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-          onClick={toggleSidebar}
+          onClick={() => setIsSidebarOpen(false)}
         />
       )}
 
@@ -54,7 +70,7 @@ export default function SellerLayout({ children }: SellerLayoutProps) {
       {/* Main Content */}
       <div
         className={`flex-1 flex flex-col transition-all duration-300 w-full ${
-          isSidebarOpen ? 'ml-64' : 'ml-0'
+          isSidebarOpen ? 'ml-0 lg:ml-64' : 'ml-0'
         }`}
       >
         {/* Header */}

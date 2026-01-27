@@ -191,9 +191,7 @@ export default function AdminFreeGiftRules() {
                             <option value="Active">Active</option>
                             <option value="Inactive">Inactive</option>
                         </select>
-                        {status === 'Active' && (
-                            <p className="text-xs text-amber-600 mt-1">Note: Activating this rule will deactivate other rules.</p>
-                        )}
+
                     </div>
                 </div>
                 <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end gap-3 rounded-b-lg">

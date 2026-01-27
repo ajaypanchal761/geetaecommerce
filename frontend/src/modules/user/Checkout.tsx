@@ -554,8 +554,7 @@ export default function Checkout() {
 
   return (
     <div
-      className="bg-white min-h-screen flex flex-col opacity-100"
-      style={{ opacity: 1, height: '1250px' }}
+      className="bg-white min-h-screen flex flex-col"
     >
 
       {/* Party Popper Animation */}

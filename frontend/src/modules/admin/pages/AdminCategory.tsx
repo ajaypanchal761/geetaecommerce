@@ -118,27 +118,44 @@ export default function AdminCategory() {
     }
   };
 
+  // Navigation Stack for Drill-Down (List View)
+  const [navigationStack, setNavigationStack] = useState<Category[]>([]);
+
   const filteredCategories = useMemo(() => {
     const flatCategories = flattenTree(categories);
     let filtered = [...flatCategories];
 
     if (searchQuery.trim()) {
       filtered = searchCategories(filtered, searchQuery);
-      const matchingParentIds = new Set(filtered.map((cat) => cat._id));
-      const childrenOfMatches = flatCategories.filter(
-        (cat) => cat.parentId && matchingParentIds.has(cat.parentId)
-      );
-      const allFiltered = [...filtered, ...childrenOfMatches];
-      const uniqueFiltered = Array.from(
-        new Map(allFiltered.map((cat) => [cat._id, cat])).values()
-      );
-      filtered = uniqueFiltered;
     }
 
     filtered = filterCategoriesByStatus(filtered, statusFilter);
-
     return filtered;
   }, [categories, searchQuery, statusFilter]);
+
+  // Derived list for display (Filtered by Navigation Stack if not searching)
+  const displayedCategories = useMemo(() => {
+    if (viewMode === 'tree') return [];
+
+    // If searching, show all matches regardless of hierarchy
+    if (searchQuery.trim()) {
+      return filteredCategories;
+    }
+
+    // Drill-down logic:
+    // Identify current parent ID
+    const currentParentId = navigationStack.length > 0
+      ? navigationStack[navigationStack.length - 1]._id
+      : null;
+
+    // Filter categories that belong to current parent
+    return filteredCategories.filter(cat => {
+      // Normalize parentId from the flat list
+      const pId = cat.parentId || null;
+      return pId === currentParentId;
+    });
+
+  }, [filteredCategories, searchQuery, navigationStack, viewMode]);
 
   const categoryTree = useMemo(() => {
     if (viewMode === "tree") {
@@ -166,6 +183,26 @@ export default function AdminCategory() {
     setEditingCategory(category);
     setParentCategory(null);
     setModalOpen(true);
+  };
+
+  // --- NAVIGATION HANDLERS ---
+  const handleCategoryClick = (category: Category) => {
+    // Only navigate if it has children or it effectively acts as a parent
+    // Logic: If filteredCategories contains any item whose parentId is this category, then it has children to show.
+    // Or if childrenCount > 0 from DB.
+    const hasChildren = (category.childrenCount && category.childrenCount > 0) ||
+                        filteredCategories.some(c => c.parentId === category._id);
+
+    if (hasChildren) {
+      setNavigationStack(prev => [...prev, category]);
+      setListPage(1); // Reset page on nav
+      setSearchQuery(""); // Clear search on drill down to avoid confusion? Or keep? Clearing is safer for "entering" a folder.
+    }
+  };
+
+  const handleNavigateBack = () => {
+    setNavigationStack(prev => prev.slice(0, -1));
+    setListPage(1);
   };
 
   const handleDelete = async (category: Category) => {
@@ -346,10 +383,10 @@ export default function AdminCategory() {
   };
 
   const handleSelectAll = () => {
-    if (selectedIds.size === filteredCategories.length) {
+    if (selectedIds.size === displayedCategories.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filteredCategories.map((cat) => cat._id)));
+      setSelectedIds(new Set(displayedCategories.map((cat) => cat._id)));
     }
   };
 
@@ -382,6 +419,8 @@ export default function AdminCategory() {
   const handleCollapseAll = () => {
     setExpandedIds(new Set());
   };
+
+  const currentActiveCategory = navigationStack.length > 0 ? navigationStack[navigationStack.length - 1] : null;
 
   return (
     <div className="flex flex-col h-full space-y-4">
@@ -475,6 +514,7 @@ export default function AdminCategory() {
                           onChange={(e) => {
                              setSearchQuery(e.target.value);
                              setListPage(1);
+                             if (e.target.value) setNavigationStack([]); // Reset stack on search to find globally
                           }}
                           placeholder="Search categories..."
                           className="w-full pl-9 pr-4 py-2 bg-white border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
@@ -510,6 +550,25 @@ export default function AdminCategory() {
               </div>
            </div>
 
+           {/* Drilled-Down Header (Back Button + Title) */}
+           {viewMode === 'list' && !searchQuery.trim() && currentActiveCategory && (
+             <div className="flex items-center gap-3 px-4 py-3 bg-neutral-50 border-b border-neutral-200">
+                <button
+                  onClick={handleNavigateBack}
+                  className="p-1.5 hover:bg-neutral-200 rounded-full transition-colors text-neutral-600"
+                  title="Go Back"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+                  </svg>
+                </button>
+                <div>
+                   <h2 className="text-base font-bold text-neutral-900">{currentActiveCategory.name}</h2>
+                   <p className="text-xs text-neutral-500">Subcategories</p>
+                </div>
+             </div>
+           )}
+
            {/* Content View */}
            <div className="min-h-[400px]">
              {loading ? (
@@ -522,7 +581,7 @@ export default function AdminCategory() {
                   <p className="text-red-600 font-medium">{error}</p>
                </div>
              ) : (
-                <div className="p-4 sm:p-6">
+                <div className="p-4 sm:p-6 overflow-x-auto">
                    {viewMode === "tree" ? (
                       <CategoryTreeView
                          categories={categoryTree}
@@ -535,12 +594,13 @@ export default function AdminCategory() {
                       />
                    ) : (
                       <CategoryListView
-                         categories={filteredCategories}
+                         categories={displayedCategories}
                          selectedIds={selectedIds}
                          onSelect={handleSelect}
                          onSelectAll={handleSelectAll}
                          onEdit={handleEdit}
                          onDelete={handleDelete}
+                         onCategoryClick={handleCategoryClick}
                          currentPage={listPage}
                          itemsPerPage={itemsPerPage}
                          onPageChange={setListPage}

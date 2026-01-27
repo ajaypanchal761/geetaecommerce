@@ -103,7 +103,7 @@ export default function DealOfTheDay() {
                   <h3 className="text-2xl font-bold text-gray-800">Deal of the Day</h3>
                   <p className="text-sm text-gray-500 mt-1">Grab the best prices before they reset!</p>
               </div>
-              <button onClick={() => navigate('/deals')} className="text-sm font-semibold text-[#E65100] flex items-center gap-1 hover:text-orange-800 transition-colors">
+              <button onClick={() => navigate('/deal-of-the-day')} className="text-sm font-semibold text-[#E65100] flex items-center gap-1 hover:text-orange-800 transition-colors">
                   View All <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </button>
           </div>

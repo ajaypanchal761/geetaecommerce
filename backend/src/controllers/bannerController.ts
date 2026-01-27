@@ -118,6 +118,8 @@ export const getFlashDeals = asyncHandler(async (req: Request, res: Response) =>
     flashDealTargetDate: settings.flashDeal?.targetDate || new Date(Date.now() + 86400000).toISOString(),
     flashDealImage: settings.flashDeal?.image || '',
     isActive: settings.flashDeal?.active ?? true,
+    // Flash Deal Products (separate from Deal of the Day)
+    flashDealProductIds: settings.flashDeal?.productIds || [],
     // Deal of the Day
     dealOfTheDayProductIds: settings.dealOfTheDay?.productIds || [],
     // Featured Deal
@@ -136,7 +138,7 @@ export const getFlashDeals = asyncHandler(async (req: Request, res: Response) =>
  * @access  Private/Admin
  */
 export const updateFlashDeals = asyncHandler(async (req: Request, res: Response) => {
-  const { flashDealTargetDate, flashDealImage, isActive, dealOfTheDayProductIds, featuredDealProductIds } = req.body;
+  const { flashDealTargetDate, flashDealImage, isActive, flashDealProductIds, dealOfTheDayProductIds, featuredDealProductIds } = req.body;
 
   let settings = await AppSettings.findOne();
   if (!settings) {
@@ -148,11 +150,12 @@ export const updateFlashDeals = asyncHandler(async (req: Request, res: Response)
   }
 
   // Update Flash Deal fields if provided
-  if (flashDealTargetDate !== undefined || flashDealImage !== undefined || isActive !== undefined) {
+  if (flashDealTargetDate !== undefined || flashDealImage !== undefined || isActive !== undefined || flashDealProductIds !== undefined) {
       settings.flashDeal = {
           targetDate: flashDealTargetDate ? new Date(flashDealTargetDate) : settings.flashDeal?.targetDate,
           image: flashDealImage !== undefined ? flashDealImage : settings.flashDeal?.image,
-          active: isActive !== undefined ? isActive : (settings.flashDeal?.active ?? true)
+          active: isActive !== undefined ? isActive : (settings.flashDeal?.active ?? true),
+          productIds: flashDealProductIds !== undefined ? flashDealProductIds : settings.flashDeal?.productIds
       };
   }
 
@@ -178,6 +181,7 @@ export const updateFlashDeals = asyncHandler(async (req: Request, res: Response)
     flashDealTargetDate: settings.flashDeal?.targetDate,
     flashDealImage: settings.flashDeal?.image,
     isActive: settings.flashDeal?.active,
+    flashDealProductIds: settings.flashDeal?.productIds,
     dealOfTheDayProductIds: settings.dealOfTheDay?.productIds,
     featuredDealProductIds: settings.featuredDeal?.productIds
   };

@@ -147,10 +147,10 @@ export default function CategoryTreeView({
                 </div>
 
                 {/* Category Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0 w-full">
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4 w-full">
+                    <div className="flex-1 min-w-0 w-full">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <h3
                           className={`${
                             isSubcategory
@@ -160,12 +160,12 @@ export default function CategoryTreeView({
                           {category.name}
                         </h3>
                         {isSubcategory && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-200 text-blue-800">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-200 text-blue-800 shrink-0">
                             Subcategory
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
                         {/* Status Badge */}
                         <span
                           className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -230,13 +230,13 @@ export default function CategoryTreeView({
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex flex-wrap items-center gap-2 flex-shrink-0 mt-2 sm:mt-0 w-full sm:w-auto">
                       {/* Add Subcategory Button - Available for all categories (supports nested subcategories) */}
                       <button
                         onClick={() => onAddSubcategory(category)}
                         className={`${
                           isSubcategory ? "px-2 py-1" : "px-3 py-1.5"
-                        } text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 rounded transition-colors`}
+                        } text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 rounded transition-colors flex-1 sm:flex-none justify-center flex items-center`}
                         title="Add Subcategory">
                         {isSubcategory ? (
                           <svg
@@ -262,7 +262,7 @@ export default function CategoryTreeView({
                               <line x1="12" y1="5" x2="12" y2="19"></line>
                               <line x1="5" y1="12" x2="19" y2="12"></line>
                             </svg>
-                            Add Subcategory
+                            <span className="whitespace-nowrap">Add Subcategory</span>
                           </>
                         )}
                       </button>
@@ -272,7 +272,7 @@ export default function CategoryTreeView({
                         onClick={() => onToggleStatus(category)}
                         className={`${
                           isSubcategory ? "px-2 py-1" : "px-3 py-1.5"
-                        } text-xs font-medium rounded transition-colors ${
+                        } text-xs font-medium rounded transition-colors flex-1 sm:flex-none justify-center ${
                           category.status === "Active"
                             ? "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
                             : "bg-green-100 text-green-800 hover:bg-green-200"
@@ -316,7 +316,7 @@ export default function CategoryTreeView({
                         onClick={() => onEdit(category)}
                         className={`${
                           isSubcategory ? "px-2 py-1" : "px-3 py-1.5"
-                        } text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors`}
+                        } text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors flex-1 sm:flex-none justify-center`}
                         title="Edit">
                         <svg
                           width={isSubcategory ? "14" : "16"}
@@ -335,7 +335,7 @@ export default function CategoryTreeView({
                         onClick={() => onDelete(category)}
                         className={`${
                           isSubcategory ? "px-2 py-1" : "px-3 py-1.5"
-                        } text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded transition-colors`}
+                        } text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded transition-colors flex-1 sm:flex-none justify-center`}
                         title="Delete">
                         <svg
                           width={isSubcategory ? "14" : "16"}

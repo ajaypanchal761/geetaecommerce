@@ -17,9 +17,7 @@ const AdminAttributeSetup = () => {
   const { showToast } = useToast();
   const confirmation = useConfirmation();
 
-  const [activeTab, setActiveTab] = useState("EN");
-  // Hindi name state - currently for UI demo as backend support is pending
-  const [nameHindi, setNameHindi] = useState("");
+
 
   const fetchAttributes = async () => {
     try {
@@ -38,8 +36,6 @@ const AdminAttributeSetup = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (activeTab === "EN" && !name.trim()) return;
-    // For now, validation only on EN since backend only takes name
     if (!name.trim()) {
         showToast("Please enter Attribute Name (EN)", "error");
         return;
@@ -58,7 +54,6 @@ const AdminAttributeSetup = () => {
         showToast("Attribute added successfully", "success");
       }
       setName("");
-      setNameHindi("");
       setEditId(null);
       fetchAttributes();
     } catch (error: any) {
@@ -70,10 +65,7 @@ const AdminAttributeSetup = () => {
 
   const handleEdit = (attr: any) => {
     setName(attr.name);
-    // If backend supported Hindi, we would set it here
-    setNameHindi("");
     setEditId(attr._id || attr.id);
-    setActiveTab("EN"); // Ensure we show the populated English field
   };
 
   const handleDelete = async (id: string) => {
@@ -96,7 +88,6 @@ const AdminAttributeSetup = () => {
 
   const handleReset = () => {
       setName("");
-      setNameHindi("");
       setEditId(null);
   }
 
@@ -118,45 +109,18 @@ const AdminAttributeSetup = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Form Section */}
         <div className="bg-white rounded-lg shadow p-6 h-fit">
-            <div className="flex border-b mb-6">
-                <button
-                    type="button"
-                    onClick={() => setActiveTab("EN")}
-                    className={`px-4 py-2 font-medium ${activeTab === "EN" ? "text-teal-600 border-b-2 border-teal-600" : "text-gray-500 hover:text-gray-700"}`}
-                >
-                    English(EN)
-                </button>
-                <button
-                    type="button"
-                    onClick={() => setActiveTab("HI")}
-                    className={`px-4 py-2 font-medium ${activeTab === "HI" ? "text-teal-600 border-b-2 border-teal-600" : "text-gray-500 hover:text-gray-700"}`}
-                >
-                    Hindi(IN)
-                </button>
-            </div>
-
             <form onSubmit={handleSubmit}>
                 <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Attribute Name* ({activeTab})
+                        Attribute Name*
                     </label>
-                    {activeTab === "EN" ? (
-                        <input
-                            type="text"
-                            placeholder="Enter Attribute Name"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            className="w-full px-4 py-2 bg-white border border-gray-300 rounded focus:ring-2 focus:ring-teal-500 focus:outline-none"
-                        />
-                    ) : (
-                        <input
-                            type="text"
-                            placeholder="Enter Attribute Name in Hindi"
-                            value={nameHindi}
-                            onChange={(e) => setNameHindi(e.target.value)}
-                            className="w-full px-4 py-2 bg-white border border-gray-300 rounded focus:ring-2 focus:ring-teal-500 focus:outline-none"
-                        />
-                    )}
+                    <input
+                        type="text"
+                        placeholder="Enter Attribute Name"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="w-full px-4 py-2 bg-white border border-gray-300 rounded focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                    />
                 </div>
                 <div className="flex justify-end gap-3 mt-6">
                     <button

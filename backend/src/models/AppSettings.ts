@@ -125,6 +125,7 @@ export interface IAppSettings extends Document {
     targetDate?: Date;
     image?: string;
     active?: boolean;
+    productIds?: string[];
   };
 
   // Deal of the Day Settings
@@ -472,7 +473,11 @@ const AppSettingsSchema = new Schema<IAppSettings>(
       active: {
         type: Boolean,
         default: true
-      }
+      },
+      productIds: [{
+        type: String,
+        trim: true
+      }]
     },
 
     // Deal of the Day Settings

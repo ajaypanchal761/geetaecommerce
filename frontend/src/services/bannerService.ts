@@ -5,6 +5,7 @@ export interface DealsConfig {
   flashDealTargetDate: string;
   flashDealImage?: string;
   isActive?: boolean;
+  flashDealProductIds?: string[];
   featuredDealProductId?: string;
   featuredDealProductIds?: string[];
   dealOfTheDayProductId?: string;
@@ -91,7 +92,7 @@ export const bannerService = {
       return { flashDealTargetDate: new Date(Date.now() + 86400000).toISOString() };
     } catch (e) {
         console.error("Failed to fetch flash deals config", e);
-        return { flashDealTargetDate: new Date().toISOString() };
+        return { flashDealTargetDate: new Date(Date.now() + 86400000).toISOString() };
     }
   },
 

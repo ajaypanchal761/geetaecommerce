@@ -54,6 +54,8 @@ const HobbyStore = lazy(() => import("./modules/user/HobbyStore"));
 const StorePage = lazy(() => import("./modules/user/StorePage"));
 const Brands = lazy(() => import("./modules/user/Brands"));
 const BrandProducts = lazy(() => import("./modules/user/BrandProducts"));
+const FlashDealsPage = lazy(() => import("./modules/user/FlashDealsPage"));
+const DealOfTheDayPage = lazy(() => import("./modules/user/DealOfTheDayPage"));
 // Lazy load delivery routes
 const DeliveryLayout = lazy(() => import("./modules/delivery/components/DeliveryLayout"));
 const DeliveryDashboard = lazy(() => import("./modules/delivery/pages/DeliveryDashboard"));
@@ -328,6 +330,7 @@ function App() {
                             <Route path="product/taxes" element={<AdminTaxes />} />
                             <Route path="product/attribute-setup" element={<AdminAttributeSetup />} />
                             <Route path="product/list" element={<AdminStockManagement />} />
+                            <Route path="product/add" element={<AdminAddProduct />} />
                             <Route path="product/edit/:id" element={<AdminAddProduct />} />
                             <Route path="manage-seller/list" element={<AdminManageSellerList />} />
                             <Route path="manage-seller/transaction" element={<AdminSellerTransaction />} />
@@ -426,6 +429,8 @@ function App() {
                             <Route path="/store/hobby" element={<HobbyStore />} />
                             <Route path="/brands" element={<Brands />} />
                             <Route path="/brand/:id" element={<BrandProducts />} />
+                            <Route path="/flash-deals" element={<FlashDealsPage />} />
+                            <Route path="/deal-of-the-day" element={<DealOfTheDayPage />} />
                           </Routes>
                         </Suspense>
                       </AppLayout>

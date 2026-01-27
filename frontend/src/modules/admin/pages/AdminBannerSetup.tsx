@@ -28,7 +28,7 @@ export default function AdminBannerSetup() {
     setLoading(true);
     try {
         const allBanners = await bannerService.getAllBanners();
-        setBanners(allBanners.filter(b => b.position === 'Main Banner' || b.position === 'Popup Banner'));
+        setBanners(allBanners);
     } catch (error) {
         showToast('Failed to load banners', 'error');
     } finally {
@@ -193,8 +193,12 @@ export default function AdminBannerSetup() {
                         value={bannerType}
                         onChange={(e) => setBannerType(e.target.value as BannerPosition)}
                       >
-                         <option value="Main Banner">Main Banner</option>
+                         <option value="Main Banner">Main Banner (Home Slider)</option>
                          <option value="Popup Banner">Popup Banner</option>
+                         <option value="Flash Deals">Flash Deals Section Slider</option>
+                         <option value="Deal of the Day">Deal of the Day Slider</option>
+                         <option value="Main Section Banner">Main Section Banner</option>
+                         <option value="Footer Banner">Footer Banner</option>
                       </select>
                    </div>
 
