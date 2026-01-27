@@ -848,8 +848,22 @@ export const initiateOnlineOrder = async (req: Request, res: Response) => {
             let product;
 
             // Try decrementing stock (with session if available)
-            const query = {
-                _id: item.product.id,
+            // Skip stock check/deduction for Free Gifts
+            if (item.isFreeGift) {
+                // For free gifts, we just need the product details to create the order item
+                product = await Product.findById(item.product.id);
+                if (!product) {
+                     // If it's a transient object from frontend (rare), we might need to handle differently,
+                     // but for now assume it exists in DB. If not found, log warning and skip adding to order?
+                     // Or better, just continue; it won't be added to orderItemIds if we don't push it.
+                     // But we should likely throw error if gift rule implies it exists.
+                     // However, to prevent order blocking:
+                     console.warn(`Free gift product ${item.product.id} not found in DB.`);
+                     continue;
+                }
+            } else {
+                const query = {
+                    _id: item.product.id,
                 ...(variationValue ? {
                     $or: [
                         { "variations._id": mongoose.isValidObjectId(variationValue) ? variationValue : new mongoose.Types.ObjectId() },
@@ -868,6 +882,7 @@ export const initiateOnlineOrder = async (req: Request, res: Response) => {
             product = session
                 ? await Product.findOneAndUpdate(query, update, { session, new: true })
                 : await Product.findOneAndUpdate(query, update, { new: true });
+            }
 
             // Fallback logic for variations (simplified from createOrder for brevity, but crucial parts retained)
             if (!product && variationValue) {
@@ -884,9 +899,16 @@ export const initiateOnlineOrder = async (req: Request, res: Response) => {
                         : await Product.findOneAndUpdate({ _id: item.product.id, "variations.0.stock": { $gte: qty } }, { $inc: { "variations.0.stock": -qty, stock: -qty } }, { new: true });
                  }
             }
+            // End of Free Gift vs Regular Product Logic
+
 
             if (!product) {
-                throw new Error(`Insufficient stock or product not found: ${item.product.name}`);
+                console.error(`Processed Item Failed:`, {
+                    itemId: item.product.id,
+                    isFreeGift: item.isFreeGift,
+                    variant: variationValue
+                });
+                throw new Error(`Insufficient stock or product not found: ID ${item.product.id}`);
             }
 
             if (product.seller) sellerIds.add(product.seller.toString());

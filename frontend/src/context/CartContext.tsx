@@ -11,7 +11,8 @@ import {
   clearCart as apiClearCart
 } from '../services/api/customerCartService';
 import { calculateProductPrice, getApplicableUnitPrice } from '../utils/priceUtils';
-import { getActiveFreeGiftRules } from '../services/freeGiftService';
+import { getCustomerFreeGiftRules } from '../services/api/customerFreeGiftService';
+import { FreeGiftRule } from '../hooks/useFreeGiftRules';
 
 const CART_STORAGE_KEY = 'saved_cart';
 
@@ -28,6 +29,7 @@ interface CartContextType {
   clearCart: () => Promise<void>;
   lastAddEvent: AddToCartEvent | null;
   loading: boolean;
+  freeGiftRules: FreeGiftRule[];
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -55,6 +57,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   });
   const [lastAddEvent, setLastAddEvent] = useState<AddToCartEvent | null>(null);
   const [loading, setLoading] = useState(true);
+  const [freeGiftRules, setFreeGiftRules] = useState<FreeGiftRule[]>([]);
   const pendingOperationsRef = useRef<Set<string>>(new Set());
 
   const { isAuthenticated, user } = useAuth();
@@ -62,7 +65,22 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setLoading(false);
+    fetchFreeGiftRules();
   }, []);
+
+  const fetchFreeGiftRules = async () => {
+    try {
+      const res = await getCustomerFreeGiftRules();
+      if (res.success && Array.isArray(res.data)) {
+         const active = res.data
+           .filter((r: any) => r.status === 'Active')
+           .sort((a: any, b: any) => a.minCartValue - b.minCartValue);
+         setFreeGiftRules(active);
+      }
+    } catch (e) {
+      console.error("Failed to fetch free gift rules", e);
+    }
+  };
 
   // Helper to map API items to state (Simplified for this context)
   const mapApiItemsToState = (apiItems: any[]): ExtendedCartItem[] => {
@@ -78,7 +96,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   // Free Gift Logic (Multiple Gifts Support)
   useEffect(() => {
-    const activeRules = getActiveFreeGiftRules(); // Returns sorted by min value
+    const activeRules = freeGiftRules; // Uses state now
 
     // Calculate total of PAID items
     const validItems = items.filter(item => item?.product);
@@ -145,7 +163,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (hasChanges) {
         setItems(newItems);
     }
-  }, [items.map(i => `${i.product.id}-${i.quantity}-${i.isFreeGift}`).join(',')]);
+    if (hasChanges) {
+        setItems(newItems);
+    }
+  }, [items.map(i => `${i.product.id}-${i.quantity}-${i.isFreeGift}`).join(','), freeGiftRules]);
 
   const cart: Cart = useMemo(() => {
     // Filter out any items with null products before computing totals
@@ -393,7 +414,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   return (
     <CartContext.Provider
-      value={{ cart, addToCart, removeFromCart, updateQuantity, clearCart, lastAddEvent, loading }}
+      value={{ cart, addToCart, removeFromCart, updateQuantity, clearCart, lastAddEvent, loading, freeGiftRules }}
     >
       {children}
     </CartContext.Provider>

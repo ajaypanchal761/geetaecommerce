@@ -23,11 +23,14 @@ import { initiateOnlineOrder, verifyOnlinePayment } from '../../services/api/cus
 // const STORAGE_KEY = 'saved_address'; // Removed
 
 // Similar products helper removed - using API
-import { getActiveFreeGiftRules, getActiveFreeGiftRule } from '../../services/freeGiftService';
+// import { getActiveFreeGiftRules, getActiveFreeGiftRule } from '../../services/freeGiftService';
 
 
 export default function Checkout() {
-  const { cart, updateQuantity, clearCart, addToCart, removeFromCart, loading: cartLoading } = useCart();
+  const { cart, updateQuantity, clearCart, addToCart, removeFromCart, loading: cartLoading, freeGiftRules } = useCart();
+
+  // Helper to get active rule from context
+  const getActiveFreeGiftRule = () => freeGiftRules.length > 0 ? freeGiftRules[freeGiftRules.length - 1] : undefined;
   const { addOrder } = useOrders();
   const { location: userLocation } = useLocationContext();
   const { showToast: showGlobalToast } = useToast();
@@ -777,7 +780,7 @@ export default function Checkout() {
 
         {/* Free Gift Progress Bar (Multi-Tier Checkout) */}
         {(() => {
-             const activeRules = getActiveFreeGiftRules();
+             const activeRules = freeGiftRules;
              if (activeRules.length === 0) return null;
 
              const currentTotal = displayCart.total;
@@ -816,7 +819,7 @@ export default function Checkout() {
 
                              return (
                                  <div
-                                    key={rule.id}
+                                    key={rule._id || rule.id}
                                     className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center z-10"
                                     style={{ left: `${position}%`, transform: `translate(-${position === 100 ? '100' : '50'}%, -50%)` }}
                                  >
@@ -917,7 +920,8 @@ export default function Checkout() {
                           e.preventDefault();
                           e.stopPropagation();
                           const variantId = (item.product as any).variantId || (item.product as any).selectedVariant?._id || item.variant;
-                          updateQuantity(item.product?.id || item.product?._id, (item.quantity || 1) - 1, variantId);
+                          const variantTitle = (item.product as any).variantTitle || item.product?.pack;
+                          updateQuantity(item.product?.id || item.product?._id, (item.quantity || 1) - 1, variantId, variantTitle);
                         }}
                         className="w-5 h-5 flex items-center justify-center text-green-600 font-bold hover:bg-green-50 rounded-full transition-colors text-xs"
                       >
@@ -932,7 +936,8 @@ export default function Checkout() {
                           e.preventDefault();
                           e.stopPropagation();
                           const variantId = (item.product as any).variantId || (item.product as any).selectedVariant?._id || item.variant;
-                          updateQuantity(item.product?.id || item.product?._id, (item.quantity || 1) + 1, variantId);
+                          const variantTitle = (item.product as any).variantTitle || item.product?.pack;
+                          updateQuantity(item.product?.id || item.product?._id, (item.quantity || 1) + 1, variantId, variantTitle);
                         }}
                         className="w-5 h-5 flex items-center justify-center text-green-600 font-bold hover:bg-green-50 rounded-full transition-colors text-xs"
                       >
@@ -1336,6 +1341,22 @@ export default function Checkout() {
             </div>
           )}
 
+          {/* Online Payment Discount Row */}
+          {onlineDiscountAmount > 0 && selectedPaymentMethod !== 'Cash' && (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <span className="text-xs text-neutral-700">Online Payment Discount</span>
+                <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium">
+                  {onlineDiscountPercentage}% OFF
+                </span>
+              </div>
+              <span className="text-xs font-medium text-green-600">-₹{onlineDiscountAmount.toFixed(2)}</span>
+            </div>
+          )}
+
           {/* Gift Packaging */}
           {giftPackaging && (
             <div className="flex items-center justify-between">
@@ -1352,7 +1373,9 @@ export default function Checkout() {
           {/* Grand total */}
           <div className="pt-2 border-t border-neutral-200 flex items-center justify-between">
             <span className="text-sm font-bold text-neutral-900">Grand total</span>
-            <span className="text-sm font-bold text-neutral-900">₹{Math.max(0, grandTotal)}</span>
+            <span className="text-sm font-bold text-neutral-900">
+              ₹{(selectedPaymentMethod !== 'Cash' ? (grandTotal - onlineDiscountAmount) : grandTotal).toFixed(2)}
+            </span>
           </div>
 
           {/* Online Payment Discount Incentive */}

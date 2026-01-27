@@ -385,4 +385,12 @@ router.get("/attributes", attributeController.getAttributes);
 router.put("/attributes/:id", attributeController.updateAttribute);
 router.delete("/attributes/:id", attributeController.deleteAttribute);
 
+// ==================== Free Gift Rules Routes ====================
+import * as freeGiftController from "../modules/admin/controllers/adminFreeGiftController";
+
+router.post("/free-gift-rules", freeGiftController.createFreeGiftRule);
+router.get("/free-gift-rules", freeGiftController.getFreeGiftRules);
+router.put("/free-gift-rules/:id", freeGiftController.updateFreeGiftRule);
+router.delete("/free-gift-rules/:id", freeGiftController.deleteFreeGiftRule);
+
 export default router;

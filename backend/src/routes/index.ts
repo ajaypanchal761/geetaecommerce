@@ -117,6 +117,9 @@ import customerVideoRoutes from "./customerVideoRoutes";
 // General customer route (must be last to avoid intercepting specific routes)
 router.use("/customer/video-finds", customerVideoRoutes);
 
+import customerFreeGiftRoutes from "./customerFreeGiftRoutes";
+router.use("/customer/free-gift-rules", customerFreeGiftRoutes);
+
 // Public Config Route
 import { getPublicConfig } from "../modules/customer/controllers/customerConfigController";
 router.get("/customer/config", getPublicConfig);

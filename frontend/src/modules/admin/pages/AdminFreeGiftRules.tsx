@@ -3,10 +3,10 @@ import { getProducts, Product } from '../../../services/api/admin/adminProductSe
 import {
   FreeGiftRule,
   getFreeGiftRules,
-  addFreeGiftRule,
+  createFreeGiftRule,
   updateFreeGiftRule,
   deleteFreeGiftRule
-} from '../../../services/freeGiftService';
+} from '../../../services/api/admin/freeGiftService';
 
 export default function AdminFreeGiftRules() {
   const [rules, setRules] = useState<FreeGiftRule[]>([]);
@@ -27,8 +27,15 @@ export default function AdminFreeGiftRules() {
     loadProducts();
   }, []);
 
-  const loadRules = () => {
-    setRules(getFreeGiftRules());
+  const loadRules = async () => {
+    try {
+      const res = await getFreeGiftRules();
+      if (res.success) {
+        setRules(res.data);
+      }
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const loadProducts = async () => {
@@ -57,7 +64,7 @@ export default function AdminFreeGiftRules() {
     setIsModalOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!selectedProductId || minCartValue <= 0) {
         alert("Please select a product and enter a valid minimum cart value.");
         return;
@@ -72,24 +79,33 @@ export default function AdminFreeGiftRules() {
     const ruleData = {
         minCartValue,
         giftProductId: selectedProductId,
-        giftProduct: selectedProduct as any,
+        giftProduct: selectedProduct, // Pass specific fields if backend needs simplification, but mostly id is enough for ref
         status
     };
 
-    if (editingRule) {
-        updateFreeGiftRule({ ...editingRule, ...ruleData });
-    } else {
-        addFreeGiftRule(ruleData);
+    try {
+      if (editingRule) {
+          await updateFreeGiftRule(editingRule._id || editingRule.id, ruleData);
+      } else {
+          await createFreeGiftRule(ruleData);
+      }
+      loadRules();
+      setIsModalOpen(false);
+    } catch (e) {
+      alert("Failed to save rule");
+      console.error(e);
     }
-
-    loadRules();
-    setIsModalOpen(false);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
       if (confirm("Are you sure you want to delete this rule?")) {
-          deleteFreeGiftRule(id);
-          loadRules();
+          try {
+            await deleteFreeGiftRule(id);
+            loadRules();
+          } catch(e) {
+            console.error(e);
+            alert("Failed to delete");
+          }
       }
   };
 
@@ -122,14 +138,14 @@ export default function AdminFreeGiftRules() {
                 </tr>
             ) : (
                 rules.map((rule) => (
-                    <tr key={rule.id} className="hover:bg-gray-50">
+                    <tr key={rule._id || rule.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 text-sm font-medium text-gray-900">₹{rule.minCartValue}</td>
                         <td className="px-6 py-4 text-sm text-gray-700">
                             <div className="flex items-center gap-3">
-                                {rule.giftProduct?.mainImage && (
-                                    <img src={rule.giftProduct.mainImage} alt="" className="w-10 h-10 object-cover rounded" />
+                                {(rule.giftProduct as any)?.mainImage && (
+                                    <img src={(rule.giftProduct as any).mainImage} alt="" className="w-10 h-10 object-cover rounded" />
                                 )}
-                                <span>{rule.giftProduct?.productName || 'Unknown Product'}</span>
+                                <span>{(rule.giftProduct as any)?.productName || 'Unknown Product'}</span>
                             </div>
                         </td>
                         <td className="px-6 py-4">
@@ -139,7 +155,7 @@ export default function AdminFreeGiftRules() {
                         </td>
                         <td className="px-6 py-4 text-sm">
                             <button onClick={() => handleOpenModal(rule)} className="text-blue-600 hover:text-blue-800 mr-3">Edit</button>
-                            <button onClick={() => handleDelete(rule.id)} className="text-red-600 hover:text-red-800">Delete</button>
+                            <button onClick={() => handleDelete(rule._id || rule.id)} className="text-red-600 hover:text-red-800">Delete</button>
                         </td>
                     </tr>
                 ))
