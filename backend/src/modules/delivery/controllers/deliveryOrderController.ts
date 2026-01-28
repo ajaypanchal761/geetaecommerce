@@ -7,6 +7,8 @@ import OrderItem from "../../../models/OrderItem";
 import Seller from "../../../models/Seller";
 import { generateDeliveryOtp, verifyDeliveryOtp } from "../../../services/deliveryOtpService";
 import { processOrderStatusTransition } from "../../../services/orderService";
+import DeliveryAssignment from "../../../models/DeliveryAssignment";
+import Return from "../../../models/Return";
 
 /**
  * Helper to map order items for response
@@ -449,4 +451,103 @@ export const verifyDeliveryOtpController = asyncHandler(async (req: Request, res
             message: error.message || "Failed to verify delivery OTP"
         });
     }
+});
+
+/**
+ * Get Return/Replacement Tasks assigned to delivery boy
+ */
+export const getReturnTasks = asyncHandler(async (req: Request, res: Response) => {
+    const deliveryId = req.user?.userId;
+
+    const assignments = await DeliveryAssignment.find({
+        deliveryBoy: deliveryId,
+        assignmentType: { $in: ["Return", "Replacement"] },
+        status: { $in: ["Assigned", "Accepted", "Picked Up", "In Transit"] }
+    }).populate({
+        path: "returnRequest",
+        populate: [
+            { path: "order", select: "orderNumber items customerName customerPhone deliveryAddress" },
+            { path: "orderItem", populate: { path: "product", select: "productName mainImage" } }
+        ]
+    });
+
+    const formattedTasks = assignments.map(asgn => {
+        const rReq = asgn.returnRequest as any;
+        if (!rReq) return null;
+
+        return {
+            id: asgn._id,
+            returnRequestId: rReq._id,
+            orderId: rReq.order?._id,
+            orderNumber: rReq.order?.orderNumber,
+            productName: rReq.orderItem?.productName || "Unknown Product",
+            productImage: rReq.orderItem?.product?.mainImage,
+            customerName: rReq.order?.customerName,
+            customerPhone: rReq.order?.customerPhone,
+            address: rReq.order?.deliveryAddress,
+            quantity: rReq.quantity,
+            reason: rReq.reason,
+            requestType: rReq.requestType,
+            status: asgn.status,
+            createdAt: asgn.assignedAt
+        };
+    }).filter(t => t !== null);
+
+    return res.status(200).json({
+        success: true,
+        data: formattedTasks
+    });
+});
+
+/**
+ * Update Return/Replacement Task Status
+ */
+export const updateReturnTaskStatus = asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params; // assignmentId
+    const { status } = req.body;
+    const deliveryId = req.user?.userId;
+
+    const assignment = await DeliveryAssignment.findOne({ _id: id, deliveryBoy: deliveryId });
+    if (!assignment) {
+        return res.status(404).json({ success: false, message: "Task assignment not found" });
+    }
+
+    const validStatuses = ["Accepted", "Picked Up", "In Transit", "Delivered", "Failed", "Cancelled"];
+    if (!validStatuses.includes(status)) {
+        return res.status(400).json({ success: false, message: "Invalid status" });
+    }
+
+    assignment.status = status as any;
+    if (status === "Accepted") assignment.acceptedAt = new Date();
+    if (status === "Picked Up") assignment.pickedUpAt = new Date();
+    if (status === "In Transit") assignment.inTransitAt = new Date();
+    if (status === "Delivered") assignment.deliveredAt = new Date();
+    if (status === "Failed") assignment.failedAt = new Date();
+
+    await assignment.save();
+
+    // Update the Return request status as well
+    if (assignment.returnRequest) {
+        const rReq = await Return.findById(assignment.returnRequest);
+        if (rReq) {
+            if (status === "Picked Up") {
+                rReq.status = "Picked Up";
+                rReq.pickupCompleted = new Date();
+            } else if (status === "Delivered") {
+                rReq.status = "Completed";
+
+                // If it was a return, mark order item as returned
+                if (rReq.requestType === "Return") {
+                    await OrderItem.findByIdAndUpdate(rReq.orderItem, { status: "Returned" });
+                }
+            }
+            await rReq.save();
+        }
+    }
+
+    return res.status(200).json({
+        success: true,
+        message: `Task status updated to ${status}`,
+        data: assignment
+    });
 });

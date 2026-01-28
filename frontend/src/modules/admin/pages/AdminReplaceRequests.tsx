@@ -1,58 +1,105 @@
 import { useState, useEffect } from "react";
-
-// Mock Data for Replace Requests
-const MOCK_REPLACE_REQUESTS = [
-  {
-    id: "REP-001",
-    orderId: "ORD-112233",
-    product: "Running Shoes (Size 9)",
-    image: "https://via.placeholder.com/50",
-    reason: "Size mismatch",
-    status: "Pending",
-    date: "2026-01-23",
-  },
-  {
-    id: "REP-002",
-    orderId: "ORD-112234",
-    product: "Ceramic Coffee Mug",
-    image: "https://via.placeholder.com/50",
-    reason: "Broken on arrival",
-    status: "Approved",
-    date: "2026-01-22",
-  },
-];
+import {
+  getReturnRequests,
+  processReturnRequest,
+  ReturnRequest
+} from "../../../services/api/admin/adminOrderService";
+import { getDeliveryBoys, DeliveryBoy } from "../../../services/api/admin/adminDeliveryService";
+import { useToast } from "../../../context/ToastContext";
 
 export default function AdminReplaceRequests() {
-  const [requests, setRequests] = useState(MOCK_REPLACE_REQUESTS);
+  const { showToast } = useToast();
+  const [requests, setRequests] = useState<ReturnRequest[]>([]);
+  const [deliveryBoys, setDeliveryBoys] = useState<DeliveryBoy[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
+  const [selectedDeliveryBoy, setSelectedDeliveryBoy] = useState("");
 
   useEffect(() => {
-    // Load dynamic requests from localStorage
-    const savedRequests = JSON.parse(localStorage.getItem("geeta_replace_requests") || "[]");
-    if (savedRequests.length > 0) {
-      // Merge saved requests with mock requests
-      setRequests(prev => {
-         const prevIds = new Set(prev.map(r => r.id));
-         const newUnique = savedRequests.filter((r: any) => !prevIds.has(r.id));
-         return [...newUnique, ...prev];
-      });
-    }
+    fetchRequests();
+    fetchDeliveryBoys();
   }, []);
 
-  const handleAccept = (id: string, product: string) => {
-      // Logic for pickup + replacement
-      if(confirm(`Approve replacement for ${product}? This will schedule a pickup and new delivery.`)) {
-         setRequests(prev => prev.map(r => r.id === id ? {...r, status: 'Approved'} : r));
+  const fetchRequests = async () => {
+    try {
+      setLoading(true);
+      const response = await getReturnRequests({ requestType: "Replacement" });
+      if (response.success) {
+        setRequests(response.data);
       }
+    } catch (error: any) {
+      showToast(error.message || "Failed to fetch replacement requests", "error");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleReject = (id: string) => {
-      const reason = prompt("Enter Rejection Reason:");
-      if (!reason) return;
-      setRequests(prev => prev.map(r => r.id === id ? {...r, status: 'Rejected'} : r));
+  const fetchDeliveryBoys = async () => {
+    try {
+      const response = await getDeliveryBoys({ status: "Active" });
+      if (response.success) {
+        setDeliveryBoys(response.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch delivery boys", error);
+    }
   };
 
+  const handleAcceptClick = (id: string) => {
+    setSelectedRequestId(id);
+    setShowAssignModal(true);
+  };
+
+  const handleConfirmAccept = async () => {
+    if (!selectedRequestId || !selectedDeliveryBoy) {
+      showToast("Please select a delivery boy", "error");
+      return;
+    }
+
+    try {
+      const response = await processReturnRequest(selectedRequestId, {
+        status: "Approved",
+        deliveryBoyId: selectedDeliveryBoy
+      });
+
+      if (response.success) {
+        showToast("Replacement approved and assigned", "success");
+        setShowAssignModal(false);
+        setSelectedRequestId(null);
+        setSelectedDeliveryBoy("");
+        fetchRequests();
+      }
+    } catch (error: any) {
+      showToast(error.message || "Failed to process request", "error");
+    }
+  };
+
+  const handleReject = async (id: string) => {
+    const reason = prompt("Enter Rejection Reason:");
+    if (!reason) return;
+
+    try {
+      const response = await processReturnRequest(id, {
+        status: "Rejected",
+        rejectionReason: reason
+      });
+
+      if (response.success) {
+        showToast("Replacement request rejected", "success");
+        fetchRequests();
+      }
+    } catch (error: any) {
+      showToast(error.message || "Failed to reject request", "error");
+    }
+  };
+
+  const filteredRequests = requests.filter(r =>
+    (r.orderNumber || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (r.userName || "").toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="space-y-6">
@@ -65,7 +112,7 @@ export default function AdminReplaceRequests() {
          <div className="flex gap-2">
            <input
              type="text"
-             placeholder="Search Order ID..."
+             placeholder="Search Order ID or User..."
              className="border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
              value={searchTerm}
              onChange={(e) => setSearchTerm(e.target.value)}
@@ -88,23 +135,38 @@ export default function AdminReplaceRequests() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {requests.filter(r => r.orderId.toLowerCase().includes(searchTerm.toLowerCase())).map((request) => (
-                <tr key={request.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{request.orderId}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{request.product}</td>
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-10 text-center text-gray-500">
+                    Loading requests...
+                  </td>
+                </tr>
+              ) : filteredRequests.map((request) => (
+                <tr key={request._id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{request.orderNumber}</td>
+                  <td className="px-6 py-4 text-sm text-gray-600 truncate max-w-[200px]">{request.productName}</td>
                   <td className="px-6 py-4">
-                      <div
-                        className="h-10 w-10 bg-gray-100 rounded border overflow-hidden cursor-pointer"
-                        onClick={() => setSelectedImage(request.image)}
-                      >
-                          <img src={request.image} alt="Issue" className="h-full w-full object-cover" />
+                      <div className="flex gap-1">
+                        {request.images && request.images.length > 0 ? (
+                            request.images.map((img, idx) => (
+                                <div
+                                    key={idx}
+                                    className="h-10 w-10 bg-gray-100 rounded border overflow-hidden cursor-pointer hover:scale-105 transition-transform"
+                                    onClick={() => setSelectedImage(img)}
+                                >
+                                    <img src={img} alt="Issue" className="h-full w-full object-cover" />
+                                </div>
+                            ))
+                        ) : (
+                            <span className="text-xs text-gray-400 italic">No image</span>
+                        )}
                       </div>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">{request.reason}</td>
                   <td className="px-6 py-4">
                     <span
                       className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        request.status === "Approved"
+                        request.status === "Approved" || request.status === "Completed"
                           ? "bg-green-100 text-green-800"
                           : request.status === "Rejected"
                           ? "bg-red-100 text-red-800"
@@ -119,14 +181,14 @@ export default function AdminReplaceRequests() {
                        {request.status === 'Pending' && (
                            <>
                              <button
-                               onClick={() => handleAccept(request.id, request.product)}
-                               className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
+                                onClick={() => handleAcceptClick(request._id)}
+                                className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
                              >
-                               Accept Replacement
+                               Accept
                              </button>
                              <button
-                               onClick={() => handleReject(request.id)}
-                               className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 transition-colors"
+                                onClick={() => handleReject(request._id)}
+                                className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 transition-colors"
                              >
                                Reject
                              </button>
@@ -143,7 +205,7 @@ export default function AdminReplaceRequests() {
               ))}
             </tbody>
           </table>
-            {requests.length === 0 && (
+            {!loading && filteredRequests.length === 0 && (
               <div className="p-8 text-center text-gray-500">
                   No replacement requests found.
               </div>
@@ -153,15 +215,55 @@ export default function AdminReplaceRequests() {
 
        {/* Image Preview Modal */}
        {selectedImage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4" onClick={() => setSelectedImage(null)}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50 p-4" onClick={() => setSelectedImage(null)}>
           <div className="bg-white p-2 rounded-lg max-w-lg w-full" onClick={e => e.stopPropagation()}>
              <img src={selectedImage} alt="Full View" className="w-full h-auto rounded" />
              <button
-                className="mt-2 w-full py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                className="mt-2 w-full py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 font-medium"
                 onClick={() => setSelectedImage(null)}
              >
                  Close
              </button>
+          </div>
+        </div>
+      )}
+
+      {/* Assign Modal */}
+      {showAssignModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Assign Delivery Boy for Replacement</h3>
+            <p className="text-sm text-gray-500 mb-4">Delivery boy will pick up the old item and deliver the new one.</p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Select Delivery Boy</label>
+                <select
+                  className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                  value={selectedDeliveryBoy}
+                  onChange={(e) => setSelectedDeliveryBoy(e.target.value)}
+                >
+                  <option value="">Select Delivery Boy</option>
+                  {deliveryBoys.map(db => (
+                    <option key={db._id} value={db._id}>{db.name} ({db.city})</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setShowAssignModal(false)}
+                  className="flex-1 px-4 py-2 border rounded-lg text-gray-600 hover:bg-gray-50 font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmAccept}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
+                  disabled={!selectedDeliveryBoy}
+                >
+                  Confirm & Approve
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -25,18 +25,26 @@ export default function BannerSlider({ position, className = '', heightClass = "
     fetchBanners();
   }, [position]);
 
+  const [isPaused, setIsPaused] = useState(false);
+
   useEffect(() => {
-    if (banners.length <= 1) return;
+    if (banners.length <= 1 || isPaused) return;
+
     const interval = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % banners.length);
-    }, 5000); // 5 seconds slide
+    }, 4000); // 4 seconds slide for more dynamic feel
+
     return () => clearInterval(interval);
-  }, [banners.length]);
+  }, [banners.length, isPaused, currentIndex]); // Reset timer when index changes manually or pause state toggles
 
   if (banners.length === 0) return null;
 
   return (
-    <div className={`w-full relative group ${className}`}>
+    <div
+      className={`w-full relative group ${className}`}
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+    >
       <div className={`w-full relative overflow-hidden rounded-2xl ${heightClass}`}>
         {banners.map((banner, index) => (
           <div

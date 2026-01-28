@@ -4,6 +4,7 @@ import Product from "../../../models/Product";
 import OrderItem from "../../../models/OrderItem";
 import Customer from "../../../models/Customer";
 import Seller from "../../../models/Seller";
+import Return from "../../../models/Return";
 import AppSettings from "../../../models/AppSettings";
 import mongoose from "mongoose";
 import axios from "axios";
@@ -847,8 +848,22 @@ export const initiateOnlineOrder = async (req: Request, res: Response) => {
             let product;
 
             // Try decrementing stock (with session if available)
-            const query = {
-                _id: item.product.id,
+            // Skip stock check/deduction for Free Gifts
+            if (item.isFreeGift) {
+                // For free gifts, we just need the product details to create the order item
+                product = await Product.findById(item.product.id);
+                if (!product) {
+                     // If it's a transient object from frontend (rare), we might need to handle differently,
+                     // but for now assume it exists in DB. If not found, log warning and skip adding to order?
+                     // Or better, just continue; it won't be added to orderItemIds if we don't push it.
+                     // But we should likely throw error if gift rule implies it exists.
+                     // However, to prevent order blocking:
+                     console.warn(`Free gift product ${item.product.id} not found in DB.`);
+                     continue;
+                }
+            } else {
+                const query = {
+                    _id: item.product.id,
                 ...(variationValue ? {
                     $or: [
                         { "variations._id": mongoose.isValidObjectId(variationValue) ? variationValue : new mongoose.Types.ObjectId() },
@@ -867,6 +882,7 @@ export const initiateOnlineOrder = async (req: Request, res: Response) => {
             product = session
                 ? await Product.findOneAndUpdate(query, update, { session, new: true })
                 : await Product.findOneAndUpdate(query, update, { new: true });
+            }
 
             // Fallback logic for variations (simplified from createOrder for brevity, but crucial parts retained)
             if (!product && variationValue) {
@@ -883,9 +899,16 @@ export const initiateOnlineOrder = async (req: Request, res: Response) => {
                         : await Product.findOneAndUpdate({ _id: item.product.id, "variations.0.stock": { $gte: qty } }, { $inc: { "variations.0.stock": -qty, stock: -qty } }, { new: true });
                  }
             }
+            // End of Free Gift vs Regular Product Logic
+
 
             if (!product) {
-                throw new Error(`Insufficient stock or product not found: ${item.product.name}`);
+                console.error(`Processed Item Failed:`, {
+                    itemId: item.product.id,
+                    isFreeGift: item.isFreeGift,
+                    variant: variationValue
+                });
+                throw new Error(`Insufficient stock or product not found: ID ${item.product.id}`);
             }
 
             if (product.seller) sellerIds.add(product.seller.toString());
@@ -1067,6 +1090,92 @@ export const verifyOnlinePayment = async (req: Request, res: Response) => {
         return res.status(200).json({ success: true, message: "Payment verified", data: order });
     } catch (error: any) {
         return res.status(500).json({ success: false, message: "Verification failed", error: error.message });
+    }
+};
+
+/**
+ * Request Return or Replacement
+ */
+export const requestReturnOrReplace = async (req: Request, res: Response) => {
+    try {
+        const { orderId, orderItemId, requestType, reason, description, images, quantity } = req.body;
+        const userId = req.user!.userId;
+
+        // Validation
+        if (!orderId || !orderItemId || !requestType || !reason) {
+            return res.status(400).json({
+                success: false,
+                message: "Missing required fields: orderId, orderItemId, requestType, reason"
+            });
+        }
+
+        if (requestType === "Replacement" && (!images || images.length === 0)) {
+            return res.status(400).json({
+                success: false,
+                message: "Issue image is mandatory for replacement request"
+            });
+        }
+
+        const order = await Order.findOne({ _id: orderId, customer: userId });
+        if (!order) {
+            return res.status(404).json({ success: false, message: "Order not found" });
+        }
+
+        // Validate that order is delivered (standard policy)
+        if (order.status !== "Delivered") {
+            return res.status(400).json({
+                success: false,
+                message: "Requests can only be raised for delivered orders"
+            });
+        }
+
+        const orderItem = await OrderItem.findOne({ _id: orderItemId, order: orderId });
+        if (!orderItem) {
+            return res.status(404).json({ success: false, message: "Order item not found" });
+        }
+
+        const requestedQuantity = Number(quantity) || orderItem.quantity;
+        if (requestedQuantity > orderItem.quantity) {
+             return res.status(400).json({ success: false, message: "Quantity exceeds ordered quantity" });
+        }
+
+        // Check if a request already exists for this item
+        const existingRequest = await Return.findOne({ orderItem: orderItemId, status: { $ne: "Rejected" } });
+        if (existingRequest) {
+            return res.status(400).json({
+                success: false,
+                message: `A ${existingRequest.requestType} request already exists for this item`
+            });
+        }
+
+        // Create return/replacement request
+        const returnRequest = new Return({
+            order: orderId,
+            orderItem: orderItemId,
+            customer: userId,
+            requestType,
+            reason,
+            description,
+            images: images || [],
+            quantity: requestedQuantity,
+            status: "Pending"
+        });
+
+        await returnRequest.save();
+
+        return res.status(201).json({
+            success: true,
+            message: `${requestType} request raised successfully`,
+            data: returnRequest
+        });
+
+    } catch (error: any) {
+        console.error("Error requesting return/replace:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to raise request",
+            error: error.message
+        });
     }
 };
 

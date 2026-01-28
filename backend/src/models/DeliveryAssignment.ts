@@ -18,6 +18,9 @@ export interface IDeliveryAssignment extends Document {
     | "Failed"
     | "Cancelled";
 
+  returnRequest?: mongoose.Types.ObjectId;
+  assignmentType: "Order" | "Return" | "Replacement";
+
   // Timeline
   acceptedAt?: Date;
   pickedUpAt?: Date;
@@ -38,7 +41,15 @@ const DeliveryAssignmentSchema = new Schema<IDeliveryAssignment>(
       type: Schema.Types.ObjectId,
       ref: "Order",
       required: [true, "Order is required"],
-      unique: true, // One assignment per order
+    },
+    returnRequest: {
+      type: Schema.Types.ObjectId,
+      ref: "Return",
+    },
+    assignmentType: {
+      type: String,
+      enum: ["Order", "Return", "Replacement"],
+      default: "Order",
     },
     deliveryBoy: {
       type: Schema.Types.ObjectId,

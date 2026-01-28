@@ -340,6 +340,12 @@ export const getReturnRequests = asyncHandler(
       query.status = status;
     }
 
+    // Request Type filter (Return vs Replacement)
+    const { requestType } = req.query;
+    if (requestType && requestType !== "all") {
+      query.requestType = requestType;
+    }
+
     // Date filter
     if (dateFrom || dateTo) {
       query.createdAt = {};
@@ -417,6 +423,8 @@ export const getReturnRequests = asyncHandler(
       quantity: req.quantity,
       total: req.quantity * (req.orderItem?.unitPrice || 0),
       reason: req.reason,
+      requestType: req.requestType,
+      images: req.images,
       status: req.status,
       requestedAt: req.createdAt,
       processedAt: req.processedAt,
@@ -507,8 +515,26 @@ export const processReturnRequest = asyncHandler(
       else if (adminNotes) updateData.rejectionReason = adminNotes;
     }
 
-    if (status === "Approved" && refundAmount) {
-      updateData.refundAmount = refundAmount;
+    if (status === "Approved") {
+      const { refundAmount, deliveryBoyId } = req.body;
+      if (refundAmount) updateData.refundAmount = refundAmount;
+
+      if (deliveryBoyId) {
+        // Create or update delivery assignment
+        await DeliveryAssignment.findOneAndUpdate(
+          { returnRequest: id },
+          {
+            order: returnRequest.order,
+            returnRequest: id,
+            deliveryBoy: deliveryBoyId,
+            assignedAt: new Date(),
+            assignedBy: req.user?.userId,
+            status: "Assigned",
+            assignmentType: returnRequest.requestType === "Replacement" ? "Replacement" : "Return",
+          },
+          { upsert: true, new: true }
+        );
+      }
     }
 
     const updatedReturn = await Return.findByIdAndUpdate(id, updateData, {

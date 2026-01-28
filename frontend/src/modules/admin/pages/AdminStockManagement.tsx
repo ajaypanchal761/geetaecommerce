@@ -11,6 +11,7 @@ import {
 import { useAuth } from "../../../context/AuthContext";
 import AdminStockBulkEdit from "./AdminStockBulkEdit";
 import AdminStockBulkImport from "./AdminStockBulkImport";
+import { getAppSettings } from "../../../services/api/admin/adminSettingsService";
 
 interface ProductVariation {
   id: string;
@@ -76,6 +77,7 @@ export default function AdminStockManagement() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [savingChanges, setSavingChanges] = useState(false);
   const [changedProductIds, setChangedProductIds] = useState<Set<string>>(new Set());
+  const [barcodeSettings, setBarcodeSettings] = useState<any>(null);
 
 
   const [filterCategory, setFilterCategory] = useState("All Category");
@@ -117,6 +119,12 @@ export default function AdminStockManagement() {
       const response = await getProducts(params);
       if (response.success) {
         setProducts(response.data);
+      }
+
+      // Fetch barcode settings
+      const settingsRes = await getAppSettings();
+      if (settingsRes.success && settingsRes.data.barcodeSettings) {
+          setBarcodeSettings(settingsRes.data.barcodeSettings);
       }
     } catch (err) {
       console.error("Error fetching products:", err);
@@ -235,6 +243,188 @@ export default function AdminStockManagement() {
     } finally {
         setSavingChanges(false);
     }
+  };
+
+  const handleToggleStatus = async (productId: string, currentStatus: boolean) => {
+      try {
+          const response = await updateProduct(productId, { publish: !currentStatus });
+          if (response.success) {
+              setProducts(prev => prev.map(p => p._id === productId ? { ...p, publish: !currentStatus } : p));
+          } else {
+              alert("Failed to update status");
+          }
+      } catch (error) {
+          console.error("Error toggling status:", error);
+          alert("Failed to update status");
+      }
+  };
+
+  const handlePrintBarcode = (barcodeVal: string, name?: string, sp?: number, mrp?: number) => {
+      if(!barcodeVal || barcodeVal === "-") {
+          alert("No barcode found for this product");
+          return;
+      }
+
+      const qty = 1; // Default to 1 for quick print from list
+      const savedSize = localStorage.getItem('barcode_print_size') || 'medium';
+
+      let customSettings = barcodeSettings;
+      let containerWidth = 250;
+      let barcodeHeight = 55;
+      let fontSize = 14;
+      let productNameSize = 14;
+      let showName = true;
+      let showPrice = true;
+      let isCustom = false;
+
+      if (customSettings) {
+          isCustom = true;
+          barcodeHeight = customSettings.barcodeHeight;
+          fontSize = customSettings.fontSize;
+          productNameSize = customSettings.productNameSize;
+          showName = customSettings.showName ?? true;
+          showPrice = customSettings.showPrice ?? true;
+      }
+
+      if (!isCustom) {
+          if (savedSize === 'small') {
+              containerWidth = 200;
+              barcodeHeight = 40;
+              fontSize = 12;
+              productNameSize = 12;
+          } else if (savedSize === 'large') {
+              containerWidth = 320;
+              barcodeHeight = 75;
+              fontSize = 16;
+              productNameSize = 16;
+          }
+      }
+
+      const printWindow = window.open('', '_blank');
+      if(!printWindow) {
+          alert("Please allow popups to print barcodes");
+          return;
+      }
+
+      let styleContent = '';
+      if (isCustom && customSettings) {
+          styleContent = `
+              @page {
+                size: ${customSettings.width}mm ${customSettings.height}mm;
+                margin: 0;
+              }
+              body {
+                  margin: 0;
+                  padding: 0;
+                  width: ${customSettings.width}mm;
+              }
+              .barcode-container {
+                  width: ${customSettings.width}mm;
+                  height: ${customSettings.height}mm;
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                  justify-content: center;
+                  text-align: center;
+                  overflow: hidden;
+                  page-break-after: always;
+                  box-sizing: border-box;
+                  padding: 2px;
+              }
+          `;
+      } else {
+          styleContent = `
+              body { font-family: 'Inter', sans-serif; padding: 20px; }
+              .barcode-grid { display: flex; flex-wrap: wrap; gap: 20px; justify-content: flex-start; }
+              .barcode-container {
+                  text-align: center;
+                  border: 1px solid #ccc;
+                  padding: 10px;
+                  page-break-inside: avoid;
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                  justify-content: center;
+                  width: ${containerWidth}px;
+                  height: auto;
+                  background: white;
+                  box-sizing: border-box;
+                  border-radius: 8px;
+              }
+          `;
+      }
+
+      const htmlContent = `
+        <html>
+          <head>
+            <title>Print Barcode</title>
+            <style>
+              @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+              body { font-family: 'Inter', sans-serif; }
+              ${styleContent}
+              .product-name {
+                  font-size: ${productNameSize}px;
+                  font-weight: 600;
+                  margin-bottom: 2px;
+                  color: #000;
+                  line-height: 1.1;
+                  text-transform: capitalize;
+                  max-width: 100%;
+                  word-wrap: break-word;
+                  display: ${showName ? 'block' : 'none'};
+              }
+              .price-row {
+                  display: ${showPrice ? 'flex' : 'none'};
+                  gap: 10px;
+                  margin-top: 2px;
+                  font-size: ${fontSize}px;
+                  font-weight: 700;
+                  color: #000;
+                  justify-content: center;
+              }
+              svg.barcode {
+                  width: 100%;
+                  height: ${barcodeHeight}px;
+                  max-width: 100%;
+                  display: block;
+              }
+            </style>
+            <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+          </head>
+          <body>
+            <div class="${isCustom ? '' : 'barcode-grid'}">
+              <div class="barcode-container">
+                <div class="product-name">${name || ''}</div>
+                <svg class="barcode"
+                  jsbarcode-format="CODE128"
+                  jsbarcode-value="${barcodeVal}"
+                  jsbarcode-width="2"
+                  jsbarcode-height="${barcodeHeight}"
+                  jsbarcode-textmargin="0"
+                  jsbarcode-fontoptions="bold"
+                  jsbarcode-displayValue="true"
+                  jsbarcode-fontSize="${fontSize}"
+                  jsbarcode-marginBottom="2"
+                  jsbarcode-marginTop="2">
+                </svg>
+                <div class="price-row">
+                    ${mrp ? `<div class="price-item">MRP:${mrp}</div>` : ''}
+                    ${sp ? `<div class="price-item">SP:${sp}</div>` : ''}
+                </div>
+              </div>
+            </div>
+            <script>
+              JsBarcode(".barcode").init();
+              setTimeout(() => {
+                  window.print();
+                  window.close();
+              }, 800);
+            </script>
+          </body>
+        </html>
+      `;
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
   };
 
 
@@ -654,44 +844,58 @@ export default function AdminStockManagement() {
             </div>
 
             {/* Table Controls */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-neutral-600">Show</span>
-                <select
-                  value={rowsPerPage}
-                  onChange={(e) => {
-                    setRowsPerPage(Number(e.target.value));
-                    setCurrentPage(1);
-                  }}
-                  className="bg-white border border-neutral-300 rounded py-1.5 px-3 text-sm focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer">
-                  <option value={10}>10</option>
-                  <option value={20}>20</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                </select>
+            <div className="flex flex-col space-y-3 sm:space-y-0 sm:flex-row sm:justify-between sm:items-center gap-4">
+
+              {/* Top Row on Mobile: Search & Show */}
+              <div className="flex flex-col-reverse sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
+                 <div className="flex items-center gap-2 self-start sm:self-auto">
+                    <span className="text-sm text-neutral-600">Show</span>
+                    <select
+                      value={rowsPerPage}
+                      onChange={(e) => {
+                        setRowsPerPage(Number(e.target.value));
+                        setCurrentPage(1);
+                      }}
+                      className="bg-white border border-neutral-300 rounded py-1.5 px-3 text-sm focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer">
+                      <option value={10}>10</option>
+                      <option value={20}>20</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                  </div>
+
+                  <div className="relative w-full sm:w-auto">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 text-xs">
+                      Search:
+                    </span>
+                    <input
+                      type="text"
+                      className="pl-14 pr-3 py-2 bg-neutral-100 border-none rounded text-sm focus:ring-1 focus:ring-teal-500 w-full sm:w-48"
+                      value={searchTerm}
+                      onChange={(e) => {
+                        setSearchTerm(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      placeholder="..."
+                    />
+                  </div>
               </div>
-              <div className="flex items-center gap-2">
+
+              {/* Action Buttons: Grid on Mobile, Flex on Desktop */}
+              <div className="grid grid-cols-2 gap-2 w-full sm:w-auto sm:flex sm:items-center">
                 <button
                   onClick={() => navigate("/admin/product/add")}
-                  className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded text-sm font-medium flex items-center gap-1 transition-colors">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-2 rounded text-xs font-medium flex items-center justify-center gap-1 transition-colors">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="12" y1="5" x2="12" y2="19"></line>
                     <line x1="5" y1="12" x2="19" y2="12"></line>
                   </svg>
-                  Add Product
+                  Add
                 </button>
                 <button
                   onClick={() => setShowBulkEdit(true)}
-                  className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded text-sm font-medium flex items-center gap-1 transition-colors">
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round">
+                  className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-2 rounded text-xs font-medium flex items-center justify-center gap-1 transition-colors">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                   </svg>
@@ -699,42 +903,19 @@ export default function AdminStockManagement() {
                 </button>
                 <button
                   onClick={() => setShowBulkImport(true)}
-                  className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded text-sm font-medium flex items-center gap-1 transition-colors"
+                  className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-2 rounded text-xs font-medium flex items-center justify-center gap-1 transition-colors"
                 >
-                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                  Bulk Import
+                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                  Import
                 </button>
                 <button
                   onClick={handleExport}
-                  className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded text-sm font-medium flex items-center gap-1 transition-colors">
+                  className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-2 rounded text-xs font-medium flex items-center justify-center gap-1 transition-colors">
                   Export
-                  <svg
-                    width="10"
-                    height="10"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="6 9 12 15 18 9"></polyline>
                   </svg>
                 </button>
-                <div className="relative">
-                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-neutral-400 text-xs">
-                    Search:
-                  </span>
-                  <input
-                    type="text"
-                    className="pl-14 pr-3 py-1.5 bg-neutral-100 border-none rounded text-sm focus:ring-1 focus:ring-teal-500 w-48"
-                    value={searchTerm}
-                    onChange={(e) => {
-                      setSearchTerm(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                    placeholder=""
-                  />
-                </div>
               </div>
             </div>
           </div>
@@ -848,9 +1029,13 @@ export default function AdminStockManagement() {
                       <td className="p-4 align-middle text-sm text-neutral-600 text-right">{product.valuePurchase.toLocaleString()}</td>
 
                       <td className="p-4 align-middle text-center">
-                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${product.publish ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
+                          <button
+                            onClick={() => handleToggleStatus(product.productId, product.publish)}
+                            title="Click to toggle status"
+                            className={`px-3 py-1 rounded-full text-xs font-semibold transition-all hover:scale-105 active:scale-95 ${product.publish ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                          >
                              {product.publish ? 'Active' : 'Inactive'}
-                          </span>
+                          </button>
                       </td>
                       <td className="p-4 align-middle">
                         <div className="flex items-center justify-center gap-2">
@@ -872,6 +1057,20 @@ export default function AdminStockManagement() {
                               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                               <line x1="10" y1="11" x2="10" y2="17"></line>
                               <line x1="14" y1="11" x2="14" y2="17"></line>
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handlePrintBarcode(product.barcode, product.name, product.price, product.compareAtPrice)}
+                            className="p-1 text-teal-600 hover:bg-teal-50 rounded"
+                            title="Print Barcode">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
+                              <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
+                              <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
+                              <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
+                              <rect x="7" y="7" width="3" height="10"></rect>
+                              <rect x="14" y="7" width="3" height="10"></rect>
+                              <line x1="11" y1="7" x2="11" y2="17"></line>
                             </svg>
                           </button>
                         </div>

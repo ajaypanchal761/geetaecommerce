@@ -41,7 +41,27 @@ export default function AdminStockBulkImport({
       const workbook = XLSX.read(data, { type: "binary" });
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
-      const json = XLSX.utils.sheet_to_json(sheet);
+
+      // Initial parse to check header structure
+      let json = XLSX.utils.sheet_to_json<any>(sheet);
+
+      // Check if it's the new 2-row header template
+      // In the new template, Row 1 (index 0) has "Unit Pricing Rules", Row 2 has "Price (Min Qty 2)"
+      // sheet_to_json with default options uses Row 1 as keys.
+      // So json[0] would map Row 1 Keys to Row 2 Values.
+      // If we see the value "Price (Min Qty 2)" in the column roughly corresponding to Unit Pricing, we know to skip.
+
+      // Let's check if the first row of data looks like headers
+      if (json.length > 0) {
+          const firstRow = json[0];
+          const values = Object.values(firstRow);
+          // Check if specific sub-headers exist as values in the first 'data' row
+          if (values.includes("Price (Min Qty 2)") || values.includes("Price (Min Qty 4)")) {
+              // Re-parse skipping the first header row (so the second row becomes the header)
+              json = XLSX.utils.sheet_to_json(sheet, { range: 1 });
+          }
+      }
+
       setPreviewData(json);
     };
     reader.readAsBinaryString(file);
@@ -50,37 +70,6 @@ export default function AdminStockBulkImport({
   const mapRowToProduct = (row: any): Partial<CreateProductData> => {
     // Helper to find category ID by name
     const findCategory = (name: string) => categories.find((c) => c.name?.toLowerCase() === name?.toLowerCase())?._id || "";
-
-    // Mapping 1-25 fields
-    /*
-      Expected Columns based on Product List:
-      1. Category
-      2. Sub Cat
-      3. Sub Sub Cat
-      4. Product Name
-      5. SKU
-      6. Rack
-      7. Desc
-      8. Barcode
-      9. HSN
-      10. Unit
-      11. Size
-      12. Color
-      13. Attr
-      14. Tax Cat
-      15. GST
-      16. Pur. Price
-      17. MRP
-      18. Sell Price
-      19. Del. Time
-      20. Stock
-      21. Offer Price
-      22. Low Stock
-      23. Brand
-      24. Val (MRP) - Calculated, ignored
-      25. Val (Pur) - Calculated, ignored
-      Status
-    */
 
     const variations = [];
     if (row['Size'] || row['11. Size']) {
@@ -95,6 +84,14 @@ export default function AdminStockBulkImport({
 
     let unitPricing: { minQty: number; price: number }[] = [];
     try {
+        // Check for specific columns first (New Template Format)
+        const priceFor2 = parseFloat(row['27. Unit Price (Min Qty 2)'] || row['Unit Price (Min Qty 2)'] || row['27. Price (Min Qty 2)'] || row['Price (Min Qty 2)'] || "0");
+        const priceFor4 = parseFloat(row['28. Unit Price (Min Qty 4)'] || row['Unit Price (Min Qty 4)'] || row['28. Price (Min Qty 4)'] || row['Price (Min Qty 4)'] || "0");
+
+        if (priceFor2 > 0) unitPricing.push({ minQty: 2, price: priceFor2 });
+        if (priceFor4 > 0) unitPricing.push({ minQty: 4, price: priceFor4 });
+
+        // Fallback or additional rules from single column (Old Format)
         const rawPricing = row['Unit Pricing'] || row['Tiered Pricing'] || row['Pricing Rules'] ||
                           row['27. Unit Pricing Rules (e.g. 2=100; 5=90)'] || row['27. Unit Pricing Rules'] ||
                           row['27. Pricing Rules'] || row['Unit Pricing Rules'];
@@ -191,18 +188,42 @@ export default function AdminStockBulkImport({
   };
 
   const handleDownloadTemplate = () => {
-      const headers = [
-          "1. Category", "2. Sub Cat", "3. Sub Sub Cat", "4. Product Name", "5. SKU", "6. Rack", "7. Desc",
-          "8. Barcode", "9. HSN", "10. Unit", "11. Size", "12. Color", "13. Attr", "14. Tax Cat", "15. GST",
-          "16. Pur. Price", "17. MRP", "18. Sell Price", "19. Del. Time", "20. Stock", "21. Offer Price",
-          "22. Wholesale Price", "23. Low Stock", "24. Brand", "25. Val (MRP)", "26. Val (Pur)",
-          "27. Unit Pricing Rules (e.g. 2=100; 5=90)", "Image"
-      ];
+    // 2-Row Header Structure for "Sub-Column" effect
 
-      const ws = XLSX.utils.aoa_to_sheet([headers]);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Product Template");
-      XLSX.writeFile(wb, "product_import_template.xlsx");
+    // Standard Columns (0-25)
+    const stdCols = [
+        "1. Category", "2. Sub Cat", "3. Sub Sub Cat", "4. Product Name", "5. SKU", "6. Rack", "7. Desc",
+        "8. Barcode", "9. HSN", "10. Unit", "11. Size", "12. Color", "13. Attr", "14. Tax Cat", "15. GST",
+        "16. Pur. Price", "17. MRP", "18. Sell Price", "19. Del. Time", "20. Stock", "21. Offer Price",
+        "22. Wholesale Price", "23. Low Stock", "24. Brand", "25. Val (MRP)", "26. Val (Pur)"
+    ];
+
+    // Row 1: Standard Cols + "Unit Pricing Rules" (Merged) + "Image"
+    const row1 = [...stdCols, "Unit Pricing Rules", "", "Image"];
+
+    // Row 2: Standard Cols (Repeated for parsing) + Sub-Headers + "Image"
+    const row2 = [...stdCols, "Price (Min Qty 2)", "Price (Min Qty 4)", "Image"];
+
+    const ws = XLSX.utils.aoa_to_sheet([row1, row2]);
+
+    // Merges
+    const merges = [];
+
+    // Vertical Merges for Standard Columns & Image
+    for (let i = 0; i < stdCols.length; i++) {
+        merges.push({ s: { r: 0, c: i }, e: { r: 1, c: i } });
+    }
+    // Image Column (Index 28)
+    merges.push({ s: { r: 0, c: 28 }, e: { r: 1, c: 28 } });
+
+    // Horizontal Merge for Unit Pricing (Index 26-27)
+    merges.push({ s: { r: 0, c: 26 }, e: { r: 0, c: 27 } });
+
+    ws['!merges'] = merges;
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Product Template");
+    XLSX.writeFile(wb, "product_import_template.xlsx");
   };
 
   return (
@@ -267,7 +288,8 @@ export default function AdminStockBulkImport({
                    <span>24. Brand</span>
                    <span>25. Val (MRP)</span>
                    <span>26. Val (Pur)</span>
-                   <span>27. Unit Pricing Rules (Qty=Price;...)</span>
+                   <span>27. Unit Price (Min Qty 2)</span>
+                   <span>28. Unit Price (Min Qty 4)</span>
                    <span>Image</span>
                 </div>
               </div>

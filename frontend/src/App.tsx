@@ -296,9 +296,9 @@ function App() {
                               <Route path="product/taxes" element={<SellerTaxes />} />
                               <Route path="product/list" element={<SellerProductList />} />
                               <Route path="product/stock" element={<SellerStockManagement />} />
-                              <Route path="return" element={<SellerReturnRequest />} />
-                              <Route path="return-order" element={<SellerReturnRequest />} />
-                              <Route path="wallet" element={<SellerWallet />} />
+                              {/* <Route path="return" element={<SellerReturnRequest />} />
+                              <Route path="return-order" element={<SellerReturnRequest />} /> */}
+                              {/* <Route path="wallet" element={<SellerWallet />} /> */}
                               <Route path="reports/sales" element={<SellerSalesReport />} />
                               <Route path="account-settings" element={<SellerAccountSettings />} />
                             </Routes>

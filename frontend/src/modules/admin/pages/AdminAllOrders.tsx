@@ -379,7 +379,6 @@ export default function AdminAllOrders() {
                   <option>Delivered</option>
                   <option>Cancelled</option>
                   <option>Rejected</option>
-                  <option>Returned</option>
                 </select>
               </div>
 

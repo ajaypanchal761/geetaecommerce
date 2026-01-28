@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import mongoose from "mongoose";
 import OrderItem from "../../../models/OrderItem";
 import { asyncHandler } from "../../../utils/asyncHandler";
 
@@ -19,7 +20,7 @@ export const getSalesReport = asyncHandler(
         } = req.query;
 
         // Build query - filter by authenticated seller
-        const query: any = { sellerId };
+        const query: any = { seller: sellerId };
 
         // Date range filter
         if (fromDate || toDate) {
@@ -35,12 +36,19 @@ export const getSalesReport = asyncHandler(
             }
         }
 
-        // Search filter (on product name or order ID)
+        // Search filter
         if (search) {
+            // Find orders that match the search term (orderNumber)
+            const matchedOrders = await mongoose.model("Order").find({
+                orderNumber: { $regex: search, $options: "i" }
+            }).select("_id");
+
+            const matchedOrderIds = matchedOrders.map((o: any) => o._id);
+
             query.$or = [
                 { productName: { $regex: search, $options: "i" } },
-                // If orderId is available as a string or regex matchable field
-                // Note: orderId in OrderItem is an ObjectId pointing to Order model
+                { variation: { $regex: search, $options: "i" } },
+                { order: { $in: matchedOrderIds } }
             ];
         }
 
@@ -49,15 +57,27 @@ export const getSalesReport = asyncHandler(
         const limitNum = parseInt(limit as string);
         const skip = (pageNum - 1) * limitNum;
 
+        // Sort mappings (frontend names to backend names)
+        const sortMap: Record<string, string> = {
+            'orderId': 'order',
+            'orderItemId': '_id',
+            'product': 'productName',
+            'variant': 'variation',
+            'total': 'total',
+            'date': 'createdAt'
+        };
+
+        const backendSortBy = sortMap[sortBy as string] || sortBy as string;
+
         // Sort
         const sort: any = {};
-        sort[sortBy as string] = sortOrder === "asc" ? 1 : -1;
+        sort[backendSortBy] = sortOrder === "asc" ? 1 : -1;
 
         // Get order items with populated order info
         const orderItems = await OrderItem.find(query)
             .populate({
-                path: "orderId",
-                select: "orderId createdAt"
+                path: "order",
+                select: "orderNumber createdAt"
             })
             .sort(sort)
             .skip(skip)
@@ -68,11 +88,11 @@ export const getSalesReport = asyncHandler(
 
         // Format response for frontend
         const reports = orderItems.map(item => ({
-            orderId: (item.orderId as any)?.orderId || '',
-            orderItemId: item._id.toString().slice(-4), // SR No / Item ID shortcut
+            orderId: (item.order as any)?.orderNumber || '',
+            orderItemId: item._id.toString().slice(-6).toUpperCase(), // Item ID shortcut
             product: item.productName,
-            variant: item.variantTitle,
-            total: item.subtotal,
+            variant: item.variation || 'N/A',
+            total: item.total,
             date: item.createdAt.toISOString().replace('T', ' ').split('.')[0], // YYYY-MM-DD HH:mm:ss
         }));
 

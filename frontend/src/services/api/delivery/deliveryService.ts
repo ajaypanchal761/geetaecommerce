@@ -201,3 +201,27 @@ export const markNotificationRead = async (id: string) => {
         throw handleApiError(error);
     }
 };
+
+/**
+ * Get Return/Replacement Tasks
+ */
+export const getReturnTasks = async () => {
+    try {
+        const response = await api.get(`${BASE_URL}/return-tasks`);
+        return response.data.data;
+    } catch (error) {
+        throw handleApiError(error);
+    }
+};
+
+/**
+ * Update Return Task Status
+ */
+export const updateReturnTaskStatus = async (id: string, status: string) => {
+    try {
+        const response = await api.put(`${BASE_URL}/return-tasks/${id}/status`, { status });
+        return response.data;
+    } catch (error) {
+        throw handleApiError(error);
+    }
+};

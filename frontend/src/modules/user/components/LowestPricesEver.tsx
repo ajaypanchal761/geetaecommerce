@@ -31,7 +31,7 @@ const ProductCard = memo(({
   product: Product;
   cartQuantity: number;
   onAddToCart: (product: Product, element?: HTMLElement | null) => void;
-  onUpdateQuantity: (productId: string, quantity: number) => void;
+  onUpdateQuantity: (productId: string, quantity: number, variantId?: string, variantTitle?: string) => void;
 }) => {
   const navigate = useNavigate();
   const { isWishlisted, toggleWishlist } = useWishlist(product.id);
@@ -149,7 +149,7 @@ const ProductCard = memo(({
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        onUpdateQuantity(product.id, inCartQty - 1);
+                        onUpdateQuantity(product.id, inCartQty - 1, undefined, product.pack);
                       }}
                       className="w-4 h-4 flex items-center justify-center text-white font-bold hover:bg-green-700 rounded transition-colors p-0 leading-none"
                       style={{ lineHeight: 1, fontSize: '14px' }}
@@ -172,7 +172,7 @@ const ProductCard = memo(({
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        onUpdateQuantity(product.id, inCartQty + 1);
+                        onUpdateQuantity(product.id, inCartQty + 1, undefined, product.pack);
                       }}
                       className={`w-4 h-4 flex items-center justify-center font-bold rounded transition-colors p-0 leading-none ${
                         product.isAvailable === false
@@ -322,7 +322,9 @@ export default function LowestPricesEver({ activeTab = 'all', products: adminPro
     const map = new Map();
     cart.items.forEach(item => {
       if (item?.product) {
-        map.set(item.product.id, item.quantity);
+        // Use composite key of ID + Pack to distinguish variants
+        const pack = (item.product as any).pack || (item.product as any).variantTitle || '';
+        map.set(`${item.product.id}-${pack}`, item.quantity);
       }
     });
     return map;
@@ -431,8 +433,8 @@ export default function LowestPricesEver({ activeTab = 'all', products: adminPro
     addToCart(product, element);
   }, [addToCart]);
 
-  const handleUpdateQuantity = useCallback((productId: string, quantity: number) => {
-    updateQuantity(productId, quantity);
+  const handleUpdateQuantity = useCallback((productId: string, quantity: number, variantId?: string, variantTitle?: string) => {
+    updateQuantity(productId, quantity, variantId, variantTitle);
   }, [updateQuantity]);
 
   return (
@@ -532,7 +534,10 @@ export default function LowestPricesEver({ activeTab = 'all', products: adminPro
         style={{ scrollSnapType: 'x mandatory' }}
       >
         {discountedProducts.map((product) => {
-          const cartQuantity = cartItemsMap.get(product.id) || 0;
+          // Use same composite key logic to retrieve quantity
+          const pack = product.pack || '';
+          const cartQuantity = cartItemsMap.get(`${product.id}-${pack}`) || 0;
+
           return (
             <ProductCard
               key={product.id}

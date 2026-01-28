@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { getProducts, updateStock, Product } from '../../../services/api/productService';
+import { useNavigate } from 'react-router-dom';
+import { getProducts, updateStock, updateProduct, deleteProduct, Product } from '../../../services/api/productService';
 import { getCategories } from '../../../services/api/categoryService';
 import { useAuth } from '../../../context/AuthContext';
 import ThemedDropdown from '../components/ThemedDropdown';
@@ -18,11 +19,13 @@ interface StockItem {
 }
 
 export default function SellerStockManagement() {
+    const navigate = useNavigate();
     const { user } = useAuth();
     const isEnabled = user?.isEnabled !== false;
     const [stockItems, setStockItems] = useState<StockItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string>('');
+    const [copiedId, setCopiedId] = useState<string | null>(null);
     const [updatingStock, setUpdatingStock] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('All Category');
@@ -54,6 +57,12 @@ export default function SellerStockManagement() {
     const handleScan = (decodedText: string) => {
         setSearchTerm(decodedText);
         setShowScanner(false);
+    };
+
+    const copyToClipboard = (text: string) => {
+        navigator.clipboard.writeText(text);
+        setCopiedId(text);
+        setTimeout(() => setCopiedId(null), 2000);
     };
 
     // Helper to resolve image URL
@@ -153,6 +162,37 @@ export default function SellerStockManagement() {
             alert(err.response?.data?.message || err.message || 'Failed to update stock');
         } finally {
             setUpdatingStock(null);
+        }
+    };
+
+    const handleToggleStatus = async (productId: string, currentStatus: boolean) => {
+        try {
+            const response = await updateProduct(productId, { publish: !currentStatus });
+            if (response.success) {
+                setStockItems(prev => prev.map(item =>
+                    item.productId === productId
+                        ? { ...item, status: !currentStatus ? 'Published' : 'Unpublished' }
+                        : item
+                ));
+            } else {
+                alert(response.message || 'Failed to update status');
+            }
+        } catch (err: any) {
+            alert(err.response?.data?.message || err.message || 'Failed to update status');
+        }
+    };
+
+    const handleDeleteProduct = async (productId: string) => {
+        if (!window.confirm('Are you sure you want to delete this product?')) return;
+        try {
+            const response = await deleteProduct(productId);
+            if (response.success) {
+                setStockItems(prev => prev.filter(item => item.productId !== productId));
+            } else {
+                alert(response.message || 'Failed to delete product');
+            }
+        } catch (err: any) {
+            alert(err.response?.data?.message || err.message || 'Failed to delete product');
         }
     };
 
@@ -410,24 +450,55 @@ export default function SellerStockManagement() {
                                         Current Stock <SortIcon column="stock" />
                                     </div>
                                 </th>
-                                <th className="p-4 text-center whitespace-nowrap w-32">Action</th>
+                                <th className="p-4 text-center whitespace-nowrap">Status</th>
+                                <th className="p-4 text-center whitespace-nowrap w-40">Action</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-neutral-100">
                             {filteredItems.map((item) => (
                                 <tr key={item.variationId} className="hover:bg-teal-50/30 transition-colors text-sm text-neutral-700 group">
                                     <td className="p-4 align-middle text-xs text-neutral-500">
-                                        <span title={item.variationId} className="truncate max-w-[80px] inline-block">
-                                            {item.variationId.substring(0, 10)}...
-                                        </span>
+                                        <button
+                                            onClick={() => copyToClipboard(item.variationId)}
+                                            className="flex items-center gap-1 hover:text-teal-600 transition-colors"
+                                            title="Click to copy ID"
+                                        >
+                                            <span className="truncate max-w-[80px] inline-block font-mono">
+                                                {item.variationId.substring(0, 10)}...
+                                            </span>
+                                            {copiedId === item.variationId ? (
+                                                <svg className="w-3 h-3 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                                            ) : (
+                                                <svg className="w-3 h-3 text-neutral-400 opacity-0 group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                                            )}
+                                        </button>
                                     </td>
                                     <td className="p-4 align-middle text-xs text-neutral-500">
-                                         <span title={item.productId} className="truncate max-w-[80px] inline-block">
-                                            {item.productId.substring(0, 10)}...
-                                        </span>
+                                        <button
+                                            onClick={() => copyToClipboard(item.productId)}
+                                            className="flex items-center gap-1 hover:text-teal-600 transition-colors"
+                                            title="Click to copy ID"
+                                        >
+                                            <span className="truncate max-w-[80px] inline-block font-mono">
+                                                {item.productId.substring(0, 10)}...
+                                            </span>
+                                            {copiedId === item.productId ? (
+                                                <svg className="w-3 h-3 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                                            ) : (
+                                                <svg className="w-3 h-3 text-neutral-400 opacity-0 group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                                            )}
+                                        </button>
                                     </td>
-                                    <td className="p-4 align-middle font-medium text-neutral-800">{item.name}</td>
-                                    <td className="p-4 align-middle text-neutral-600">{item.seller}</td>
+                                    <td className="p-4 align-middle font-medium text-neutral-800">
+                                        <button
+                                            onClick={() => navigate(`/seller/product/edit/${item.productId}`)}
+                                            className="hover:text-teal-600 hover:underline text-left transition-all"
+                                            title="Edit product"
+                                        >
+                                            {item.name}
+                                        </button>
+                                    </td>
+                                    <td className="p-4 align-middle text-neutral-600 truncate max-w-[120px]">{item.seller}</td>
                                     <td className="p-4 align-middle text-center">
                                         <div className="w-12 h-12 bg-white border border-neutral-100 rounded-lg p-1 mx-auto shadow-sm flex items-center justify-center">
                                             <img
@@ -446,45 +517,90 @@ export default function SellerStockManagement() {
                                         </span>
                                     </td>
                                     <td className="p-4 align-middle text-center">
-                                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${item.stock === 0
+                                         <span
+                                            className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${item.stock === 0
                                                 ? 'bg-red-50 text-red-600 border border-red-100'
                                                 : (typeof item.stock === 'number' && item.stock < 10)
                                                     ? 'bg-amber-50 text-amber-600 border border-amber-100' // Low stock warning
                                                     : 'bg-green-50 text-green-600 border border-green-100'
-                                                }`}>
+                                                }`}
+                                        >
                                                 {item.stock} Units
                                         </span>
                                     </td>
+                                    <td className="p-4 align-middle text-center">
+                                        <button
+                                            onClick={() => handleToggleStatus(item.productId, item.status === 'Published')}
+                                            className={`px-3 py-1 rounded-full text-xs font-semibold transition-all hover:scale-105 active:scale-95 ${item.status === 'Published' ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                                            title="Click to toggle visibility"
+                                        >
+                                            {item.status}
+                                        </button>
+                                    </td>
                                     <td className="p-4 align-middle">
                                         <div className="flex items-center justify-center gap-2">
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                disabled={!isEnabled}
-                                                defaultValue={item.stock}
-                                                className={`w-20 px-3 py-1.5 border border-neutral-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all ${!isEnabled ? 'bg-neutral-50 text-neutral-400' : ''}`}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter' && isEnabled) {
-                                                        const val = parseInt((e.target as HTMLInputElement).value);
+                                            {/* Stock Input Helper */}
+                                            <div className="flex items-center border border-neutral-300 rounded-lg overflow-hidden h-9 shadow-sm bg-white">
+                                                <button
+                                                    onClick={(e) => {
+                                                        const row = e.currentTarget.closest('tr');
+                                                        const input = row?.querySelector('input[type="number"]') as HTMLInputElement;
+                                                        if (input) {
+                                                            input.stepDown();
+                                                        }
+                                                    }}
+                                                    className="px-2 bg-neutral-50 hover:bg-neutral-100 text-neutral-600 transition-colors border-r border-neutral-300"
+                                                    disabled={!isEnabled}
+                                                >
+                                                    -
+                                                </button>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    disabled={!isEnabled}
+                                                    defaultValue={item.stock}
+                                                    className={`w-14 px-2 py-1 text-center text-sm focus:outline-none focus:bg-teal-50/50 appearance-none m-0 border-none transition-all ${!isEnabled ? 'bg-neutral-50 text-neutral-400' : ''}`}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' && isEnabled) {
+                                                            const val = parseInt((e.target as HTMLInputElement).value);
+                                                            if (!isNaN(val)) {
+                                                                handleStockUpdate(item.productId, item.variationId, val);
+                                                            }
+                                                        }
+                                                    }}
+                                                />
+                                                <button
+                                                    onClick={(e) => {
+                                                        const row = e.currentTarget.closest('tr');
+                                                        const input = row?.querySelector('input[type="number"]') as HTMLInputElement;
+                                                        if (input) {
+                                                            input.stepUp();
+                                                        }
+                                                    }}
+                                                    className="px-2 bg-neutral-50 hover:bg-neutral-100 text-neutral-600 transition-colors border-l border-neutral-300"
+                                                    disabled={!isEnabled}
+                                                >
+                                                    +
+                                                </button>
+                                            </div>
+
+                                            {/* Action Icon: Save */}
+                                            <button
+                                                disabled={updatingStock === item.variationId || !isEnabled}
+                                                onClick={(e) => {
+                                                    if (!isEnabled) return;
+                                                    const row = e.currentTarget.closest('tr');
+                                                    const input = row?.querySelector('input[type="number"]') as HTMLInputElement;
+                                                    if (input) {
+                                                        const val = parseInt(input.value);
                                                         if (!isNaN(val)) {
                                                             handleStockUpdate(item.productId, item.variationId, val);
                                                         }
                                                     }
                                                 }}
-                                            />
-                                            <button
-                                                disabled={updatingStock === item.variationId || !isEnabled}
-                                                onClick={(e) => {
-                                                    if (!isEnabled) return;
-                                                    const input = (e.currentTarget.previousElementSibling as HTMLInputElement);
-                                                    const val = parseInt(input.value);
-                                                    if (!isNaN(val)) {
-                                                        handleStockUpdate(item.productId, item.variationId, val);
-                                                    }
-                                                }}
-                                                className={`p-2 rounded-lg transition-colors shadow-sm ${
+                                                className={`p-2 rounded-lg transition-all shadow-sm ${
                                                     isEnabled
-                                                    ? "bg-teal-600 text-white hover:bg-teal-700"
+                                                    ? "bg-teal-600 text-white hover:bg-teal-700 hover:scale-110 active:scale-95"
                                                     : "bg-neutral-300 text-white cursor-not-allowed"
                                                 }`}
                                                 title={isEnabled ? "Update Stock" : "Account Disabled"}
@@ -492,12 +608,36 @@ export default function SellerStockManagement() {
                                                 {updatingStock === item.variationId ? (
                                                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                                                 ) : (
-                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                                         <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
                                                         <polyline points="17 21 17 13 7 13 7 21"></polyline>
                                                         <polyline points="7 3 7 8 15 8"></polyline>
                                                     </svg>
                                                 )}
+                                            </button>
+
+                                            {/* Action Icon: Edit */}
+                                            <button
+                                                onClick={() => navigate(`/seller/product/edit/${item.productId}`)}
+                                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all hover:scale-110"
+                                                title="Edit Product"
+                                            >
+                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                                </svg>
+                                            </button>
+
+                                            {/* Action Icon: Delete */}
+                                            <button
+                                                onClick={() => handleDeleteProduct(item.productId)}
+                                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-all hover:scale-110"
+                                                title="Delete Product"
+                                            >
+                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                                </svg>
                                             </button>
                                         </div>
                                     </td>
@@ -505,7 +645,7 @@ export default function SellerStockManagement() {
                             ))}
                             {filteredItems.length === 0 && (
                                 <tr>
-                                     <td colSpan={8} className="p-12 text-center">
+                                    <td colSpan={9} className="p-12 text-center">
                                         <div className="flex flex-col items-center justify-center text-neutral-400">
                                             <svg className="w-12 h-12 mb-3 text-neutral-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />

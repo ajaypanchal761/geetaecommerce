@@ -3,10 +3,9 @@ import { useCart } from '../../context/CartContext';
 import Button from '../../components/ui/button';
 import { appConfig } from '../../services/configService';
 import { calculateProductPrice, getApplicableUnitPrice } from '../../utils/priceUtils';
-import { getActiveFreeGiftRules } from '../../services/freeGiftService';
 
 export default function Cart() {
-  const { cart, updateQuantity, removeFromCart, clearCart } = useCart();
+  const { cart, updateQuantity, removeFromCart, clearCart, freeGiftRules: activeRules } = useCart();
   const navigate = useNavigate();
 
 
@@ -52,7 +51,6 @@ export default function Cart() {
 
         {/* Free Gift Progress Bar (Multi-Tier) */}
         {(() => {
-            const activeRules = getActiveFreeGiftRules();
             if (activeRules.length === 0) return null;
 
             const currentTotal = cart.total;
@@ -92,7 +90,7 @@ export default function Cart() {
 
                          return (
                              <div
-                                key={rule.id}
+                                key={rule._id || rule.id}
                                 className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center group z-10"
                                 style={{ left: `${position}%`, transform: `translate(-${position === 100 ? '100' : '50'}%, -50%)` }}
                              >
@@ -186,7 +184,7 @@ export default function Cart() {
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={() => updateQuantity(item.product.id, item.quantity - 1, item.variant)}
+                      onClick={() => updateQuantity(item.product.id, item.quantity - 1, item.variant, item.product.pack)}
                       className="w-8 h-8 md:w-10 md:h-10 p-0 border-neutral-300 text-neutral-600 hover:border-green-600 hover:text-green-600 md:text-lg"
                     >
                       −
@@ -197,7 +195,7 @@ export default function Cart() {
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={() => updateQuantity(item.product.id, item.quantity + 1, item.variant)}
+                      onClick={() => updateQuantity(item.product.id, item.quantity + 1, item.variant, item.product.pack)}
                       className="w-8 h-8 md:w-10 md:h-10 p-0 border-neutral-300 text-neutral-600 hover:border-green-600 hover:text-green-600 md:text-lg"
                     >
                       +

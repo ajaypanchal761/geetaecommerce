@@ -122,7 +122,6 @@ export default function AdminOrderDetail() {
     'Delivered',
     'Cancelled',
     'Rejected',
-    'Returned',
   ];
 
   return (

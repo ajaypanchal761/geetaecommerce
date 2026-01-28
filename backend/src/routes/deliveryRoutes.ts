@@ -36,6 +36,10 @@ router.put("/orders/:id/status", deliveryOrderController.updateOrderStatus);
 router.post("/orders/:id/send-delivery-otp", deliveryOrderController.sendDeliveryOtp);
 router.post("/orders/:id/verify-delivery-otp", deliveryOrderController.verifyDeliveryOtpController);
 
+// Return/Replacement Tasks
+router.get("/return-tasks", deliveryOrderController.getReturnTasks);
+router.put("/return-tasks/:id/status", deliveryOrderController.updateReturnTaskStatus);
+
 // Earnings
 router.get("/earnings", deliveryEarningController.getEarningsHistory);
 

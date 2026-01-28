@@ -1796,7 +1796,7 @@ const applySearchedImage = () => {
 
                          {enableColors && (
                              <div className="bg-white p-4 rounded-lg border border-neutral-200 shadow-sm mb-4">
-                                <div className="flex gap-2 mb-3 max-w-lg items-center">
+                                <div className="flex flex-col sm:flex-row gap-2 mb-3 max-w-lg items-center">
                                     <input
                                         type="color"
                                         className="w-10 h-10 p-1 border border-neutral-300 rounded cursor-pointer shrink-0"
@@ -1870,7 +1870,7 @@ const applySearchedImage = () => {
                           <label className="block text-sm font-semibold text-neutral-700 mb-2">
                               Select Attributes
                           </label>
-                          <div className="flex gap-2 max-w-md">
+                          <div className="flex flex-col sm:flex-row gap-2 max-w-md">
                              <select
                                   className="flex-1 px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
                                   value={selectedAttributeId}
@@ -1898,7 +1898,7 @@ const applySearchedImage = () => {
                            <div key={attr.id} className="bg-white p-4 rounded-lg border border-neutral-200 shadow-sm relative">
                                <button type="button" onClick={() => handleRemoveAttribute(attr.id)} className="absolute top-2 right-2 text-gray-400 hover:text-red-500 text-lg leading-none">&times;</button>
                                <h4 className="font-semibold text-teal-800 mb-2">{attr.name} Values</h4>
-                               <div className="flex gap-2 mb-3 max-w-lg">
+                               <div className="flex flex-col sm:flex-row gap-2 mb-3 max-w-lg">
                                    <input
                                        type="text"
                                        placeholder={`Add ${attr.name} value (e.g. Red, XL)`}
@@ -1937,7 +1937,7 @@ const applySearchedImage = () => {
                        {/* Unit Values */}
                        <div className="bg-white p-4 rounded-lg border border-neutral-200 shadow-sm">
                            <h4 className="font-semibold text-teal-800 mb-2">Unit Values (Optional)</h4>
-                           <div className="flex gap-2 mb-3 max-w-lg">
+                           <div className="flex flex-col sm:flex-row gap-2 mb-3 max-w-lg">
                                <input
                                    type="text"
                                    placeholder="e.g. 1kg, 5kg"

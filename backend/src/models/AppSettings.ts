@@ -188,15 +188,19 @@ const AppSettingsSchema = new Schema<IAppSettings>(
       required: [true, "Contact email is required"],
       trim: true,
     },
+
     contactPhone: {
       type: String,
       required: [true, "Contact phone is required"],
       trim: true,
+
     },
+
     supportEmail: {
       type: String,
       trim: true,
     },
+
     supportPhone: {
       type: String,
       trim: true,
@@ -207,6 +211,7 @@ const AppSettingsSchema = new Schema<IAppSettings>(
       type: String,
       trim: true,
     },
+
     companyCity: {
       type: String,
       trim: true,
@@ -219,6 +224,7 @@ const AppSettingsSchema = new Schema<IAppSettings>(
       type: String,
       trim: true,
     },
+    
     companyCountry: {
       type: String,
       default: "India",
