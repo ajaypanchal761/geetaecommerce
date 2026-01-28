@@ -917,7 +917,8 @@ export default function Checkout() {
                           e.preventDefault();
                           e.stopPropagation();
                           const variantId = (item.product as any).variantId || (item.product as any).selectedVariant?._id || item.variant;
-                          updateQuantity(item.product?.id || item.product?._id, (item.quantity || 1) - 1, variantId);
+                          const variantTitle = (item.product as any).variantTitle || (item.product as any).pack;
+                          updateQuantity(item.product?.id || item.product?._id, (item.quantity || 1) - 1, variantId, variantTitle);
                         }}
                         className="w-5 h-5 flex items-center justify-center text-green-600 font-bold hover:bg-green-50 rounded-full transition-colors text-xs"
                       >
@@ -932,7 +933,8 @@ export default function Checkout() {
                           e.preventDefault();
                           e.stopPropagation();
                           const variantId = (item.product as any).variantId || (item.product as any).selectedVariant?._id || item.variant;
-                          updateQuantity(item.product?.id || item.product?._id, (item.quantity || 1) + 1, variantId);
+                          const variantTitle = (item.product as any).variantTitle || (item.product as any).pack;
+                          updateQuantity(item.product?.id || item.product?._id, (item.quantity || 1) + 1, variantId, variantTitle);
                         }}
                         className="w-5 h-5 flex items-center justify-center text-green-600 font-bold hover:bg-green-50 rounded-full transition-colors text-xs"
                       >
@@ -1069,7 +1071,9 @@ export default function Checkout() {
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                updateQuantity(productId, inCartQty - 1);
+                                const variantId = (inCartItem?.product as any)?.variantId || (inCartItem?.product as any)?.selectedVariant?._id || inCartItem?.variant;
+                                const variantTitle = (inCartItem?.product as any)?.variantTitle || (inCartItem?.product as any)?.pack;
+                                updateQuantity(productId, inCartQty - 1, variantId, variantTitle);
                               }}
                                 className="w-4 h-4 flex items-center justify-center text-white font-bold hover:bg-green-700 rounded transition-colors p-0 leading-none"
                                 style={{ lineHeight: 1, fontSize: '14px' }}
@@ -1091,7 +1095,9 @@ export default function Checkout() {
                                 onClick={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
-                                  updateQuantity(productId, inCartQty + 1);
+                                  const variantId = (inCartItem?.product as any)?.variantId || (inCartItem?.product as any)?.selectedVariant?._id || inCartItem?.variant;
+                                  const variantTitle = (inCartItem?.product as any)?.variantTitle || (inCartItem?.product as any)?.pack;
+                                  updateQuantity(productId, inCartQty + 1, variantId, variantTitle);
                                 }}
                                 className="w-4 h-4 flex items-center justify-center text-white font-bold hover:bg-green-700 rounded transition-colors p-0 leading-none"
                                 style={{ lineHeight: 1, fontSize: '14px' }}
