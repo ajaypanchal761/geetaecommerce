@@ -5,6 +5,7 @@ import dashboardRoutes from "./dashboardRoutes";
 import customerAuthRoutes from "./customerAuthRoutes";
 import deliveryRoutes from "./deliveryRoutes";
 import deliveryAuthRoutes from "./deliveryAuthRoutes";
+import fcmRoutes from "../modules/notification/routes/fcmRoutes";
 
 // ... (other imports)
 import { authenticate, requireUserType } from "../middleware/auth";
@@ -175,5 +176,8 @@ router.use("/seller/taxes", taxRoutes);
 // Banner routes (public read, admin write)
 router.use("/banners", bannerRoutes);
 router.use("/flash-deals", flashDealRoutes);
+
+// Notification routes
+router.use("/notification", fcmRoutes);
 
 export default router;

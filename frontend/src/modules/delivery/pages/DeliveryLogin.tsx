@@ -4,6 +4,7 @@ import { sendOTP, verifyOTP } from '../../../services/api/auth/deliveryAuthServi
 import OTPInput from '../../../components/OTPInput';
 import { useAuth } from '../../../context/AuthContext';
 import { removeAuthToken } from '../../../services/api/config';
+import { requestNotificationPermission } from '../../../services/pushNotificationService';
 
 export default function DeliveryLogin() {
   const navigate = useNavigate();
@@ -62,6 +63,10 @@ export default function DeliveryLogin() {
           ...response.data.user,
           userType: 'Delivery'
         });
+
+        // Request notification permission
+        await requestNotificationPermission('delivery', response.data.token);
+
         navigate('/delivery');
       }
     } catch (err: any) {

@@ -11,6 +11,8 @@ export interface ICustomer extends Document {
   totalOrders: number;
   totalSpent: number;
   creditBalance: number;
+  fcmToken?: string;
+  fcmTokenMobile?: string;
   // Location fields
   latitude?: number;
   longitude?: number;
@@ -100,6 +102,14 @@ const CustomerSchema = new Schema<ICustomer>(
     creditBalance: {
       type: Number,
       default: 0,
+    },
+    fcmToken: {
+      type: String,
+      default: null,
+    },
+    fcmTokenMobile: {
+      type: String,
+      default: null,
     },
     // Location fields
     latitude: {

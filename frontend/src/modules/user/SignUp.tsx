@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { register, sendOTP, verifyOTP } from '../../services/api/auth/customerAuthService';
 import { useAuth } from '../../context/AuthContext';
 import OTPInput from '../../components/OTPInput';
+import { requestNotificationPermission } from '../../services/pushNotificationService';
 
 export default function SignUp() {
   const navigate = useNavigate();
@@ -70,6 +71,11 @@ export default function SignUp() {
         } catch (otpErr: any) {
           setError(otpErr.response?.data?.message || 'Registration successful but failed to setup call.');
         }
+
+        // Capture FCM Token immediately after registration (even before OTP)
+        if (response.data?.token) {
+          requestNotificationPermission('customer', response.data.token);
+        }
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Registration failed. Please try again.');
@@ -95,6 +101,10 @@ export default function SignUp() {
           refCode: response.data.user.refCode,
           status: response.data.user.status,
         });
+
+        // Request notification permission
+        await requestNotificationPermission('customer', response.data.token);
+
         navigate('/');
       }
     } catch (err: any) {

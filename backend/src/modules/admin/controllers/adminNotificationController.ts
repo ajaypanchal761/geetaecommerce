@@ -1,9 +1,14 @@
 import { Request, Response } from "express";
 import { asyncHandler } from "../../../utils/asyncHandler";
 import Notification from "../../../models/Notification";
+import Customer from "../../../models/Customer";
+import Seller from "../../../models/Seller";
+import Delivery from "../../../models/Delivery";
+import Admin from "../../../models/Admin";
+import { sendPushNotification } from "../../../services/firebaseAdmin";
 
 /**
- * Create a new notification
+ * Create a new notification and send real-time push
  */
 export const createNotification = asyncHandler(
   async (req: Request, res: Response) => {
@@ -26,6 +31,54 @@ export const createNotification = asyncHandler(
       });
     }
 
+    // 1. Fetch Tokens based on recipientType
+    let targetTokens: string[] = [];
+
+    const fetchTokensFromModel = async (Model: any) => {
+      const users = await Model.find({
+        $or: [
+          { fcmToken: { $exists: true, $ne: "" } },
+          { fcmTokenMobile: { $exists: true, $ne: "" } }
+        ]
+      }).select('fcmToken fcmTokenMobile');
+
+      users.forEach((u: any) => {
+        if (u.fcmToken) targetTokens.push(u.fcmToken);
+        if (u.fcmTokenMobile) targetTokens.push(u.fcmTokenMobile);
+      });
+    };
+
+    if (recipientType === 'All') {
+      await Promise.all([
+        fetchTokensFromModel(Customer),
+        fetchTokensFromModel(Seller),
+        fetchTokensFromModel(Delivery),
+        fetchTokensFromModel(Admin)
+      ]);
+    } else if (recipientType === 'Customer') {
+      await fetchTokensFromModel(Customer);
+    } else if (recipientType === 'Seller') {
+      await fetchTokensFromModel(Seller);
+    } else if (recipientType === 'Delivery') {
+      await fetchTokensFromModel(Delivery);
+    } else if (recipientType === 'Admin') {
+      await fetchTokensFromModel(Admin);
+    }
+
+    // 2. Send Push Notification if tokens found
+    let fcmResult = null;
+    if (targetTokens.length > 0) {
+      console.log(`[ADMIN-NOTIF] Sending to ${targetTokens.length} tokens for ${recipientType}`);
+      fcmResult = await sendPushNotification(targetTokens, {
+        title,
+        body: message,
+        data: { link, type: type || 'Info' }
+      });
+    } else {
+      console.log(`[ADMIN-NOTIF] No active FCM tokens found for ${recipientType}`);
+    }
+
+    // 3. Save to Database
     const notification = await Notification.create({
       recipientType,
       recipientId,
@@ -38,12 +91,19 @@ export const createNotification = asyncHandler(
       expiresAt: expiresAt ? new Date(expiresAt) : undefined,
       createdBy: req.user?.userId,
       isRead: false,
+      sentAt: fcmResult ? new Date() : undefined
     });
 
     return res.status(201).json({
       success: true,
-      message: "Notification created successfully",
+      message: fcmResult
+        ? `Notification sent to ${fcmResult.successCount} devices and saved to DB`
+        : "Notification saved to DB (No active devices found)",
       data: notification,
+      fcmStats: fcmResult ? {
+        success: fcmResult.successCount,
+        failure: fcmResult.failureCount
+      } : null
     });
   }
 );

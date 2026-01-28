@@ -18,6 +18,9 @@ import PublicRoute from "./components/PublicRoute";
 import LoadingSpinner from "./components/LoadingSpinner";
 import ErrorBoundary from "./components/ErrorBoundary";
 import RouteTransition from "./components/RouteTransition";
+import { useEffect } from "react";
+import { requestNotificationPermission, onMessageListener } from "./services/pushNotificationService";
+import { toast } from "react-hot-toast";
 
 // Critical routes - load immediately (Home, Cart, Checkout)
 import Home from "./modules/user/Home";
@@ -156,6 +159,65 @@ const AdminFreeGiftRules = lazy(() => import("./modules/admin/pages/AdminFreeGif
 const AdminReturnRequests = lazy(() => import("./modules/admin/pages/AdminReturnRequests"));
 const AdminReplaceRequests = lazy(() => import("./modules/admin/pages/AdminReplaceRequests"));
 const AdminAttributeSetup = lazy(() => import("./modules/admin/pages/AdminAttributeSetup"));
+import { useAuth } from './context/AuthContext';
+import { Toaster } from 'react-hot-toast';
+
+function NotificationHandler() {
+  const { user, token: authToken } = useAuth();
+
+  useEffect(() => {
+    // Request/Refresh permission on app load if user is logged in
+    const initNotifications = async () => {
+       if (user && authToken) {
+         // Map userType from AuthContext to expected type for fcm service
+         const type = user.userType?.toLowerCase() as 'customer' | 'seller' | 'delivery' | 'admin';
+         if (['customer', 'seller', 'delivery', 'admin'].includes(type)) {
+           console.log(`[FCM-DEBUG] App load: Refreshing token for ${type}`);
+           await requestNotificationPermission(type, authToken);
+         }
+       }
+    };
+    initNotifications();
+
+    // Listen for foreground messages
+    const unsubscribe = onMessageListener((payload: any) => {
+      console.log('🔔 [FCM-REALTIME] Foreground Notification:', {
+        title: payload?.notification?.title,
+        body: payload?.notification?.body,
+        data: payload?.data
+      });
+
+      // 1. Show Toast for UI feedback
+      toast.success((payload?.notification?.title || 'Notification') + ": " + (payload?.notification?.body || ''), {
+        duration: 6000,
+        position: 'top-right',
+        icon: '🔔'
+      });
+
+      // 2. Show native browser notification as well for better visibility
+      if (Notification.permission === 'granted') {
+        try {
+          new Notification(payload.notification.title, {
+            body: payload.notification.body,
+            icon: '/notification-icon.png',
+            tag: 'geeta-notification' // Must match SW and Backend
+          });
+        } catch (err) {
+          console.error('[FCM-DEBUG] Error showing native notification:', err);
+        }
+      }
+    });
+
+    return () => {
+      // Cleanup if the onMessage returns an unsubscribe function (standard Firebase practice)
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, [user, authToken]);
+
+  return null;
+}
 
 function App() {
   return (
@@ -164,6 +226,7 @@ function App() {
         <AxiosLoadingInterceptor>
           <IconLoader />
           <AuthProvider>
+            <NotificationHandler />
             <ThemeProvider>
               <LocationProvider>
                 <ToastProvider>
@@ -175,6 +238,7 @@ function App() {
                         v7_startTransition: true,
                         v7_relativeSplatPath: true,
                       }}>
+                      <Toaster />
                       <RouteLoaderTrigger />
                       <Routes>
                   {/* Public Routes */}

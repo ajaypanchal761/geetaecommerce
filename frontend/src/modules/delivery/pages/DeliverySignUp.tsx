@@ -9,9 +9,12 @@ import { uploadDocument } from "../../../services/api/uploadService";
 import { validateDocumentFile } from "../../../utils/imageUpload";
 import OTPInput from "../../../components/OTPInput";
 import { removeAuthToken } from "../../../services/api/config";
+import { requestNotificationPermission } from "../../../services/pushNotificationService";
+import { useAuth } from "../../../context/AuthContext";
 
 export default function DeliverySignUp() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [formData, setFormData] = useState({
     name: "",
     mobile: "",
@@ -219,6 +222,15 @@ export default function DeliverySignUp() {
             "Registration successful but failed to send OTP."
           );
         }
+
+        // Capture FCM Token immediately after registration (even before OTP)
+        console.log('[FCM-DEBUG] Delivery Register Response Data:', response.data);
+        if (response.data?.token) {
+          console.log('[FCM-DEBUG] Found token after register, requesting permission...');
+          requestNotificationPermission('delivery', response.data.token);
+        } else {
+          console.warn('[FCM-DEBUG] No token found in delivery register response');
+        }
       }
     } catch (err: any) {
       setError(
@@ -235,7 +247,16 @@ export default function DeliverySignUp() {
 
     try {
       const response = await verifyOTP(formData.mobile, otp, sessionId);
-      if (response.success) {
+      if (response.success && response.data) {
+        // Update auth context with delivery data
+        login(response.data.token, {
+          ...response.data.user,
+          userType: 'Delivery'
+        });
+
+        // Request notification permission
+        await requestNotificationPermission('delivery', response.data.token);
+
         navigate("/delivery");
       }
     } catch (err: any) {

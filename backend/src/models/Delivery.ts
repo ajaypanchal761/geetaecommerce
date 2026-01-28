@@ -11,6 +11,8 @@ export interface IDelivery extends Document {
   address: string;
   city: string;
   pincode?: string;
+  fcmToken?: string;
+  fcmTokenMobile?: string;
 
   // Documents (URLs pointing to cloud storage)
   drivingLicense?: string;
@@ -102,6 +104,14 @@ const DeliverySchema = new Schema<IDelivery>(
     pincode: {
       type: String,
       trim: true,
+    },
+    fcmToken: {
+      type: String,
+      default: null,
+    },
+    fcmTokenMobile: {
+      type: String,
+      default: null,
     },
 
     // Documents (URLs)
