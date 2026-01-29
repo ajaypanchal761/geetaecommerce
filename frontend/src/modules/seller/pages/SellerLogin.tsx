@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { sendOTP, verifyOTP } from '../../../services/api/auth/sellerAuthService';
 import OTPInput from '../../../components/OTPInput';
 import { useAuth } from '../../../context/AuthContext';
+import { requestNotificationPermission } from '../../../services/pushNotificationService';
 
 export default function SellerLogin() {
   const navigate = useNavigate();
@@ -55,6 +56,10 @@ export default function SellerLogin() {
           address: response.data.user.address,
           city: response.data.user.city,
         });
+
+        // Request notification permission
+        await requestNotificationPermission('seller', response.data.token);
+
         // Navigate to seller dashboard only on success
         navigate('/seller', { replace: true });
       } else {

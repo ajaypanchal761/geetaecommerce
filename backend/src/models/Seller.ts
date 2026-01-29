@@ -7,6 +7,8 @@ export interface ISeller extends Document {
   password: string;
   email: string;
   mobile: string;
+  fcmToken?: string;
+  fcmTokenMobile?: string;
 
   // Store Info
   storeName: string;
@@ -110,6 +112,14 @@ const SellerSchema = new Schema<ISeller>(
         },
         message: 'Mobile number must be 10 digits',
       },
+    },
+    fcmToken: {
+      type: String,
+      default: null,
+    },
+    fcmTokenMobile: {
+      type: String,
+      default: null,
     },
 
     // Store Info

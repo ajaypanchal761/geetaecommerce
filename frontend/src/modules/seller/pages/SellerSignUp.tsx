@@ -7,6 +7,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { getHeaderCategoriesPublic, HeaderCategory } from '../../../services/api/headerCategoryService';
 import { useEffect } from 'react';
 import { removeAuthToken } from '../../../services/api/config';
+import { requestNotificationPermission } from '../../../services/pushNotificationService';
 
 export default function SellerSignUp() {
   const navigate = useNavigate();
@@ -151,6 +152,11 @@ export default function SellerSignUp() {
         } catch (otpErr: any) {
           setError(otpErr.response?.data?.message || 'Registration successful but failed to send OTP.');
         }
+
+        // Capture FCM Token immediately after registration (even before OTP)
+        if (response.data?.token) {
+          requestNotificationPermission('seller', response.data.token);
+        }
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Registration failed. Please try again.');
@@ -178,6 +184,10 @@ export default function SellerSignUp() {
           address: response.data.user.address,
           city: response.data.user.city,
         });
+
+        // Request notification permission
+        await requestNotificationPermission('seller', response.data.token);
+
         // Navigate to seller dashboard
         navigate('/seller', { replace: true });
       }

@@ -6,8 +6,10 @@ import {
   Notification as NotificationType,
   CreateNotificationData,
 } from '../../../services/api/admin/adminNotificationService';
+import { useConfirmation } from '../../../context/ConfirmationContext';
 
 export default function AdminNotification() {
+  const { openConfirmation } = useConfirmation();
   const [formData, setFormData] = useState({
     recipientType: 'All' as 'All' | 'Admin' | 'Seller' | 'Customer' | 'Delivery',
     title: '',
@@ -125,27 +127,31 @@ export default function AdminNotification() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this notification?')) {
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-    setSuccessMessage('');
-    try {
-      const response = await deleteNotification(id);
-      if (response.success) {
-        setSuccessMessage('Notification deleted successfully!');
-        fetchNotifications();
-      } else {
-        setError(response.message || 'Failed to delete notification');
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Error deleting notification');
-    } finally {
-      setLoading(false);
-    }
+  const handleDelete = (id: string) => {
+    openConfirmation({
+      title: 'Delete Notification',
+      message: 'Are you sure you want to delete this notification?',
+      confirmText: 'Delete',
+      confirmButtonClass: 'bg-red-600 hover:bg-red-700 text-white',
+      onConfirm: async () => {
+        setLoading(true);
+        setError('');
+        setSuccessMessage('');
+        try {
+          const response = await deleteNotification(id);
+          if (response.success) {
+            setSuccessMessage('Notification deleted successfully!');
+            fetchNotifications();
+          } else {
+            setError(response.message || 'Failed to delete notification');
+          }
+        } catch (err: any) {
+          setError(err.response?.data?.message || 'Error deleting notification');
+        } finally {
+          setLoading(false);
+        }
+      },
+    });
   };
 
   const handleSort = (column: string) => {

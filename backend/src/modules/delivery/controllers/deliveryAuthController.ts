@@ -157,7 +157,7 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   }
 
   // Create new delivery partner
-  await Delivery.create({
+  const delivery = await Delivery.create({
     name,
     mobile,
     email,
@@ -178,13 +178,23 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     cashCollected: 0,
   } as any);
 
-  // Generate token (Optional: usually registration doesn't login immediately if approval needed, but for seamless UX we can)
-  // However, FE Flow: Register -> OTP -> Login. So we return success, then FE calls sendSmsOtp.
+  // Generate token so FCM can be saved immediately
+  const token = generateToken(delivery._id.toString(), "Delivery");
 
   return res.status(201).json({
     success: true,
     message: "Delivery partner registered successfully.",
-    // No token returned here, flow continues to OTP
+    data: {
+      token,
+      user: {
+        id: delivery._id,
+        name: delivery.name,
+        mobile: delivery.mobile,
+        email: delivery.email,
+        city: delivery.city,
+        status: delivery.status,
+      }
+    }
   });
 });
 

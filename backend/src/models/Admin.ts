@@ -62,6 +62,14 @@ const AdminSchema = new Schema<IAdmin>(
       minlength: [6, 'Password must be at least 6 characters'],
       select: false, // Don't return password by default
     },
+    fcmToken: {
+      type: String,
+      trim: true,
+    },
+    fcmTokenMobile: {
+      type: String,
+      trim: true,
+    },
   },
   {
     timestamps: true,

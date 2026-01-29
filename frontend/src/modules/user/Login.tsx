@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { sendOTP, verifyOTP } from '../../services/api/auth/customerAuthService';
 import { useAuth } from '../../context/AuthContext';
 import OTPInput from '../../components/OTPInput';
+import { requestNotificationPermission } from '../../services/pushNotificationService';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -51,6 +52,10 @@ export default function Login() {
           refCode: response.data.user.refCode,
           status: response.data.user.status,
         });
+
+        // Request notification permission
+        await requestNotificationPermission('customer', response.data.token);
+
         navigate('/');
       }
     } catch (err: any) {

@@ -11,6 +11,8 @@ import {
   type UpdateCategoryData,
 } from "../../../services/api/admin/adminProductService";
 import { useAuth } from "../../../context/AuthContext";
+import { useConfirmation } from "../../../context/ConfirmationContext";
+import { useToast } from "../../../context/ToastContext";
 import CategoryFormModal from "../components/CategoryFormModal";
 import CategoryTreeView from "../components/CategoryTreeView";
 import CategoryListView from "../components/CategoryListView";
@@ -54,6 +56,8 @@ const flattenTree = (cats: Category[]): Category[] => {
 };
 
 export default function AdminCategory() {
+  const { openConfirmation } = useConfirmation();
+  const { showToast } = useToast();
   const { isAuthenticated, token } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
   const [viewMode, setViewMode] = useState<"tree" | "list">("tree");
@@ -205,101 +209,110 @@ export default function AdminCategory() {
     setListPage(1);
   };
 
-  const handleDelete = async (category: Category) => {
-    if (
-      !window.confirm(
-        `Are you sure you want to delete "${category.name}"? This action cannot be undone.`
-      )
-    ) {
-      return;
-    }
-
-    try {
-      const response = await deleteCategory(category._id);
-      if (response.success) {
-        alert("Category deleted successfully!");
-        fetchCategories();
-      }
-    } catch (error: any) {
-      const errorMessage =
-        error && typeof error === "object" && "response" in error
-          ? (error as { response?: { data?: { message?: string } } }).response
-              ?.data?.message
-          : "Failed to delete category. Please try again.";
-      alert(errorMessage || "Failed to delete category. Please try again.");
-    }
-  };
-
-  const handleBulkDelete = async () => {
-    if (selectedIds.size === 0) {
-      alert("Please select at least one category to delete.");
-      return;
-    }
-
-    if (
-      !window.confirm(
-        `Are you sure you want to delete ${selectedIds.size} selected category(ies)? This action cannot be undone.`
-      )
-    ) {
-      return;
-    }
-
-    try {
-      const response = await bulkDeleteCategories(Array.from(selectedIds));
-      if (response.success) {
-        const deletedCount = response.data.deleted.length;
-        const failedCount = response.data.failed.length;
-        if (failedCount > 0) {
-          alert(
-            `Deleted ${deletedCount} category(ies). ${failedCount} failed. Check console for details.`
-          );
-          console.log("Failed deletions:", response.data.failed);
-        } else {
-          alert(`Successfully deleted ${deletedCount} category(ies).`);
+  const handleDelete = (category: Category) => {
+    openConfirmation({
+      title: 'Delete Category',
+      message: `Are you sure you want to delete "${category.name}"? This action cannot be undone.`,
+      confirmText: 'Delete',
+      confirmButtonClass: 'bg-red-600 hover:bg-red-700 text-white',
+      onConfirm: async () => {
+        try {
+          const response = await deleteCategory(category._id);
+          if (response.success) {
+            showToast("Category deleted successfully!");
+            fetchCategories();
+          }
+        } catch (error: any) {
+          const errorMessage =
+            error && typeof error === "object" && "response" in error
+              ? (error as { response?: { data?: { message?: string } } }).response
+                  ?.data?.message
+              : "Failed to delete category. Please try again.";
+          showToast(errorMessage || "Failed to delete category. Please try again.");
         }
-        setSelectedIds(new Set());
-        fetchCategories();
       }
-    } catch (error: any) {
-      const errorMessage =
-        error && typeof error === "object" && "response" in error
-          ? (error as { response?: { data?: { message?: string } } }).response
-              ?.data?.message
-          : "Failed to delete categories. Please try again.";
-      alert(errorMessage || "Failed to delete categories. Please try again.");
-    }
+    });
   };
 
-  const handleToggleStatus = async (category: Category) => {
-    const newStatus = category.status === "Active" ? "Inactive" : "Active";
-    const cascade =
-      category.childrenCount && category.childrenCount > 0
-        ? window.confirm(
-            `This category has subcategories. Do you want to ${
-              newStatus === "Inactive" ? "deactivate" : "activate"
-            } all subcategories as well?`
-          )
-        : false;
+  const handleBulkDelete = () => {
+    if (selectedIds.size === 0) {
+      showToast("Please select at least one category to delete.");
+      return;
+    }
 
-    try {
-      const response = await toggleCategoryStatus(
-        category._id,
-        newStatus,
-        cascade
-      );
-      if (response.success) {
-        alert(`Category status updated to ${newStatus}`);
-        fetchCategories();
+    openConfirmation({
+      title: 'Bulk Delete',
+      message: `Are you sure you want to delete ${selectedIds.size} selected category(ies)? This action cannot be undone.`,
+      confirmText: 'Delete All',
+      confirmButtonClass: 'bg-red-600 hover:bg-red-700 text-white',
+      onConfirm: async () => {
+        try {
+          const response = await bulkDeleteCategories(Array.from(selectedIds));
+          if (response.success) {
+            const deletedCount = response.data.deleted.length;
+            const failedCount = response.data.failed.length;
+            if (failedCount > 0) {
+              showToast(
+                `Deleted ${deletedCount} category(ies). ${failedCount} failed. Check console for details.`
+              );
+              console.log("Failed deletions:", response.data.failed);
+            } else {
+              showToast(`Successfully deleted ${deletedCount} category(ies).`);
+            }
+            setSelectedIds(new Set());
+            fetchCategories();
+          }
+        } catch (error: any) {
+          const errorMessage =
+            error && typeof error === "object" && "response" in error
+              ? (error as { response?: { data?: { message?: string } } }).response
+                  ?.data?.message
+              : "Failed to delete categories. Please try again.";
+          showToast(errorMessage || "Failed to delete categories. Please try again.");
+        }
       }
-    } catch (error: any) {
-      const errorMessage =
-        error && typeof error === "object" && "response" in error
-          ? (error as { response?: { data?: { message?: string } } }).response
-              ?.data?.message
-          : "Failed to update category status. Please try again.";
-      alert(
-        errorMessage || "Failed to update category status. Please try again."
-      );
+    });
+  };
+
+  const handleToggleStatus = (category: Category) => {
+    const newStatus = category.status === "Active" ? "Inactive" : "Active";
+
+    const performToggle = async (cascade: boolean) => {
+      try {
+        const response = await toggleCategoryStatus(
+          category._id,
+          newStatus,
+          cascade
+        );
+        if (response.success) {
+          showToast(`Category status updated to ${newStatus}`);
+          fetchCategories();
+        }
+      } catch (error: any) {
+        const errorMessage =
+          error && typeof error === "object" && "response" in error
+            ? (error as { response?: { data?: { message?: string } } }).response
+                ?.data?.message
+            : "Failed to update category status. Please try again.";
+        showToast(
+          errorMessage || "Failed to update category status. Please try again."
+        );
+      }
+    };
+
+    if (category.childrenCount && category.childrenCount > 0) {
+      openConfirmation({
+        title: 'Cascade Status Update',
+        message: `This category has subcategories. Do you want to ${
+          newStatus === "Inactive" ? "deactivate" : "activate"
+        } all subcategories as well?`,
+        confirmText: 'Yes, Cascade',
+        cancelText: 'No, Only This',
+        onConfirm: () => performToggle(true),
+        onCancel: () => performToggle(false)
+      });
+    } else {
+      performToggle(false);
     }
   };
 
@@ -309,13 +322,13 @@ export default function AdminCategory() {
     if (modalMode === "edit" && editingCategory) {
       const response = await updateCategory(editingCategory._id, data);
       if (response.success) {
-        alert("Category updated successfully!");
+        showToast("Category updated successfully!");
         fetchCategories();
       }
     } else {
       const response = await createCategory(data as CreateCategoryData);
       if (response.success) {
-        alert("Category created successfully!");
+        showToast("Category created successfully!");
         if (modalMode === "create-subcategory" && parentCategory) {
           const newExpandedIds = new Set(expandedIds);
           newExpandedIds.add(parentCategory._id);
