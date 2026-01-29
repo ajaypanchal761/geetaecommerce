@@ -44,6 +44,7 @@ export interface IProduct extends Document {
     price?: number;
     wholesalePrice?: number;
     discPrice?: number;
+    compareAtPrice?: number;
     stock?: number;
     sku?: string;
     status?: string;
@@ -243,6 +244,7 @@ export interface IProduct extends Document {
           price: Number,
           wholesalePrice: { type: Number, default: 0 },
           discPrice: { type: Number, default: 0 },
+          compareAtPrice: { type: Number },
           stock: Number,
           status: {
             type: String,
@@ -395,6 +397,10 @@ ProductSchema.pre("save", function (next) {
     // Set price to the price of the first variation if top-level price is not set
     if (this.variations[0].price !== undefined) {
       this.price = this.variations[0].price;
+    }
+    // Sync compareAtPrice (MRP) from first variation
+    if (this.variations[0].compareAtPrice !== undefined) {
+      this.compareAtPrice = this.variations[0].compareAtPrice;
     }
 
     // Calculate total stock as sum of all variation stocks

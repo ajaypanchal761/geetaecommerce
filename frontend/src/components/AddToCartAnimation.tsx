@@ -262,6 +262,32 @@ export default function AddToCartAnimation({
   // Since items are added to the end of the array, we take the last 3
   const thumbnailItems = cart.items.slice(-3).reverse();
 
+  // Scroll visibility logic: Mobile always visible, Desktop only after scroll
+  const [showOnScroll, setShowOnScroll] = useState(true);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.innerWidth >= 768) {
+        // Desktop: Show only if scrolled past 100px
+        setShowOnScroll(window.scrollY > 100);
+      } else {
+        // Mobile: Always show
+        setShowOnScroll(true);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('resize', handleScroll);
+
+    // Initial check
+    handleScroll();
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', handleScroll);
+    };
+  }, []);
+
   return (
     <>
       {/* Removed product thumbnail - blasting out */}
@@ -309,7 +335,7 @@ export default function AddToCartAnimation({
       )}
 
       <AnimatePresence>
-        {!shouldHidePill && (
+        {!shouldHidePill && showOnScroll && (
           <motion.div
             initial={{ y: 60, opacity: 0, scale: 0.8 }}
             animate={{

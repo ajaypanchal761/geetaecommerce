@@ -6,10 +6,13 @@ import {
   deleteHeaderCategory,
   HeaderCategory
 } from '../../../services/api/headerCategoryService';
+import { uploadImage } from '../../../services/api/admin/adminProductService';
 import { themes } from '../../../utils/themes';
 import { ICON_LIBRARY, getIconByName, IconDef } from '../../../utils/iconLibrary';
+import { useToast } from '../../../context/ToastContext';
 
 export default function AdminHeaderCategory() {
+  const { showToast } = useToast();
   const [headerCategories, setHeaderCategories] = useState<HeaderCategory[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -17,10 +20,13 @@ export default function AdminHeaderCategory() {
   const [headerCategoryName, setHeaderCategoryName] = useState('');
   const [selectedIconLibrary, setSelectedIconLibrary] = useState('Custom'); // Default to Custom for SVG
   const [headerCategoryIcon, setHeaderCategoryIcon] = useState('');
+  const [selectedIconType, setSelectedIconType] = useState<'Icon' | 'Image'>('Icon'); // Toggle between Icon and Image
+  const [headerCategoryImage, setHeaderCategoryImage] = useState(''); // Stores the URL of the uploaded image
   const [selectedCategory, setSelectedCategory] = useState(''); // This maps to relatedCategory
   const [selectedTheme, setSelectedTheme] = useState('all'); // This maps to slug
   const [selectedStatus, setSelectedStatus] = useState<'Published' | 'Unpublished'>('Published');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   // Icon search state
   const [iconSearchTerm, setIconSearchTerm] = useState('');
@@ -45,7 +51,7 @@ export default function AdminHeaderCategory() {
       setHeaderCategories(data);
     } catch (error) {
       console.error('Failed to fetch header categories', error);
-      alert('Failed to fetch categories');
+      showToast('Failed to fetch categories', 'error');
     } finally {
       setLoading(false);
     }
@@ -104,6 +110,8 @@ export default function AdminHeaderCategory() {
     setHeaderCategoryName('');
     setSelectedIconLibrary('Custom');
     setHeaderCategoryIcon('');
+    setSelectedIconType('Icon');
+    setHeaderCategoryImage('');
     setSelectedCategory('');
     setSelectedTheme('all');
     setSelectedStatus('Published');
@@ -112,15 +120,37 @@ export default function AdminHeaderCategory() {
   };
 
   const handleAddOrUpdate = async () => {
-    if (!headerCategoryName.trim()) return alert('Please enter a header category name');
-    if (!headerCategoryIcon.trim()) return alert('Please select an icon. If your category is unique, try searching for a generic icon.');
-    if (!selectedTheme) return alert('Please select a theme');
+    if (!headerCategoryName.trim()) return showToast('Please enter a header category name', 'error');
+
+    // Validation based on selected type
+    if (selectedIconType === 'Icon' && !headerCategoryIcon.trim()) {
+       return showToast('Please select an icon. If your category is unique, try searching for a generic icon.', 'error');
+    }
+    // Validation disabled for Image type to allow optional or fallback to default?
+    // Usually user wants image if selected 'Image'.
+    // If user selected 'Image' but didn't upload, we could warn them or default to no image?
+    // Let's enforce it if they picked 'Image' type explicitly, although field is optional in backend if iconName is present (which is required).
+    // The backend `iconName` is required, so even if Image is selected, we should probably keep `iconName` populated or set a default/placeholder.
+    // The previous logic required `iconName`.
+
+    if (selectedIconType === 'Image' && !headerCategoryImage) {
+         // If switching to Image, we still need an iconName for fallback in backend or if image fails load?
+         // The backend requires `iconName`. So let's keep it requirement or auto-fill it if empty.
+         if (!headerCategoryIcon.trim()) {
+            return showToast('Please allow an icon selection as fallback even if using Image, or select an icon first.', 'error');
+         }
+         // Actually, let's just warn about image
+         return showToast('Please upload an image.', 'error');
+    }
+
+    if (!selectedTheme) return showToast('Please select a theme', 'error');
 
     try {
       const payload = {
         name: headerCategoryName,
         iconLibrary: selectedIconLibrary,
         iconName: headerCategoryIcon,
+        image: selectedIconType === 'Image' ? headerCategoryImage : '', // Send image only if type is Image
         slug: selectedTheme, // Use theme as slug for color mapping
         relatedCategory: selectedCategory,
         status: selectedStatus,
@@ -128,17 +158,17 @@ export default function AdminHeaderCategory() {
 
       if (editingId) {
         await updateHeaderCategory(editingId, payload);
-        alert('Header Category updated successfully!');
+        showToast('Header Category updated successfully!');
       } else {
         await createHeaderCategory(payload);
-        alert('Header Category added successfully!');
+        showToast('Header Category added successfully!');
       }
 
       fetchCategories();
       resetForm();
     } catch (error: any) {
       console.error(error);
-      alert(error.response?.data?.message || 'Operation failed');
+      showToast(error.response?.data?.message || 'Operation failed', 'error');
     }
   };
 
@@ -147,6 +177,16 @@ export default function AdminHeaderCategory() {
     setHeaderCategoryName(category.name);
     setSelectedIconLibrary(category.iconLibrary);
     setHeaderCategoryIcon(category.iconName);
+
+    // Set Image state
+    if (category.image) {
+        setSelectedIconType('Image');
+        setHeaderCategoryImage(category.image);
+    } else {
+        setSelectedIconType('Icon');
+        setHeaderCategoryImage('');
+    }
+
     setSelectedCategory(category.relatedCategory || '');
     setSelectedTheme(category.slug);
     setSelectedStatus(category.status);
@@ -157,11 +197,11 @@ export default function AdminHeaderCategory() {
     if (window.confirm('Are you sure you want to delete this header category?')) {
       try {
         await deleteHeaderCategory(id);
-        alert('Header Category deleted successfully!');
+        showToast('Header Category deleted successfully!');
         fetchCategories();
       } catch (error) {
         console.error(error);
-        alert('Failed to delete category');
+        showToast('Failed to delete category', 'error');
       }
     }
   };
@@ -204,7 +244,34 @@ export default function AdminHeaderCategory() {
               />
             </div>
 
+            {/* Icon / Image Selection Toggle */}
+             <div className="flex gap-4 mb-4">
+                 <label className="flex items-center gap-2 cursor-pointer">
+                     <input
+                         type="radio"
+                         name="iconType"
+                         value="Icon"
+                         checked={selectedIconType === 'Icon'}
+                         onChange={() => setSelectedIconType('Icon')}
+                         className="text-teal-600 focus:ring-teal-500"
+                     />
+                     <span className="text-sm font-medium text-neutral-700">Select Icon</span>
+                 </label>
+                 <label className="flex items-center gap-2 cursor-pointer">
+                     <input
+                         type="radio"
+                         name="iconType"
+                         value="Image"
+                         checked={selectedIconType === 'Image'}
+                         onChange={() => setSelectedIconType('Image')}
+                         className="text-teal-600 focus:ring-teal-500"
+                     />
+                     <span className="text-sm font-medium text-neutral-700">Upload Image</span>
+                 </label>
+             </div>
+
             {/* Select Icon Visual Grid */}
+            {selectedIconType === 'Icon' && (
             <div>
               <div className="flex justify-between items-center mb-2">
                 <label className="block text-sm font-medium text-neutral-700">
@@ -254,6 +321,72 @@ export default function AdminHeaderCategory() {
                 Icons are automatically suggested based on category name.
               </p>
             </div>
+            )}
+
+            {/* Image Upload Area */}
+            {selectedIconType === 'Image' && (
+                <div>
+                     <label className="block text-sm font-medium text-neutral-700 mb-2">
+                        Upload Image:
+                     </label>
+                     <div className="border-2 border-dashed border-neutral-300 rounded-lg p-6 flex flex-col items-center justify-center text-center bg-neutral-50 hover:bg-neutral-100 transition-colors">
+                        {headerCategoryImage ? (
+                            <div className="relative group">
+                                <img src={headerCategoryImage} alt="Preview" className="h-24 w-24 object-contain rounded mb-3" />
+                                <button
+                                    onClick={() => setHeaderCategoryImage('')}
+                                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                </button>
+                                <p className="text-xs text-green-600 font-medium">Image Uploaded</p>
+                            </div>
+                        ) : (
+                            <>
+                                <svg className="w-10 h-10 text-neutral-400 mb-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                    <polyline points="21 15 16 10 5 21"></polyline>
+                                </svg>
+                                {isUploading ? (
+                                    <p className="text-sm text-neutral-500">Uploading...</p>
+                                ) : (
+                                    <>
+                                       <label className="cursor-pointer">
+                                           <span className="text-teal-600 font-medium hover:text-teal-700">Click to upload</span>
+                                           <input
+                                               type="file"
+                                               accept="image/*"
+                                               className="hidden"
+                                               onChange={async (e) => {
+                                                   if (e.target.files && e.target.files[0]) {
+                                                       setIsUploading(true);
+                                                       try {
+                                                           const res = await uploadImage(e.target.files[0]);
+                                                            if (res.success) {
+                                                                setHeaderCategoryImage(res.data.url);
+                                                            }
+                                                       } catch (err) {
+                                                           console.error(err);
+                                                           alert('Failed to upload image');
+                                                       } finally {
+                                                           setIsUploading(false);
+                                                       }
+                                                   }
+                                               }}
+                                           />
+                                       </label>
+                                       <p className="text-xs text-neutral-400 mt-1">SVG, PNG, JPG or GIF (max 2MB)</p>
+                                    </>
+                                )}
+                            </>
+                        )}
+                     </div>
+                </div>
+            )}
 
             {/* Theme / Color Selection */}
             <div>
@@ -460,11 +593,17 @@ export default function AdminHeaderCategory() {
                       </td>
                       <td className="px-4 py-3 text-sm text-neutral-600">
                         <div className="flex items-center gap-2">
-                          <div className="text-teal-600 w-5 h-5 flex items-center justify-center">
-                            {getIconByName(category.iconName)}
-                          </div>
+                           {category.image ? (
+                               <div className="w-8 h-8 flex-shrink-0 border border-neutral-200 rounded overflow-hidden bg-white">
+                                  <img src={category.image} alt={category.name} className="w-full h-full object-contain" />
+                               </div>
+                           ) : (
+                              <div className="text-teal-600 w-5 h-5 flex items-center justify-center">
+                                {getIconByName(category.iconName)}
+                              </div>
+                           )}
                           <span className="text-xs text-neutral-400 font-mono hidden xl:inline">
-                            {category.iconName}
+                            {category.image ? 'Image' : category.iconName}
                           </span>
                         </div>
                       </td>

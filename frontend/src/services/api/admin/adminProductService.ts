@@ -131,6 +131,7 @@ export interface Product {
     price?: number;
     wholesalePrice?: number;
     discPrice?: number;
+    compareAtPrice?: number;
     stock?: number;
     sku?: string;
     status?: string;
@@ -159,7 +160,6 @@ export interface Product {
   createdAt?: string;
   updatedAt?: string;
   discPrice?: number;
-  wholesalePrice?: number;
   pack?: string;
   isShopByStoreOnly?: boolean;
   shopId?: string | { _id: string; name: string };
@@ -169,7 +169,6 @@ export interface Product {
   subcategoryId?: string;
   brandId?: string;
   taxId?: string;
-  mainImageUrl?: string;
   mainImageUrl?: string;
   galleryImageUrls?: string[];
   unitPricing?: { minQty: number; price: number }[];
@@ -207,6 +206,7 @@ export interface CreateProductData {
     price?: number;
     wholesalePrice?: number;
     discPrice?: number;
+    compareAtPrice?: number;
     stock?: number;
     sku?: string;
     status?: string;

@@ -43,6 +43,7 @@ export const createHeaderCategory = async (req: Request, res: Response) => {
       name,
       iconLibrary,
       iconName,
+      image,
       slug,
       relatedCategory,
       status,
@@ -60,6 +61,7 @@ export const createHeaderCategory = async (req: Request, res: Response) => {
       name,
       iconLibrary,
       iconName,
+      image,
       slug,
       relatedCategory,
       status,
@@ -84,6 +86,7 @@ export const updateHeaderCategory = async (req: Request, res: Response) => {
       name,
       iconLibrary,
       iconName,
+      image,
       slug,
       relatedCategory,
       status,
@@ -105,6 +108,7 @@ export const updateHeaderCategory = async (req: Request, res: Response) => {
       category.name = name || category.name;
       category.iconLibrary = iconLibrary || category.iconLibrary;
       category.iconName = iconName || category.iconName;
+      category.image = image !== undefined ? image : category.image;
       category.slug = slug || category.slug;
       category.relatedCategory = relatedCategory; // Allow clearing it (undefined or null or empty string)
       category.status = status || category.status;

@@ -120,6 +120,7 @@ export default function AdminAddProduct() {
   const [variationForm, setVariationForm] = useState({
     title: "",
     price: "",
+    compareAtPrice: "",
     discPrice: "0",
     stock: "0",
     status: "Available" as "Available" | "Sold out",
@@ -644,18 +645,36 @@ export default function AdminAddProduct() {
               lowStockQuantity: (product as any).lowStockQuantity?.toString() || "5",
               deliveryTime: (product as any).deliveryTime || "",
             });
-            setVariations((product.variations || []).map((v: any) => ({
+            const vars = (product.variations || []).map((v: any) => ({
               ...v,
               price: v.price || 0,
               discPrice: v.discPrice || 0,
+              compareAtPrice: v.compareAtPrice || 0,
               stock: v.stock || 0,
               status: (v.status as "Available" | "Sold out" | "In stock") || "Available"
-            })));
-            if (product.mainImageUrl || product.mainImage) {
-              setMainImagePreview(
-                product.mainImageUrl || product.mainImage || ""
-              );
+            }));
+            setVariations(vars);
+
+            // Populate Top Form with 1st variation if exists (Simulating Simple Product Edit)
+            if (vars.length > 0) {
+               const v = vars[0];
+               setVariationForm(prev => ({
+                   ...prev,
+                   price: v.price?.toString() || "",
+                   compareAtPrice: v.compareAtPrice?.toString() || "",
+                   discPrice: v.discPrice?.toString() || "",
+                   stock: v.stock?.toString() || "",
+                   status: v.status,
+                   title: v.title || "",
+                   // And others if needed
+               }));
             }
+
+            if (product.mainImageUrl || product.mainImage) {
+               setMainImagePreview(
+                 product.mainImageUrl || product.mainImage || ""
+               );
+             }
             if (product.galleryImageUrls) {
               setGalleryItems(product.galleryImageUrls.map((url) => ({
                 id: url,
@@ -836,12 +855,13 @@ export default function AdminAddProduct() {
     }
 
     const price = parseFloat(variationForm.price);
-    const discPrice = parseFloat(variationForm.discPrice || "0");
+    const compareAtPrice = variationForm.compareAtPrice ? parseFloat(variationForm.compareAtPrice) : 0;
     const stock = parseInt(variationForm.stock || "0");
     const offerPrice = variationForm.offerPrice ? parseFloat(variationForm.offerPrice) : undefined;
 
-    if (discPrice > price) {
-      setUploadError("Discounted price cannot be greater than price");
+    // Validate: Selling Price (price) should not be greater than MRP (compareAtPrice) if MRP is set
+    if (compareAtPrice > 0 && price > compareAtPrice) {
+      setUploadError("Selling price cannot be greater than Maximum Retail Price (MRP)");
       return;
     }
 
@@ -850,7 +870,8 @@ export default function AdminAddProduct() {
       value: variationForm.title,
       name: formData.variationType || "Variation",
       price,
-      discPrice,
+      compareAtPrice,
+      discPrice: price, // For legacy support, or if discPrice is meant to be the final selling price
       stock,
       status: variationForm.status,
       barcode: variationForm.barcode,
@@ -865,6 +886,7 @@ export default function AdminAddProduct() {
     setVariationForm({
       title: "",
       price: "",
+      compareAtPrice: "",
       discPrice: "0",
       stock: "0",
       status: "Available",
@@ -1147,30 +1169,53 @@ export default function AdminAddProduct() {
 
       // Auto-add current variation if form is filled but list is empty
       let finalVariations = [...variations];
+
+      const price = parseFloat(variationForm.price);
+      const compareAtPrice = variationForm.compareAtPrice ? parseFloat(variationForm.compareAtPrice) : 0;
+      const stock = parseInt(variationForm.stock || "0");
+      const offerPrice = variationForm.offerPrice ? parseFloat(variationForm.offerPrice) : undefined;
+      const discPrice = price; // standard behavior for this form
+
       if (finalVariations.length === 0) {
         if (variationForm.title && variationForm.price) {
-          const price = parseFloat(variationForm.price);
-          const discPrice = parseFloat(variationForm.discPrice || "0");
-          const stock = parseInt(variationForm.stock || "0");
-
-          if (discPrice <= price) {
-            finalVariations.push({
-              title: variationForm.title,
-              price,
-              discPrice,
-              stock,
-              status: variationForm.status,
-            });
-          } else {
-            setUploadError("Discounted price cannot be greater than price in variation");
-            setUploading(false);
-            return;
+          if (compareAtPrice > 0 && price > compareAtPrice) {
+             setUploadError("Selling price cannot be greater than Maximum Retail Price (MRP)");
+             setUploading(false);
+             return;
           }
+
+          finalVariations.push({
+             title: variationForm.title,
+             price,
+             compareAtPrice,
+             discPrice,
+             stock,
+             status: variationForm.status,
+             offerPrice
+           });
         } else {
           setUploadError("Please add at least one product variation");
           setUploading(false);
           return;
         }
+      } else if (finalVariations.length === 1) {
+          // If there is exactly one variation (Simple Product mode), update it with the top form values
+          // This allows editing key fields without removing/re-adding the variation
+           if (compareAtPrice > 0 && price > compareAtPrice) {
+             setUploadError("Selling price cannot be greater than Maximum Retail Price (MRP)");
+             setUploading(false);
+             return;
+          }
+
+          finalVariations[0] = {
+              ...finalVariations[0],
+              price,
+              compareAtPrice,
+              discPrice,
+              stock,
+              offerPrice,
+              // Update title only if needed? Usually we keep it.
+          };
       }
 
       // Prepare product data for API
@@ -1211,6 +1256,7 @@ export default function AdminAddProduct() {
         variations: finalVariations,
         variationType: formData.variationType || undefined,
         price: finalVariations[0]?.price || 0,
+        compareAtPrice: finalVariations[0]?.compareAtPrice || 0,
         stock: finalVariations.reduce((acc, curr) => acc + (Number(curr.stock) || 0), 0),
         isShopByStoreOnly: formData.isShopByStoreOnly === "Yes",
         shopId: formData.shopId || undefined,
@@ -1438,8 +1484,8 @@ const applySearchedImage = () => {
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₹</span>
                         <input
                            type="number"
-                           value={variationForm.discPrice}
-                           onChange={(e) => setVariationForm({ ...variationForm, discPrice: e.target.value })}
+                           value={variationForm.price}
+                           onChange={(e) => setVariationForm({ ...variationForm, price: e.target.value })}
                            placeholder="0.00"
                            className="w-full pl-7 pr-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                         />
@@ -1453,8 +1499,8 @@ const applySearchedImage = () => {
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₹</span>
                         <input
                            type="number"
-                           value={variationForm.price}
-                           onChange={(e) => setVariationForm({ ...variationForm, price: e.target.value })}
+                           value={variationForm.compareAtPrice}
+                           onChange={(e) => setVariationForm({ ...variationForm, compareAtPrice: e.target.value })}
                            placeholder="0.00"
                            className="w-full pl-7 pr-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                         />

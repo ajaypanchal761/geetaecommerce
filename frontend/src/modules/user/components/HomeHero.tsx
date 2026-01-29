@@ -143,7 +143,11 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
           const mapped = cats.map(c => ({
             id: c.slug,
             label: c.name,
-            icon: getIconByName(c.iconName)
+            icon: c.image ? (
+                <img src={c.image} alt={c.name} className="w-full h-full object-contain" />
+            ) : (
+                getIconByName(c.iconName)
+            )
           }));
           setTabs([ALL_TAB, ...mapped]);
         }
@@ -395,11 +399,11 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
                 key={tab.id}
                 ref={(el) => { if (el) tabRefs.current.set(tab.id, el); else tabRefs.current.delete(tab.id); }}
                 onClick={() => handleTabClick(tab.id)}
-                className={`flex-shrink-0 flex flex-col md:flex-row items-center justify-center w-auto min-w-[60px] md:w-auto md:min-w-fit md:px-3 py-1 md:py-1.5 relative ${tabColor} z-10`}
+                className={`flex-shrink-0 flex flex-col items-center justify-center w-auto min-w-[60px] md:w-auto md:min-w-[80px] md:px-3 py-1 md:py-1.5 relative ${tabColor} z-10`}
                 style={{ transition: 'color 0.3s ease-out' }}
                 type="button"
               >
-                <div className={`mb-0.5 md:hidden w-5 h-5 flex items-center justify-center ${tabColor}`} style={{ transition: 'color 0.3s ease-out, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)', transform: isActive ? 'scale(1.1)' : 'scale(1)' }}>
+                <div className={`mb-0.5 w-5 h-5 md:w-6 md:h-6 flex items-center justify-center ${tabColor}`} style={{ transition: 'color 0.3s ease-out, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)', transform: isActive ? 'scale(1.1)' : 'scale(1)' }}>
                   {tab.icon}
                 </div>
                 <span className={`text-[10px] md:text-xs md:whitespace-nowrap ${isActive ? 'font-semibold' : 'font-medium'}`} style={{ transition: 'font-weight 0.3s ease-out' }}>

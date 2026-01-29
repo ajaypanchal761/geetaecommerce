@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   getProducts,
   getCategories,
@@ -61,6 +61,7 @@ const STOCK_OPTIONS = ["All Products", "In Stock", "Out of Stock", "Unlimited"];
 
 export default function AdminStockManagement() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { isAuthenticated, token } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -156,6 +157,7 @@ export default function AdminStockManagement() {
     searchTerm,
     filterCategory,
     filterStatus,
+    location.key,
   ]);
 
   const handleDelete = async (productId: string) => {
@@ -226,7 +228,7 @@ export default function AdminStockManagement() {
                 price: product.price,
                 stock: product.stock,
                 publish: product.publish,
-                discPrice: product.offerPrice,
+                discPrice: (product as any).offerPrice || product.discPrice,
             };
 
             await updateProduct(productId, updateData);
@@ -375,12 +377,14 @@ export default function AdminStockManagement() {
               }
               .price-row {
                   display: ${showPrice ? 'flex' : 'none'};
-                  gap: 10px;
-                  margin-top: 2px;
+                  gap: 15px;
+                  margin-top: 4px;
                   font-size: ${fontSize}px;
-                  font-weight: 700;
+                  font-weight: 800;
                   color: #000;
                   justify-content: center;
+                  align-items: center;
+                  white-space: nowrap;
               }
               svg.barcode {
                   width: 100%;
@@ -503,6 +507,7 @@ export default function AdminStockManagement() {
             variation: `${v.name}: ${v.value}`,
             stock: currentStock,
             price: Number(v.price) || baseVariation.price,
+            compareAtPrice: Number(v.compareAtPrice) || baseVariation.compareAtPrice,
             offerPrice: Number(v.discPrice) || Number((p as any).discPrice) || 0,
             status: product.publish ? "Published" : "Unpublished",
             // Variation specific overrides
@@ -510,7 +515,7 @@ export default function AdminStockManagement() {
             sizeName: isSize ? v.value : "-",
             colorName: isColor ? v.value : "-",
             attributeName: v.name, // 13
-            valueMrp: (Number(baseVariation.compareAtPrice) || 0) * currentStock,
+            valueMrp: (Number(v.compareAtPrice) || Number(baseVariation.compareAtPrice) || 0) * currentStock,
             valuePurchase: (Number(baseVariation.purchasePrice) || 0) * currentStock,
           });
         });
