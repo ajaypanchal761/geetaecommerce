@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const serviceAccountPath = path.resolve(__dirname, '../../config/firebase-service-account.json');
+const serviceAccountPath = path.resolve(process.cwd(), 'config/firebase-service-account.json');
 
 // Check if already initialized
 try {

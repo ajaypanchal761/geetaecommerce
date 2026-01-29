@@ -36,7 +36,7 @@ export default defineConfig({
   },
   optimizeDeps: {
     // Force include React and react-dom to ensure single instance
-    include: ['react', 'react-dom', 'react-apexcharts', 'apexcharts'],
+    include: ['react', 'react-dom', 'react-apexcharts', 'apexcharts', 'react-hot-toast'],
     // Exclude problematic packages if needed
     exclude: [],
   },
