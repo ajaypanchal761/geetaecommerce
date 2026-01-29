@@ -16,6 +16,7 @@
     "apexcharts": "^5.3.6",
     "axios": "^1.13.4",
     "clsx": "^2.1.0",
+    "date-fns": "^4.1.0",
     "firebase": "^12.8.0",
     "framer-motion": "^10.16.16",
     "gsap": "^3.12.5",

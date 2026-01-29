@@ -94,6 +94,33 @@ export const createNotification = asyncHandler(
       sentAt: fcmResult ? new Date() : undefined
     });
 
+    // 4. Emit Socket Notification for real-time UI updates
+    const io = req.app.get('io');
+    if (io) {
+      const socketPayload = {
+        _id: notification._id,
+        title: notification.title,
+        message: notification.message,
+        type: notification.type,
+        link: notification.link,
+        createdAt: notification.createdAt,
+        isRead: false
+      };
+
+      if (recipientType === 'All') {
+        io.emit('new-notification', socketPayload);
+      } else if (recipientType === 'Admin') {
+        io.to('admin-notifications').emit('new-notification', socketPayload);
+      } else if (recipientType === 'Seller' && recipientId) {
+        io.to(`seller-${recipientId}`).emit('new-notification', socketPayload);
+      } else if (recipientType === 'Delivery' && recipientId) {
+        io.to(`delivery-${recipientId}`).emit('new-notification', socketPayload);
+      } else if (recipientId) {
+        // Fallback for specific user IDs if recipientType is Customer etc.
+        io.to(`user-${recipientId}`).emit('new-notification', socketPayload);
+      }
+    }
+
     return res.status(201).json({
       success: true,
       message: fcmResult

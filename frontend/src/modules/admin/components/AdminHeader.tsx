@@ -2,6 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import GeetaStoresLogo from '@assets/geetastoreslogo.png';
+import { io, Socket } from 'socket.io-client';
+import { getSocketBaseURL } from '../../../services/api/config';
+import { getNotifications, Notification as AdminNotificationData } from '../../../services/api/admin/adminNotificationService';
+import { formatDistanceToNow } from 'date-fns';
 
 interface AdminHeaderProps {
   onMenuClick: () => void;
@@ -11,11 +15,14 @@ interface AdminHeaderProps {
 export default function AdminHeader({ onMenuClick, isSidebarOpen }: AdminHeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout } = useAuth();
+  const { logout, user, token, isAuthenticated } = useAuth();
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [notifications, setNotifications] = useState<AdminNotificationData[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const notificationsRef = useRef<HTMLDivElement>(null);
+  const socketRef = useRef<Socket | null>(null);
 
   const isActive = (path: string) => location.pathname.includes(path);
 
@@ -31,6 +38,71 @@ export default function AdminHeader({ onMenuClick, isSidebarOpen }: AdminHeaderP
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  // Fetch initial notifications
+  useEffect(() => {
+    const fetchInitialNotifications = async () => {
+      if (!isAuthenticated || !token) return;
+      try {
+        const response = await getNotifications({ limit: 5, recipientType: 'Admin' });
+        if (response.success && Array.isArray(response.data)) {
+          setNotifications(response.data);
+          // Actual unread count would depend on an isRead property
+          setUnreadCount(response.data.filter(n => !n.isRead).length);
+        }
+      } catch (error) {
+        console.error('Error fetching initial notifications:', error);
+      }
+    };
+
+    fetchInitialNotifications();
+  }, [isAuthenticated, token]);
+
+  // Socket.io initialization
+  useEffect(() => {
+    if (!isAuthenticated || !token || !user || (user.userType !== 'Admin' && user.userType !== 'Super Admin')) {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+      return;
+    }
+
+    const socketUrl = getSocketBaseURL();
+    const newSocket = io(socketUrl, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+    });
+
+    socketRef.current = newSocket;
+
+    newSocket.on('connect', () => {
+      console.log('✅ Admin connected to socket server');
+      newSocket.emit('join-admin-room', user.userId || user.id);
+    });
+
+    newSocket.on('new-notification', (notification: AdminNotificationData) => {
+      console.log('🔔 New dynamic notification received:', notification);
+      setNotifications(prev => [notification, ...prev].slice(0, 10));
+      setUnreadCount(prev => prev + 1);
+
+      // Optional: Show browser notification if permitted
+      if (window.Notification && window.Notification.permission === "granted") {
+         new window.Notification(notification.title, {
+            body: notification.message,
+            icon: '/notification-icon.png'
+         });
+      }
+    });
+
+    newSocket.on('disconnect', () => {
+      console.log('❌ Admin disconnected from socket server');
+    });
+
+    return () => {
+      newSocket.disconnect();
+    };
+  }, [isAuthenticated, token, user?.userId, user?.id, user?.userType]);
 
   const handleLogout = () => {
     logout();
@@ -189,16 +261,61 @@ export default function AdminHeader({ onMenuClick, isSidebarOpen }: AdminHeaderP
                 <path d="M18 8A6 6 0 0 0 6 8C6 11.3137 4 14 4 17H20C20 14 18 11.3137 18 8Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 <path d="M13.73 21C13.5542 21.3031 13.3019 21.5547 12.9982 21.7295C12.6946 21.9044 12.3504 21.9965 12 21.9965C11.6496 21.9965 11.3054 21.9044 11.0018 21.7295C10.6982 21.5547 10.4458 21.3031 10.27 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
+              {unreadCount > 0 && (
+                <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full"></span>
+              )}
             </button>
             {showNotificationsDropdown && (
               <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-neutral-200 py-2 z-50 max-h-96 overflow-y-auto">
-                <div className="px-4 py-2 border-b border-neutral-200">
+                <div className="px-4 py-2 border-b border-neutral-200 flex justify-between items-center">
                   <h3 className="text-sm font-semibold text-neutral-900">Notifications</h3>
+                  {unreadCount > 0 && (
+                    <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-bold">
+                      {unreadCount} NEW
+                    </span>
+                  )}
                 </div>
-                <div className="py-4 px-4 text-center text-sm text-neutral-500">
-                  <p>No new notifications</p>
-                </div>
+                {notifications.length > 0 ? (
+                  <div className="divide-y divide-neutral-100 max-h-[300px] overflow-y-auto">
+                    {notifications.map((notif) => (
+                      <div
+                        key={notif._id}
+                        onClick={() => {
+                          if (notif.link) navigate(notif.link);
+                          setShowNotificationsDropdown(false);
+                        }}
+                        className={`px-4 py-3 hover:bg-neutral-50 transition-colors cursor-pointer ${!notif.isRead ? 'bg-teal-50/30' : ''
+                          }`}
+                      >
+                        <div className="flex gap-3">
+                          <div className={`w-2 h-2 mt-1.5 rounded-full flex-shrink-0 ${!notif.isRead ? 'bg-teal-500' : 'bg-neutral-300'
+                            }`} />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-neutral-900 leading-tight">
+                              {notif.title}
+                            </p>
+                            <p className="text-xs text-neutral-500 mt-0.5 line-clamp-2">
+                              {notif.message}
+                            </p>
+                            <p className="text-[10px] text-neutral-400 mt-1">
+                              {notif.createdAt ? formatDistanceToNow(new Date(notif.createdAt), { addSuffix: true }) : 'Just now'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-8 px-4 text-center">
+                    <div className="w-12 h-12 bg-neutral-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-neutral-400">
+                        <path d="M18 8A6 6 0 0 0 6 8C6 11.3137 4 14 4 17H20C20 14 18 11.3137 18 8Z" />
+                        <path d="M13.73 21C13.5542 21.3031 13.3019 21.5547 12.9982 21.7295C12.6946 21.9044 12.3504 21.9965 12 21.9965C11.6496 21.9965 11.3054 21.9044 11.0018 21.7295C10.6982 21.5547 10.4458 21.3031 10.27 21" />
+                      </svg>
+                    </div>
+                    <p className="text-sm text-neutral-500">No new notifications</p>
+                  </div>
+                )}
                 <div className="px-4 py-2 border-t border-neutral-200">
                   <button
                     onClick={() => {

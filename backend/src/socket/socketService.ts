@@ -199,6 +199,20 @@ export const initializeSocket = (httpServer: HttpServer) => {
             });
         });
 
+        // Admin joins their notification room
+        socket.on('join-admin-room', (adminId: string) => {
+            const normalizedAdminId = String(adminId).trim();
+            console.log(`🛡️ Admin ${normalizedAdminId} joined notifications room`);
+            socket.join(`admin-${normalizedAdminId}`);
+            socket.join('admin-notifications');
+
+            socket.emit('joined-admin-room', {
+                success: true,
+                message: 'Successfully joined admin notifications room',
+                adminId: normalizedAdminId
+            });
+        });
+
         // Delivery boy joins notification room
         socket.on('join-delivery-notifications', (deliveryBoyId: string) => {
             // Normalize deliveryBoyId to string to ensure consistent room naming
