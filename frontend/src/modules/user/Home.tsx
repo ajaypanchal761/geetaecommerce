@@ -162,7 +162,7 @@ export default function Home() {
       {/* 2. MAIN SLIDER - With Themed Background */}
       <div
         className="px-4 md:px-6 lg:px-8 pt-4 md:pt-6 pb-4"
-        style={{ background: `linear-gradient(to bottom, ${theme.primary[2]}, ${theme.primary[3]})` }}
+        style={{ background: `linear-gradient(to bottom right, ${theme.primary[0]}, ${theme.primary[1]}, ${theme.primary[2]})` }}
       >
           <BannerSlider position="HOME_MAIN_SLIDER" />
       </div>

@@ -324,12 +324,12 @@ export default function AddToCartAnimation({
               damping: 30,
               mass: 0.8,
             }}
-            className="fixed left-0 right-0 z-40 flex justify-center px-4"
+            className="fixed left-0 right-0 z-40 flex justify-center px-4 md:left-auto md:right-0 md:justify-end md:px-8"
             style={{ bottom: `${bottomOffset}px` }}
           >
             <Link
               ref={linkRef}
-              to={linkTo}
+              to={cart.itemCount > 0 ? linkTo : '/cart'}
               className={`bg-gradient-to-r from-green-700 via-green-600 to-green-700 text-white rounded-full shadow-xl shadow-green-900/30 px-3 py-2 flex items-center gap-2 hover:from-green-800 hover:via-green-700 hover:to-green-800 transition-all duration-300 pointer-events-auto border border-green-800/30 backdrop-blur-sm ${pillClassName}`}
             >
               {/* Left: Cart Icon or Product thumbnails */}
