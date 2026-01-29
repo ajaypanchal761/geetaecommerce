@@ -3,10 +3,13 @@ import {
   getNotifications,
   createNotification,
   deleteNotification,
-  Notification as NotificationType,
+  Notification as AdminNotificationData,
   CreateNotificationData,
 } from '../../../services/api/admin/adminNotificationService';
 import { useConfirmation } from '../../../context/ConfirmationContext';
+import { io, Socket } from 'socket.io-client';
+import { getSocketBaseURL } from '../../../services/api/config';
+import { useAuth } from '../../../context/AuthContext';
 
 export default function AdminNotification() {
   const { openConfirmation } = useConfirmation();
@@ -16,7 +19,7 @@ export default function AdminNotification() {
     message: '',
   });
 
-  const [notifications, setNotifications] = useState<NotificationType[]>([]);
+  const [notifications, setNotifications] = useState<AdminNotificationData[]>([]);
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [error, setError] = useState('');
@@ -28,6 +31,7 @@ export default function AdminNotification() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalNotifications, setTotalNotifications] = useState(0);
   const [filterRecipientType, setFilterRecipientType] = useState<string>('All');
+  const { user, token, isAuthenticated } = useAuth();
 
   // Debounce search term
   useEffect(() => {
@@ -43,6 +47,35 @@ export default function AdminNotification() {
     fetchNotifications();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, rowsPerPage, filterRecipientType]);
+
+  // Socket.io for real-time updates
+  useEffect(() => {
+    if (!isAuthenticated || !token || !user || (user.userType !== 'Admin' && user.userType !== 'Super Admin')) {
+      return;
+    }
+
+    const socketUrl = getSocketBaseURL();
+    const socket = io(socketUrl, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+    });
+
+    socket.on('connect', () => {
+      socket.emit('join-admin-room', user.userId || user.id);
+    });
+
+    socket.on('new-notification', (notification: AdminNotificationData) => {
+      // Only add to list if it matches the current filter
+      if (filterRecipientType === 'All' || notification.recipientType === filterRecipientType) {
+        setNotifications(prev => [notification, ...prev]);
+        setTotalNotifications(prev => prev + 1);
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [isAuthenticated, token, user, filterRecipientType]);
 
   const fetchNotifications = async () => {
     setLoading(true);

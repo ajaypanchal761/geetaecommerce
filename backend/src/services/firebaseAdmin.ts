@@ -1,6 +1,7 @@
 import admin from 'firebase-admin';
 import path from 'path';
 import dotenv from 'dotenv';
+import fs from 'fs';
 
 dotenv.config();
 
@@ -9,10 +10,23 @@ const serviceAccountPath = path.resolve(process.cwd(), 'config/firebase-service-
 // Check if already initialized
 try {
   if (!admin.apps.length) {
+    if (!fs.existsSync(serviceAccountPath)) {
+      console.error('❌ Firebase Service Account file not found at:', serviceAccountPath);
+      throw new Error(`Service account file missing at ${serviceAccountPath}`);
+    }
+
+    console.log('Firebase Admin: Loading config from', serviceAccountPath);
+    const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+
+    // Ensure the private key is properly formatted (common fix for JWT issues)
+    if (serviceAccount.private_key) {
+      serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+    }
+
     admin.initializeApp({
-      credential: admin.credential.cert(serviceAccountPath),
+      credential: admin.credential.cert(serviceAccount),
     });
-    console.log('Firebase Admin Initialized successfully');
+    console.log('✅ Firebase Admin Initialized successfully');
   }
 } catch (error) {
   console.error('Firebase Admin Initialization Error:', error);

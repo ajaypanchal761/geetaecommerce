@@ -17,9 +17,9 @@ import {
   getModuleUserData,
 } from "../utils/moduleAuth";
 
-interface User {
+export interface User {
   id: string;
-  userType?: "Admin" | "Seller" | "Customer" | "Delivery";
+  userType?: "Admin" | "Seller" | "Customer" | "Delivery" | "Super Admin";
   [key: string]: any;
 }
 
