@@ -37,8 +37,8 @@ async function fetchSectionData(
         .lean();
 
       return subcategories.map((sub: any) => ({
-        id: sub._id.toString(),
-        subcategoryId: sub._id.toString(),
+        id: sub._id?.toString() || "",
+        subcategoryId: sub._id?.toString() || "",
         categoryId: sub.category?.toString() || "",
         name: sub.name,
         image: sub.image || "",
@@ -100,8 +100,8 @@ async function fetchSectionData(
           : false;
 
         return {
-          id: p._id.toString(),
-          productId: p._id.toString(),
+          id: p._id?.toString() || "",
+          productId: p._id?.toString() || "",
           name: p.productName,
           productName: p.productName,
           image: p.mainImage,
@@ -140,8 +140,8 @@ async function fetchSectionData(
           .lean();
 
         return fetchedCategories.map((c: any) => ({
-          id: c._id.toString(),
-          categoryId: c.slug || c._id.toString(), // Use slug for SEO-friendly URLs, fallback to _id
+          id: c._id?.toString() || "",
+          categoryId: c.slug || c._id?.toString() || "", // Use slug for SEO-friendly URLs, fallback to _id
           name: c.name,
           image: c.image,
           slug: c.slug,
@@ -233,8 +233,8 @@ export const getHomeContent = async (req: Request, res: Response) => {
         }
 
         return {
-          id: card._id.toString(),
-          categoryId: categoryId.toString(),
+          id: card._id?.toString() || "",
+          categoryId: categoryId?.toString() || "",
           name: card.name,
           productImages: productImages.slice(0, 4),
           productCount: categoryProducts.length,
@@ -275,8 +275,8 @@ export const getHomeContent = async (req: Request, res: Response) => {
           : false;
 
         return {
-          id: product._id.toString(),
-          _id: product._id.toString(),
+          id: product._id?.toString() || "",
+          _id: product._id?.toString() || "",
           productName: product.productName,
           name: product.productName,
           mainImage: product.mainImage,
@@ -324,13 +324,13 @@ export const getHomeContent = async (req: Request, res: Response) => {
         }
 
         return {
-          id: shop.storeId || shop._id.toString(),
+          id: shop.storeId || shop._id?.toString() || "",
           name: shop.name,
           image: shop.image,
           productImages, // Include preview images irrespective of location
-          slug: shop.storeId || shop._id.toString(),
+          slug: shop.storeId || shop._id?.toString() || "",
           category: shop.category,
-          productIds: shop.products?.map((p: any) => p.toString()) || [],
+          productIds: shop.products?.map((p: any) => p?.toString()).filter(Boolean) || [],
           bgColor: shop.bgColor || "bg-neutral-50",
         };
       })
@@ -424,11 +424,11 @@ export const getHomeContent = async (req: Request, res: Response) => {
           .filter((img: string) => img && img.trim() !== "");
 
         return {
-          id: category._id.toString(),
+          id: category._id?.toString() || "",
           badge: "Up to 55% OFF", // Default badge, can be customized later
           title: category.name,
-          categoryId: category._id.toString(),
-          slug: category.slug || category._id.toString(),
+          categoryId: category._id?.toString() || "",
+          slug: category.slug || category._id?.toString() || "",
           bgColor: "bg-yellow-50",
           subcategoryImages: subcategoryImages.slice(0, 4), // Max 4 images
         };
@@ -486,7 +486,7 @@ export const getHomeContent = async (req: Request, res: Response) => {
       homeSections.map(async (section: any) => {
         const sectionData = await fetchSectionData(section, nearbySellerIds);
         return {
-          id: section._id.toString(),
+          id: section._id?.toString() || "",
           title: section.title,
           slug: section.slug,
           displayType: section.displayType,
